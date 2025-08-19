@@ -1,0 +1,245 @@
+version: '3.8'
+
+services:
+  # Databases
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: scirm_dev
+      POSTGRES_USER: scirm
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scirm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Vector Database
+  weaviate:
+    image: semitechnologies/weaviate:1.21.2
+    ports:
+      - "8080:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: 'text2vec-openai,generative-openai'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+
+  # Agent Services
+  coordinator:
+    build:
+      context: ./services/coordinator
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+    volumes:
+      - ./services/coordinator:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  planner:
+    build:
+      context: ./services/planner
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+    volumes:
+      - ./services/planner:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  researcher:
+    build:
+      context: ./services/researcher
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+    volumes:
+      - ./services/researcher:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  executor:
+    build:
+      context: ./services/executor
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+    volumes:
+      - ./services/executor:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  reviewer:
+    build:
+      context: ./services/reviewer
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+    volumes:
+      - ./services/reviewer:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  api-gateway:
+    build:
+      context: ./apps/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - REDIS_URL=redis://redis:6379
+      - COORDINATOR_URL=http://coordinator:8000
+      - PLANNER_URL=http://planner:8000
+      - RESEARCHER_URL=http://researcher:8000
+      - EXECUTOR_URL=http://executor:8000
+      - REVIEWER_URL=http://reviewer:8000
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      coordinator:
+        condition: service_started
+      planner:
+        condition: service_started
+      researcher:
+        condition: service_started
+      executor:
+        condition: service_started
+      reviewer:
+        condition: service_started
+    volumes:
+      - ./apps/api-gateway:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000
+      - NODE_ENV=development
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./ops/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+
+volumes:
+  postgres_data:
+  redis_data:
+  weaviate_data:
+  prometheus_data:
+  grafana_data:

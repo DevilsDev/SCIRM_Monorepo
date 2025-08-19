@@ -1,0 +1,46 @@
+# CODEOWNERS file for SCIRM Platform
+# This file defines code ownership for automatic review assignment
+
+# Global owners - require review for all changes
+* @core-team
+
+# Agent Services
+/services/ @ai-team @core-team
+/services/coordinator/ @ai-team @backend-team
+/services/planner/ @ai-team @backend-team
+/services/researcher/ @ai-team @backend-team
+/services/executor/ @ai-team @backend-team
+/services/reviewer/ @ai-team @backend-team
+
+# Frontend
+/apps/frontend/ @frontend-team @core-team
+/apps/frontend/src/components/ @frontend-team
+/apps/frontend/src/pages/ @frontend-team
+
+# API Gateway
+/apps/api-gateway/ @backend-team @core-team
+
+# Shared Libraries
+/libs/ @backend-team @ai-team
+/libs/common/ @backend-team
+/libs/rag/ @ai-team
+/libs/cag/ @ai-team
+
+# Infrastructure
+/infra/ @devops-team @core-team
+/.github/workflows/ @devops-team @core-team
+/ops/ @devops-team
+
+# Documentation
+/docs/ @docs-team @core-team
+/README.md @core-team
+/mkdocs.yml @docs-team
+
+# Configuration Files
+/.env.example @devops-team @core-team
+/requirements*.txt @backend-team @core-team
+/Makefile @devops-team @core-team
+
+# Security and Compliance
+/security/ @security-team @core-team
+/compliance/ @security-team @core-team

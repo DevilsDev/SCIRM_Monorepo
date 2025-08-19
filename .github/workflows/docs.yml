@@ -1,0 +1,297 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+  repository_dispatch:
+    types: [docs-rebuild]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-docs-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-docs-
+          ${{ runner.os }}-pip-
+    
+    - name: Install documentation dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install mkdocs-material
+        pip install mkdocstrings[python]
+        pip install mkdocs-mermaid2-plugin
+        pip install mike
+    
+    - name: Install project dependencies for API docs
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Configure Git for mike
+      run: |
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+    
+    - name: Build documentation
+      run: |
+        # Build current version
+        mkdocs build --clean --strict
+        
+        # Deploy with mike for versioning
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          mike deploy --push --update-aliases main latest
+          mike set-default --push latest
+        fi
+    
+    - name: Upload documentation artifacts
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: ./site
+
+  deploy-docs:
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.ref == 'refs/heads/main'
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
+
+  validate-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install documentation dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install mkdocs-material
+        pip install mkdocstrings[python]
+        pip install mkdocs-mermaid2-plugin
+    
+    - name: Install project dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Validate documentation
+      run: |
+        # Check for broken links in markdown
+        find docs/ -name "*.md" -exec grep -l "http" {} \; | while read file; do
+          echo "Checking links in $file"
+          grep -oP 'https?://[^\s\)]+' "$file" | while read url; do
+            if ! curl -s --head "$url" | head -n 1 | grep -q "200 OK"; then
+              echo "Broken link found: $url in $file"
+              exit 1
+            fi
+          done
+        done
+    
+    - name: Check documentation build
+      run: |
+        mkdocs build --strict
+    
+    - name: Validate API documentation
+      run: |
+        # Check that all services have API documentation
+        services=("coordinator" "planner" "researcher" "executor" "reviewer")
+        for service in "${services[@]}"; do
+          if [ ! -f "docs/api/${service}.md" ]; then
+            echo "Missing API documentation for $service"
+            exit 1
+          fi
+        done
+
+  api-docs-generation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pydantic[email]
+    
+    - name: Generate OpenAPI specs
+      run: |
+        # Create API docs directory
+        mkdir -p docs/api/specs
+        
+        # Generate OpenAPI specs for each service
+        python -c "
+        import sys
+        sys.path.append('.')
+        
+        from apps.api_gateway.main import app as gateway_app
+        from services.coordinator.main import app as coordinator_app
+        from services.planner.main import app as planner_app
+        from services.researcher.main import app as researcher_app
+        from services.executor.main import app as executor_app
+        from services.reviewer.main import app as reviewer_app
+        
+        import json
+        
+        apps = {
+            'gateway': gateway_app,
+            'coordinator': coordinator_app,
+            'planner': planner_app,
+            'researcher': researcher_app,
+            'executor': executor_app,
+            'reviewer': reviewer_app
+        }
+        
+        for name, app in apps.items():
+            spec = app.openapi()
+            with open(f'docs/api/specs/{name}.json', 'w') as f:
+                json.dump(spec, f, indent=2)
+        "
+    
+    - name: Upload API specs
+      uses: actions/upload-artifact@v3
+      with:
+        name: api-specs
+        path: docs/api/specs/
+
+  link-checker:
+    runs-on: ubuntu-latest
+    needs: build-docs
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Download documentation artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: github-pages
+        path: ./site
+    
+    - name: Extract site
+      run: |
+        cd site
+        tar -xf artifact.tar
+    
+    - name: Check internal links
+      uses: lycheeverse/lychee-action@v1
+      with:
+        args: --verbose --no-progress './site/**/*.html'
+        fail: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docs-metrics:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Calculate documentation metrics
+      run: |
+        # Count documentation files
+        TOTAL_DOCS=$(find docs/ -name "*.md" | wc -l)
+        
+        # Count words in documentation
+        TOTAL_WORDS=$(find docs/ -name "*.md" -exec cat {} \; | wc -w)
+        
+        # Count code examples
+        CODE_EXAMPLES=$(find docs/ -name "*.md" -exec grep -c '```' {} \; | awk '{sum+=$1} END {print sum/2}')
+        
+        # Count images/diagrams
+        IMAGES=$(find docs/ -name "*.md" -exec grep -c '!\[' {} \; | awk '{sum+=$1} END {print sum}')
+        
+        echo "Documentation Metrics:"
+        echo "- Total documentation files: $TOTAL_DOCS"
+        echo "- Total words: $TOTAL_WORDS"
+        echo "- Code examples: $CODE_EXAMPLES"
+        echo "- Images/diagrams: $IMAGES"
+        
+        # Save metrics for badge generation
+        echo "TOTAL_DOCS=$TOTAL_DOCS" >> $GITHUB_ENV
+        echo "TOTAL_WORDS=$TOTAL_WORDS" >> $GITHUB_ENV
+    
+    - name: Update documentation badge
+      run: |
+        # Create a simple badge with documentation stats
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d "{\"message\": \"${{ env.TOTAL_DOCS }} files, ${{ env.TOTAL_WORDS }} words\", \"color\": \"blue\"}" \
+          "https://img.shields.io/badge/docs-${{ env.TOTAL_DOCS }}%20files-blue"
+
+  notify-docs-update:
+    runs-on: ubuntu-latest
+    needs: [deploy-docs]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify documentation update
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        channel: '#documentation'
+        text: |
+          📚 SCIRM Documentation Updated
+          
+          The documentation has been successfully updated and deployed.
+          
+          🔗 View: https://scirm-platform.github.io/docs
+          📝 Commit: ${{ github.sha }}
+          👤 Author: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: env.SLACK_WEBHOOK_URL != ''
