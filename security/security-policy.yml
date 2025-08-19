@@ -1,0 +1,75 @@
+# SCIRM Platform Security Policy
+# Compliance: SOC2, GDPR, HIPAA
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-policy
+  namespace: scirm-staging
+data:
+  # Authentication & Authorization
+  jwt_expiry_hours: "24"
+  refresh_token_expiry_days: "30"
+  max_login_attempts: "5"
+  account_lockout_duration_minutes: "30"
+  
+  # Data Protection
+  encryption_algorithm: "AES-256-GCM"
+  data_retention_days: "2555"  # 7 years for compliance
+  backup_retention_days: "90"
+  
+  # API Security
+  rate_limit_requests_per_minute: "100"
+  rate_limit_burst: "200"
+  cors_allowed_origins: "https://scirm.company.com,https://staging.scirm.company.com"
+  
+  # Audit & Compliance
+  audit_log_retention_years: "7"
+  compliance_scan_frequency_hours: "24"
+  vulnerability_scan_frequency_hours: "168"  # Weekly
+  
+  # Network Security
+  tls_min_version: "1.2"
+  cipher_suites: "ECDHE-RSA-AES256-GCM-SHA384,ECDHE-RSA-AES128-GCM-SHA256"
+  
+  # GDPR Compliance
+  data_subject_request_response_days: "30"
+  consent_management_enabled: "true"
+  right_to_erasure_enabled: "true"
+  
+  # HIPAA Compliance
+  phi_encryption_required: "true"
+  access_logging_enabled: "true"
+  minimum_necessary_standard: "true"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scirm-network-policy
+  namespace: scirm-staging
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: scirm-staging
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: scirm-staging
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS

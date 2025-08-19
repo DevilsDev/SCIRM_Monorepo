@@ -1,0 +1,150 @@
+# SOC 2 Compliance Configuration for SCIRM Platform
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: soc2-compliance
+  namespace: scirm-staging
+data:
+  # Security Trust Service Criteria
+  security_criteria.json: |
+    {
+      "access_controls": {
+        "logical_access": {
+          "user_identification": "unique_credentials",
+          "authentication": "multi_factor",
+          "authorization": "role_based",
+          "access_review_frequency": "quarterly"
+        },
+        "privileged_access": {
+          "approval_process": "dual_authorization",
+          "monitoring": "continuous",
+          "review_frequency": "monthly",
+          "emergency_access": "break_glass_procedures"
+        }
+      },
+      "system_operations": {
+        "change_management": {
+          "approval_required": true,
+          "testing_required": true,
+          "rollback_procedures": true,
+          "documentation_required": true
+        },
+        "incident_response": {
+          "detection_procedures": "automated_monitoring",
+          "response_team": "designated_personnel",
+          "communication_plan": "stakeholder_notification",
+          "post_incident_review": "lessons_learned"
+        }
+      }
+    }
+  
+  # Availability Trust Service Criteria
+  availability_criteria.json: |
+    {
+      "system_availability": {
+        "uptime_target": "99.9%",
+        "monitoring": "24x7",
+        "alerting": "automated",
+        "escalation_procedures": "defined_tiers"
+      },
+      "capacity_planning": {
+        "performance_monitoring": "continuous",
+        "capacity_thresholds": "defined_limits",
+        "scaling_procedures": "automated",
+        "load_testing": "quarterly"
+      },
+      "backup_recovery": {
+        "backup_frequency": "daily",
+        "backup_testing": "monthly",
+        "recovery_procedures": "documented",
+        "rto_target_hours": 4,
+        "rpo_target_hours": 1
+      }
+    }
+  
+  # Processing Integrity Trust Service Criteria
+  processing_integrity.json: |
+    {
+      "data_processing": {
+        "input_validation": "comprehensive",
+        "processing_controls": "automated_checks",
+        "output_validation": "quality_assurance",
+        "error_handling": "graceful_degradation"
+      },
+      "system_integrity": {
+        "code_reviews": "mandatory",
+        "vulnerability_scanning": "automated",
+        "penetration_testing": "annual",
+        "security_patches": "timely_application"
+      }
+    }
+  
+  # Confidentiality Trust Service Criteria
+  confidentiality_criteria.json: |
+    {
+      "data_classification": {
+        "public": "no_restrictions",
+        "internal": "employee_access_only",
+        "confidential": "need_to_know_basis",
+        "restricted": "executive_approval_required"
+      },
+      "encryption": {
+        "data_at_rest": "AES-256",
+        "data_in_transit": "TLS_1_3",
+        "key_management": "hsm_protected",
+        "key_rotation": "annual"
+      },
+      "data_handling": {
+        "data_retention": "policy_defined",
+        "secure_disposal": "dod_standards",
+        "data_sharing": "agreement_required",
+        "cross_border_transfers": "adequacy_decisions"
+      }
+    }
+  
+  # Privacy Trust Service Criteria
+  privacy_criteria.json: |
+    {
+      "privacy_notice": {
+        "data_collection_purposes": "clearly_stated",
+        "data_usage_description": "comprehensive",
+        "third_party_sharing": "disclosed",
+        "retention_periods": "specified"
+      },
+      "consent_management": {
+        "explicit_consent": "required_for_sensitive_data",
+        "consent_withdrawal": "easy_process",
+        "consent_records": "maintained",
+        "granular_controls": "available"
+      },
+      "data_subject_rights": {
+        "access_requests": "30_day_response",
+        "correction_requests": "prompt_processing",
+        "deletion_requests": "right_to_erasure",
+        "portability_requests": "structured_format"
+      }
+    }
+  
+  # Control Activities
+  control_activities.json: |
+    {
+      "preventive_controls": {
+        "access_restrictions": "role_based_permissions",
+        "input_validations": "data_type_checks",
+        "segregation_of_duties": "approval_workflows",
+        "authorization_limits": "spending_thresholds"
+      },
+      "detective_controls": {
+        "monitoring_activities": "real_time_alerts",
+        "reconciliations": "automated_checks",
+        "performance_reviews": "variance_analysis",
+        "exception_reporting": "automated_flagging"
+      },
+      "corrective_controls": {
+        "error_correction": "automated_remediation",
+        "incident_response": "defined_procedures",
+        "system_recovery": "backup_restoration",
+        "process_improvement": "continuous_enhancement"
+      }
+    }

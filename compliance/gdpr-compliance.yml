@@ -1,0 +1,129 @@
+# GDPR Compliance Configuration for SCIRM Platform
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gdpr-compliance
+  namespace: scirm-staging
+data:
+  # Data Subject Rights
+  data_subject_rights.json: |
+    {
+      "rights": {
+        "right_to_access": {
+          "enabled": true,
+          "response_time_days": 30,
+          "data_formats": ["JSON", "CSV", "PDF"]
+        },
+        "right_to_rectification": {
+          "enabled": true,
+          "automated_correction": true,
+          "audit_trail_required": true
+        },
+        "right_to_erasure": {
+          "enabled": true,
+          "cascade_deletion": true,
+          "retention_exceptions": ["legal_hold", "compliance_requirement"]
+        },
+        "right_to_portability": {
+          "enabled": true,
+          "export_formats": ["JSON", "XML", "CSV"],
+          "structured_data_only": true
+        },
+        "right_to_object": {
+          "enabled": true,
+          "automated_processing_opt_out": true,
+          "marketing_opt_out": true
+        }
+      }
+    }
+  
+  # Data Processing Lawful Basis
+  lawful_basis.json: |
+    {
+      "processing_purposes": {
+        "risk_assessment": {
+          "lawful_basis": "legitimate_interest",
+          "description": "Supply chain risk management and analysis",
+          "data_categories": ["organizational_data", "supply_chain_data"],
+          "retention_period_days": 2555
+        },
+        "compliance_monitoring": {
+          "lawful_basis": "legal_obligation",
+          "description": "Regulatory compliance and audit requirements",
+          "data_categories": ["audit_logs", "compliance_records"],
+          "retention_period_days": 2555
+        },
+        "service_provision": {
+          "lawful_basis": "contract",
+          "description": "Providing SCIRM platform services",
+          "data_categories": ["user_data", "organizational_data"],
+          "retention_period_days": 1095
+        }
+      }
+    }
+  
+  # Data Categories and Protection Measures
+  data_protection.json: |
+    {
+      "data_categories": {
+        "personal_data": {
+          "encryption_required": true,
+          "pseudonymization": true,
+          "access_logging": true,
+          "examples": ["user_emails", "names", "contact_information"]
+        },
+        "special_category_data": {
+          "encryption_required": true,
+          "explicit_consent_required": true,
+          "enhanced_security": true,
+          "examples": ["health_data", "biometric_data"]
+        },
+        "organizational_data": {
+          "encryption_required": true,
+          "business_confidential": true,
+          "access_control": "role_based",
+          "examples": ["supplier_information", "financial_data"]
+        }
+      },
+      "protection_measures": {
+        "encryption_at_rest": "AES-256",
+        "encryption_in_transit": "TLS 1.3",
+        "key_management": "HSM",
+        "access_controls": "RBAC + MFA",
+        "audit_logging": "comprehensive",
+        "data_minimization": "automated",
+        "pseudonymization": "reversible"
+      }
+    }
+  
+  # Consent Management
+  consent_management.json: |
+    {
+      "consent_types": {
+        "service_usage": {
+          "required": true,
+          "granular": false,
+          "withdrawable": true,
+          "description": "Use of SCIRM platform services"
+        },
+        "analytics": {
+          "required": false,
+          "granular": true,
+          "withdrawable": true,
+          "description": "Usage analytics and service improvement"
+        },
+        "marketing": {
+          "required": false,
+          "granular": true,
+          "withdrawable": true,
+          "description": "Marketing communications and updates"
+        }
+      },
+      "consent_storage": {
+        "method": "cryptographic_proof",
+        "retention_period": "indefinite",
+        "audit_trail": true,
+        "version_control": true
+      }
+    }
