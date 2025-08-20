@@ -1,0 +1,331 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # Branch-specific workflow validation
+  validate-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch workflow
+        run: |
+          branch_name="${{ github.head_ref || github.ref_name }}"
+          echo "Processing branch: $branch_name"
+          
+          # Set workflow flags based on branch
+          if [[ "$branch_name" == "main" ]]; then
+            echo "DEPLOY_PRODUCTION=true" >> $GITHUB_ENV
+            echo "RUN_FULL_TESTS=true" >> $GITHUB_ENV
+          elif [[ "$branch_name" == "develop" ]]; then
+            echo "DEPLOY_STAGING=true" >> $GITHUB_ENV
+            echo "RUN_INTEGRATION_TESTS=true" >> $GITHUB_ENV
+          elif [[ "$branch_name" =~ ^feature/ ]]; then
+            echo "RUN_UNIT_TESTS=true" >> $GITHUB_ENV
+          elif [[ "$branch_name" =~ ^release/ ]]; then
+            echo "RUN_FULL_TESTS=true" >> $GITHUB_ENV
+            echo "VALIDATE_VERSION=true" >> $GITHUB_ENV
+          fi
+
+  # Backend testing
+  test-backend:
+    runs-on: ubuntu-latest
+    needs: validate-workflow
+    
+    strategy:
+      matrix:
+        service: [coordinator, planner, researcher, executor, reviewer]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Lint with flake8
+      run: |
+        flake8 services/${{ matrix.service }}/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 services/${{ matrix.service }}/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Type check with mypy
+      run: |
+        mypy services/${{ matrix.service }}/
+    
+    - name: Test with pytest
+      run: |
+        pytest services/${{ matrix.service }}/tests/ -v --cov=services/${{ matrix.service }} --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: backend,${{ matrix.service }}
+
+  # Frontend testing
+  test-frontend:
+    runs-on: ubuntu-latest
+    needs: validate-workflow
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: apps/frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd apps/frontend
+        npm ci
+    
+    - name: Lint with ESLint
+      run: |
+        cd apps/frontend
+        npm run lint
+    
+    - name: Type check with TypeScript
+      run: |
+        cd apps/frontend
+        npm run type-check
+    
+    - name: Run tests
+      run: |
+        cd apps/frontend
+        npm run test:coverage
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./apps/frontend/coverage/lcov.info
+        flags: frontend
+
+  # API Gateway testing
+  test-api-gateway:
+    runs-on: ubuntu-latest
+    needs: validate-workflow
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Lint and test API Gateway
+      run: |
+        flake8 apps/api-gateway/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        mypy apps/api-gateway/
+        pytest apps/api-gateway/tests/ -v --cov=apps/api-gateway --cov-report=xml
+
+  # Integration tests (develop and main branches)
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, test-api-gateway]
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' || contains(github.head_ref, 'release/')
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: scirm_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scirm_test
+        REDIS_URL: redis://localhost:6379
+      run: |
+        pytest tests/integration/ -v --maxfail=5
+
+  # Security scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: validate-workflow
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Bandit security scan
+      run: |
+        pip install bandit[toml]
+        bandit -r services/ apps/ libs/ -f json -o bandit-report.json || true
+    
+    - name: Run Safety dependency scan
+      run: |
+        pip install safety
+        safety check --json --output safety-report.json || true
+    
+    - name: Upload security scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: bandit-report.json
+
+  # Build validation
+  build-validation:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, test-api-gateway]
+    
+    strategy:
+      matrix:
+        service:
+          - name: api-gateway
+            context: .
+            dockerfile: ./apps/api-gateway/Dockerfile
+          - name: coordinator
+            context: .
+            dockerfile: ./services/coordinator/Dockerfile
+          - name: planner
+            context: .
+            dockerfile: ./services/planner/Dockerfile
+          - name: researcher
+            context: .
+            dockerfile: ./services/researcher/Dockerfile
+          - name: executor
+            context: .
+            dockerfile: ./services/executor/Dockerfile
+          - name: reviewer
+            context: .
+            dockerfile: ./services/reviewer/Dockerfile
+          - name: frontend
+            context: ./apps/frontend
+            dockerfile: ./apps/frontend/Dockerfile
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.service.context }}
+        file: ${{ matrix.service.dockerfile }}
+        push: false
+        tags: scirm/${{ matrix.service.name }}:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Version validation for release branches
+  validate-version:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'release/') || startsWith(github.ref, 'refs/heads/release/')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate version consistency
+      run: |
+        # Extract version from branch name
+        BRANCH_VERSION=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/release\/v//')
+        
+        # Check VERSION file
+        FILE_VERSION=$(cat VERSION | tr -d '\n')
+        
+        if [[ "$BRANCH_VERSION" != "$FILE_VERSION" ]]; then
+          echo "❌ Version mismatch: branch=$BRANCH_VERSION, file=$FILE_VERSION"
+          exit 1
+        fi
+        
+        echo "✅ Version validation passed: $FILE_VERSION"
+
+  # Staging deployment trigger (develop branch)
+  trigger-staging-deploy:
+    runs-on: ubuntu-latest
+    needs: [integration-tests, security-scan, build-validation]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+    - name: Trigger staging deployment
+      run: |
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/dispatches \
+          -d '{"event_type": "deploy-staging"}'
+
+  # Quality gates summary
+  quality-gates:
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, test-api-gateway, security-scan, build-validation]
+    if: always()
+    
+    steps:
+    - name: Quality gates summary
+      run: |
+        echo "## 🎯 Quality Gates Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Backend Tests | ${{ needs.test-backend.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Frontend Tests | ${{ needs.test-frontend.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| API Gateway Tests | ${{ needs.test-api-gateway.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build Validation | ${{ needs.build-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        
+        # Fail if any critical checks failed
+        if [[ "${{ needs.test-backend.result }}" != "success" ]] || \
+           [[ "${{ needs.test-frontend.result }}" != "success" ]] || \
+           [[ "${{ needs.test-api-gateway.result }}" != "success" ]] || \
+           [[ "${{ needs.build-validation.result }}" != "success" ]]; then
+          echo "❌ Quality gates failed"
+          exit 1
+        fi
+        
+        echo "✅ All quality gates passed"

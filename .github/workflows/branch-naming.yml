@@ -1,0 +1,41 @@
+name: Branch Naming Convention
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch naming convention
+        run: |
+          branch_name="${{ github.head_ref }}"
+          
+          # Allow main and develop branches
+          if [[ "$branch_name" == "main" || "$branch_name" == "develop" ]]; then
+            echo "✅ Core branch: $branch_name"
+            exit 0
+          fi
+          
+          # Check naming patterns
+          if [[ "$branch_name" =~ ^feature/[a-z0-9-]+$ ]]; then
+            echo "✅ Valid feature branch: $branch_name"
+          elif [[ "$branch_name" =~ ^bugfix/[a-z0-9-]+$ ]]; then
+            echo "✅ Valid bugfix branch: $branch_name"
+          elif [[ "$branch_name" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "✅ Valid release branch: $branch_name"
+          elif [[ "$branch_name" =~ ^hotfix/[a-z0-9-]+$ ]]; then
+            echo "✅ Valid hotfix branch: $branch_name"
+          elif [[ "$branch_name" =~ ^docs/[a-z0-9-]+$ ]]; then
+            echo "✅ Valid docs branch: $branch_name"
+          else
+            echo "❌ Invalid branch name: $branch_name"
+            echo "Branch names must follow the pattern:"
+            echo "  - feature/<short-name>"
+            echo "  - bugfix/<short-name>"
+            echo "  - release/vX.Y.Z"
+            echo "  - hotfix/<short-name>"
+            echo "  - docs/<topic>"
+            exit 1
+          fi
