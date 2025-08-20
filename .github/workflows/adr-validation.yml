@@ -1,0 +1,336 @@
+name: 📋 ADR Validation - Enforce Google SD&D Standards
+
+on:
+  pull_request:
+    paths:
+      - 'docs/architecture/adr/**'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/architecture/adr/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  # ============================================================================
+  # ADR VALIDATION - Enforce required fields and canonical categories
+  # ============================================================================
+  validate-adr:
+    name: 🔍 Validate ADR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python for ADR validation
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install validation dependencies
+        run: |
+          pip install pyyaml markdown
+
+      - name: Create ADR validation script
+        run: |
+          cat > validate_adr.py << 'EOF'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+          
+          # Canonical ADR categories (exact strings)
+          CANONICAL_CATEGORIES = {
+              "Architecture",
+              "Security", 
+              "Compliance",
+              "Data & Retrieval",
+              "CI/CD",
+              "Branching & Governance",
+              "Observability & SRE",
+              "Performance & Scalability",
+              "Privacy",
+              "API & Contracts",
+              "UX & Accessibility",
+              "Documentation & Knowledge",
+              "Finance & Cost",
+              "Risk Management"
+          }
+          
+          # Required Google SD&D fields
+          REQUIRED_FIELDS = [
+              "Status",
+              "Date", 
+              "Categories",
+              "DRI",
+              "Context & Problem Statement",
+              "Decision",
+              "Alternatives Considered",
+              "Consequences",
+              "Rollout Plan & Guardrails",
+              "Test & Quality Impact",
+              "Privacy/Security Impact", 
+              "Observability & SLOs",
+              "Cost/Performance Considerations",
+              "Dependencies & Migration"
+          ]
+          
+          def validate_adr_file(file_path):
+              """Validate a single ADR file"""
+              errors = []
+              warnings = []
+              
+              try:
+                  with open(file_path, 'r', encoding='utf-8') as f:
+                      content = f.read()
+              except Exception as e:
+                  return [f"Failed to read file: {e}"], []
+              
+              # Check if it's the template file
+              if "ADR-TEMPLATE.md" in str(file_path):
+                  return [], []  # Skip template validation
+              
+              # Extract metadata from header
+              metadata = {}
+              lines = content.split('\n')
+              
+              for line in lines[:20]:  # Check first 20 lines for metadata
+                  if line.startswith('**Status**:'):
+                      metadata['Status'] = line.split(':', 1)[1].strip()
+                  elif line.startswith('**Date**:'):
+                      metadata['Date'] = line.split(':', 1)[1].strip()
+                  elif line.startswith('**Categories**:'):
+                      metadata['Categories'] = line.split(':', 1)[1].strip()
+                  elif line.startswith('**DRI**:'):
+                      metadata['DRI'] = line.split(':', 1)[1].strip()
+              
+              # Validate required metadata fields
+              for field in ['Status', 'Date', 'Categories', 'DRI']:
+                  if field not in metadata or not metadata[field].strip():
+                      errors.append(f"Missing required field: {field}")
+              
+              # Validate Status values
+              if 'Status' in metadata:
+                  valid_statuses = {'Proposed', 'Accepted', 'Deprecated', 'Superseded'}
+                  status = metadata['Status'].strip('[]')
+                  if status not in valid_statuses:
+                      errors.append(f"Invalid status '{status}'. Must be one of: {valid_statuses}")
+              
+              # Validate Categories
+              if 'Categories' in metadata:
+                  categories_text = metadata['Categories'].strip('[]')
+                  if categories_text:
+                      categories = [cat.strip() for cat in categories_text.split(',')]
+                      invalid_categories = []
+                      for cat in categories:
+                          if cat not in CANONICAL_CATEGORIES:
+                              invalid_categories.append(cat)
+                      
+                      if invalid_categories:
+                          errors.append(f"Invalid categories: {invalid_categories}. Must use canonical categories: {sorted(CANONICAL_CATEGORIES)}")
+                      
+                      if len(categories) == 0:
+                          errors.append("At least one category must be specified")
+                  else:
+                      errors.append("Categories field cannot be empty")
+              
+              # Validate DRI format
+              if 'DRI' in metadata:
+                  dri = metadata['DRI'].strip()
+                  if not dri.startswith('@'):
+                      errors.append("DRI must be a GitHub handle starting with @")
+              
+              # Check for required sections
+              section_checks = {
+                  "Context & Problem Statement": r"## Context & Problem Statement",
+                  "Decision": r"## Decision", 
+                  "Alternatives Considered": r"## Alternatives Considered",
+                  "Consequences": r"## Consequences",
+                  "Rollout Plan & Guardrails": r"### Rollout Plan & Guardrails",
+                  "Test & Quality Impact": r"### Test & Quality Impact",
+                  "Privacy/Security Impact": r"### Privacy/Security Impact",
+                  "Observability & SLOs": r"### Observability & SLOs",
+                  "Cost/Performance Considerations": r"### Cost/Performance Considerations",
+                  "Dependencies & Migration": r"### Dependencies & Migration"
+              }
+              
+              for section_name, pattern in section_checks.items():
+                  if not re.search(pattern, content):
+                      errors.append(f"Missing required section: {section_name}")
+              
+              # Check for evidence links
+              if "/compliance/artifacts/" not in content:
+                  warnings.append("Consider adding links to compliance evidence")
+              
+              # Check for alternatives analysis
+              if "## Alternatives Considered" in content:
+                  alternatives_section = content.split("## Alternatives Considered")[1].split("## Consequences")[0]
+                  if "**Pros**:" not in alternatives_section or "**Cons**:" not in alternatives_section:
+                      warnings.append("Alternatives section should include Pros/Cons analysis")
+              
+              return errors, warnings
+          
+          def main():
+              """Main validation function"""
+              adr_dir = Path("docs/architecture/adr")
+              
+              if not adr_dir.exists():
+                  print("❌ ADR directory not found")
+                  return 1
+              
+              total_errors = 0
+              total_warnings = 0
+              
+              # Find all ADR files
+              adr_files = list(adr_dir.glob("*.md"))
+              
+              if not adr_files:
+                  print("⚠️ No ADR files found")
+                  return 0
+              
+              print(f"🔍 Validating {len(adr_files)} ADR files...")
+              print()
+              
+              for adr_file in sorted(adr_files):
+                  print(f"📋 Validating {adr_file.name}...")
+                  
+                  errors, warnings = validate_adr_file(adr_file)
+                  
+                  if errors:
+                      print(f"❌ {len(errors)} errors found:")
+                      for error in errors:
+                          print(f"   • {error}")
+                      total_errors += len(errors)
+                  
+                  if warnings:
+                      print(f"⚠️ {len(warnings)} warnings:")
+                      for warning in warnings:
+                          print(f"   • {warning}")
+                      total_warnings += len(warnings)
+                  
+                  if not errors and not warnings:
+                      print("✅ Valid")
+                  
+                  print()
+              
+              print(f"📊 Validation Summary:")
+              print(f"   Files checked: {len(adr_files)}")
+              print(f"   Total errors: {total_errors}")
+              print(f"   Total warnings: {total_warnings}")
+              
+              if total_errors > 0:
+                  print()
+                  print("❌ ADR validation failed. Please fix the errors above.")
+                  print("📖 See ADR-TEMPLATE.md for required fields and format.")
+                  return 1
+              else:
+                  print()
+                  print("✅ All ADRs are valid!")
+                  return 0
+          
+          if __name__ == "__main__":
+              sys.exit(main())
+          EOF
+
+      - name: Run ADR validation
+        id: validation
+        run: |
+          echo "🔍 Running ADR validation..."
+          python validate_adr.py
+          echo "validation_result=$?" >> $GITHUB_OUTPUT
+
+      - name: Create validation report
+        if: always()
+        run: |
+          echo "📋 ADR Validation Report" > adr_validation_report.md
+          echo "=========================" >> adr_validation_report.md
+          echo "" >> adr_validation_report.md
+          echo "**Validation Date**: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> adr_validation_report.md
+          echo "**Workflow Run**: ${{ github.run_id }}" >> adr_validation_report.md
+          echo "**Commit**: ${{ github.sha }}" >> adr_validation_report.md
+          echo "" >> adr_validation_report.md
+          
+          if [ "${{ steps.validation.outputs.validation_result }}" = "0" ]; then
+            echo "✅ **Status**: All ADRs are valid" >> adr_validation_report.md
+            echo "" >> adr_validation_report.md
+            echo "All ADRs meet Google SD&D standards with:" >> adr_validation_report.md
+            echo "- Required metadata fields (Status, Date, Categories, DRI)" >> adr_validation_report.md
+            echo "- Canonical category usage" >> adr_validation_report.md
+            echo "- Complete Google SD&D sections" >> adr_validation_report.md
+            echo "- Proper alternatives analysis" >> adr_validation_report.md
+          else
+            echo "❌ **Status**: ADR validation failed" >> adr_validation_report.md
+            echo "" >> adr_validation_report.md
+            echo "Please review the validation output above and fix the identified issues." >> adr_validation_report.md
+            echo "" >> adr_validation_report.md
+            echo "**Common Issues**:" >> adr_validation_report.md
+            echo "- Missing required fields (Categories, DRI)" >> adr_validation_report.md
+            echo "- Invalid category names (must use canonical list)" >> adr_validation_report.md
+            echo "- Missing Google SD&D sections" >> adr_validation_report.md
+            echo "- Incomplete alternatives analysis" >> adr_validation_report.md
+          fi
+          
+          echo "" >> adr_validation_report.md
+          echo "**Canonical Categories**:" >> adr_validation_report.md
+          echo "- Architecture" >> adr_validation_report.md
+          echo "- Security" >> adr_validation_report.md
+          echo "- Compliance" >> adr_validation_report.md
+          echo "- Data & Retrieval" >> adr_validation_report.md
+          echo "- CI/CD" >> adr_validation_report.md
+          echo "- Branching & Governance" >> adr_validation_report.md
+          echo "- Observability & SRE" >> adr_validation_report.md
+          echo "- Performance & Scalability" >> adr_validation_report.md
+          echo "- Privacy" >> adr_validation_report.md
+          echo "- API & Contracts" >> adr_validation_report.md
+          echo "- UX & Accessibility" >> adr_validation_report.md
+          echo "- Documentation & Knowledge" >> adr_validation_report.md
+          echo "- Finance & Cost" >> adr_validation_report.md
+          echo "- Risk Management" >> adr_validation_report.md
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adr-validation-report
+          path: adr_validation_report.md
+          retention-days: 30
+
+      - name: Comment on PR (if validation fails)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('adr_validation_report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📋 ADR Validation Failed
+              
+              ${report}
+              
+              Please fix the validation errors and update your PR.
+              
+              **Resources**:
+              - [ADR Template](docs/architecture/adr/ADR-TEMPLATE.md)
+              - [Google SD&D Guidelines](https://docs.google.com/document/d/1kngKHUCS0DHKvp3V1ne35qKriz8UL8QjVWRHpwzOuAk)
+              `
+            });
+
+      - name: Set check status
+        if: always()
+        run: |
+          if [ "${{ steps.validation.outputs.validation_result }}" = "0" ]; then
+            echo "✅ ADR validation passed"
+          else
+            echo "❌ ADR validation failed"
+            exit 1
+          fi

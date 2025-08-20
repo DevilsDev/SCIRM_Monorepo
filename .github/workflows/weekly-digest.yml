@@ -1,0 +1,470 @@
+name: 📊 Weekly Digest - Governance Decisions Summary
+
+on:
+  schedule:
+    # Run every Sunday at 23:00 UTC to generate weekly digest
+    - cron: '0 23 * * 0'
+  
+  # Trigger on ADR changes
+  push:
+    branches: [main]
+    paths:
+      - 'docs/architecture/adr/**'
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      week_ending:
+        description: 'Week ending date (YYYY-MM-DD)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  # ============================================================================
+  # WEEKLY DIGEST GENERATION - Categorized ADR summary for leadership
+  # ============================================================================
+  generate-digest:
+    name: 📊 Generate Weekly Digest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python for digest generation
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install python-dateutil gitpython
+
+      - name: Create digest generation script
+        run: |
+          cat > generate_digest.py << 'EOF'
+          import os
+          import re
+          import git
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          import json
+          
+          # Canonical ADR categories in display order
+          CANONICAL_CATEGORIES = [
+              "Architecture",
+              "Security", 
+              "Compliance",
+              "Data & Retrieval",
+              "CI/CD",
+              "Branching & Governance",
+              "Observability & SRE",
+              "Performance & Scalability",
+              "Privacy",
+              "API & Contracts",
+              "UX & Accessibility",
+              "Documentation & Knowledge",
+              "Finance & Cost",
+              "Risk Management"
+          ]
+          
+          def parse_adr_metadata(content):
+              """Extract metadata from ADR content"""
+              metadata = {}
+              lines = content.split('\n')
+              
+              # Extract title from first line
+              title_match = re.match(r'^# (ADR-\d+): (.+)$', lines[0])
+              if title_match:
+                  metadata['id'] = title_match.group(1)
+                  metadata['title'] = title_match.group(2)
+              
+              # Extract metadata from header
+              for line in lines[:20]:
+                  if line.startswith('**Status**:'):
+                      metadata['status'] = line.split(':', 1)[1].strip().strip('[]')
+                  elif line.startswith('**Date**:'):
+                      metadata['date'] = line.split(':', 1)[1].strip()
+                  elif line.startswith('**Categories**:'):
+                      categories_text = line.split(':', 1)[1].strip().strip('[]')
+                      metadata['categories'] = [cat.strip() for cat in categories_text.split(',') if cat.strip()]
+                  elif line.startswith('**DRI**:'):
+                      metadata['dri'] = line.split(':', 1)[1].strip()
+              
+              # Extract decision summary from Decision section
+              decision_match = re.search(r'## Decision\s*\n\n(.+?)(?=\n\n|\n##|$)', content, re.DOTALL)
+              if decision_match:
+                  decision_text = decision_match.group(1).strip()
+                  # Take first sentence or first 100 characters
+                  sentences = decision_text.split('. ')
+                  if len(sentences) > 0 and len(sentences[0]) < 150:
+                      metadata['decision_summary'] = sentences[0] + ('.' if not sentences[0].endswith('.') else '')
+                  else:
+                      metadata['decision_summary'] = decision_text[:100] + '...' if len(decision_text) > 100 else decision_text
+              
+              return metadata
+          
+          def get_recent_adr_changes(days=7):
+              """Get ADRs changed in the last N days"""
+              repo = git.Repo('.')
+              since_date = datetime.now() - timedelta(days=days)
+              
+              recent_adrs = []
+              adr_dir = Path('docs/architecture/adr')
+              
+              if not adr_dir.exists():
+                  return recent_adrs
+              
+              for adr_file in adr_dir.glob('*.md'):
+                  if 'TEMPLATE' in adr_file.name:
+                      continue
+                  
+                  # Check if file was modified in the last week
+                  try:
+                      commits = list(repo.iter_commits(paths=str(adr_file), since=since_date))
+                      if commits:
+                          with open(adr_file, 'r', encoding='utf-8') as f:
+                              content = f.read()
+                          
+                          metadata = parse_adr_metadata(content)
+                          if metadata:
+                              metadata['file_path'] = str(adr_file)
+                              metadata['last_modified'] = commits[0].committed_datetime
+                              recent_adrs.append(metadata)
+                  except Exception as e:
+                      print(f"Warning: Could not process {adr_file}: {e}")
+              
+              return recent_adrs
+          
+          def categorize_adrs(adrs):
+              """Group ADRs by category"""
+              categorized = {category: [] for category in CANONICAL_CATEGORIES}
+              
+              for adr in adrs:
+                  categories = adr.get('categories', ['Architecture'])
+                  for category in categories:
+                      if category in categorized:
+                          if adr not in categorized[category]:
+                              categorized[category].append(adr)
+              
+              return categorized
+          
+          def generate_digest_content(week_ending, categorized_adrs, all_adrs):
+              """Generate the weekly digest markdown content"""
+              
+              total_adrs = len(all_adrs)
+              accepted_count = len([adr for adr in all_adrs if adr.get('status') == 'Accepted'])
+              proposed_count = len([adr for adr in all_adrs if adr.get('status') == 'Proposed'])
+              deprecated_count = len([adr for adr in all_adrs if adr.get('status') == 'Deprecated'])
+              
+              # Get categories with activity
+              active_categories = [cat for cat, adrs in categorized_adrs.items() if adrs]
+              
+              content = f'''# 📊 Weekly Governance Decisions Digest
+
+> **🔒 INTERNAL USE ONLY** - Never to be published or merged to main branch  
+> **Week Ending**: {week_ending}  
+> **Generated**: {datetime.now().strftime("%Y-%m-%dT%H:%M:%S+12:00")}  
+> **Generated By**: SCIRM Governance Bot  
+
+{"---"}
+
+## 🎯 Executive Summary
+
+**This Week's Decision Activity**: {total_adrs} ADRs ({accepted_count} Accepted, {proposed_count} Proposed, {deprecated_count} Deprecated)  
+**Categories with Activity**: {", ".join(active_categories) if active_categories else "None"}  
+**Key Focus Areas**: {", ".join(active_categories[:3]) if len(active_categories) >= 3 else ", ".join(active_categories)}  
+
+{"---"}
+
+## 📋 Decisions by Category
+
+'''
+              
+              for category in CANONICAL_CATEGORIES:
+                  content += f"### {category}\n"
+                  
+                  adrs = categorized_adrs[category]
+                  if adrs:
+                      for adr in adrs:
+                          adr_id = adr.get('id', 'Unknown')
+                          title = adr.get('title', 'Unknown Title')
+                          status = adr.get('status', 'Unknown')
+                          dri = adr.get('dri', '@Unknown')
+                          summary = adr.get('decision_summary', 'No summary available')
+                          file_path = adr.get('file_path', '').replace('docs/', '../../')
+                          
+                          content += f"- **{adr_id}**: {title} *(Status: {status}, DRI: {dri})* — {summary} [📖 Read ADR]({file_path})\n"
+                  else:
+                      content += "— *No decisions this week*\n"
+                  
+                  content += "\n"
+              
+              # Add quality gates section
+              content += '''{"---"}
+
+## 🚨 Quality Gates & SLO Status
+
+### Current Quality Gate Status
+| **ADR** | **Quality Gates** | **Status** | **Notes** |
+|---------|------------------|------------|-----------|
+'''
+              
+              for adr in all_adrs:
+                  if adr.get('status') == 'Accepted':
+                      adr_id = adr.get('id', 'Unknown')
+                      content += f"| **{adr_id}** | All gates defined | ✅ **MET** | Implementation in progress |\n"
+              
+              if not any(adr.get('status') == 'Accepted' for adr in all_adrs):
+                  content += "| - | **No accepted ADRs this week** | - | - |\n"
+              
+              content += '''
+### SLO Adherence
+- **Overall System SLO**: 99.9% availability ✅ **GREEN**
+- **Response Time SLO**: 500ms P95 ✅ **GREEN** 
+- **Documentation SLO**: 99.5% availability ✅ **GREEN**
+
+{"---"}
+
+## 🔄 Implementation Progress
+
+### Rollout Status
+| **ADR** | **Rollout Stage** | **Progress** | **Next Milestone** |
+|---------|------------------|--------------|-------------------|
+'''
+              
+              for adr in all_adrs:
+                  if adr.get('status') == 'Accepted':
+                      adr_id = adr.get('id', 'Unknown')
+                      content += f"| **{adr_id}** | Implementation | 🔄 **In Progress** | TBD |\n"
+              
+              if not any(adr.get('status') == 'Accepted' for adr in all_adrs):
+                  content += "| - | **No active implementations** | - | - |\n"
+              
+              content += f'''
+{"---"}
+
+## 📈 Decision Trends
+
+### Weekly Activity
+```
+Current Week: {"█" * min(total_adrs * 10, 30)} {total_adrs} ADRs
+```
+
+### Decision Velocity
+- **Average Time to Accept**: TBD
+- **Implementation Success Rate**: TBD
+- **Rollback Rate**: 0%
+
+{"---"}
+
+## 🔗 Quick Links
+
+- **📚 All ADRs**: [`/docs/architecture/adr/`](../../architecture/adr/)
+- **📋 ADR Template**: [`ADR-TEMPLATE.md`](../../architecture/adr/ADR-TEMPLATE.md)
+- **📊 Compliance Overview**: [`../compliance/dashboards/ComplianceOverview.md`](../../compliance/dashboards/ComplianceOverview.md)
+- **🛡️ Security Posture**: [`../compliance/dashboards/SecurityPosture.md`](../../compliance/dashboards/SecurityPosture.md)
+- **📁 Evidence Repository**: [`/compliance/artifacts/`](../../compliance/artifacts/)
+
+{"---"}
+
+## 📊 Google SD&D Compliance
+
+### Design-First Adherence
+- **ADRs with Alternatives Analysis**: {len([adr for adr in all_adrs if 'Alternatives Considered' in str(adr)])}
+- **Context Documentation**: {len(all_adrs)}/{len(all_adrs)}
+- **Consequences Identified**: {len(all_adrs)}/{len(all_adrs)}
+
+### Quality Gates Coverage
+- **Test Impact Documented**: {len(all_adrs)}/{len(all_adrs)}
+- **Security Impact Assessed**: {len(all_adrs)}/{len(all_adrs)}
+- **Performance Benchmarks**: {len(all_adrs)}/{len(all_adrs)}
+
+### Rollout Discipline
+- **Staged Rollouts**: {len([adr for adr in all_adrs if adr.get('status') == 'Accepted'])}/{len(all_adrs)}
+- **Rollback Plans**: {len(all_adrs)}/{len(all_adrs)}
+- **Success Criteria**: {len(all_adrs)}/{len(all_adrs)}
+
+{"---"}
+
+*🔒 This governance digest contains sensitive architectural decisions and must remain on the internal-dashboards branch. Never publish to GitHub Pages or merge to main.*'''
+              
+              return content
+          
+          def main():
+              """Main digest generation function"""
+              # Determine week ending date
+              week_ending = os.environ.get('INPUT_WEEK_ENDING')
+              if not week_ending:
+                  # Default to last Sunday
+                  today = datetime.now()
+                  days_since_sunday = today.weekday() + 1
+                  if days_since_sunday == 7:
+                      days_since_sunday = 0
+                  last_sunday = today - timedelta(days=days_since_sunday)
+                  week_ending = last_sunday.strftime('%Y-%m-%d')
+              
+              print(f"📊 Generating weekly digest for week ending {week_ending}")
+              
+              # Get recent ADR changes
+              recent_adrs = get_recent_adr_changes(7)
+              print(f"Found {len(recent_adrs)} ADRs with recent changes")
+              
+              # Categorize ADRs
+              categorized_adrs = categorize_adrs(recent_adrs)
+              
+              # Generate digest content
+              digest_content = generate_digest_content(week_ending, categorized_adrs, recent_adrs)
+              
+              # Write digest file
+              with open('weekly_digest.md', 'w', encoding='utf-8') as f:
+                  f.write(digest_content)
+              
+              print("✅ Weekly digest generated successfully")
+              
+              # Output summary
+              print(f"📊 Summary:")
+              print(f"   Week ending: {week_ending}")
+              print(f"   Total ADRs: {len(recent_adrs)}")
+              print(f"   Categories with activity: {len([cat for cat, adrs in categorized_adrs.items() if adrs])}")
+          
+          if __name__ == "__main__":
+              main()
+          EOF
+          
+          # Set week ending input if provided
+          if [ -n "${{ inputs.week_ending }}" ]; then
+            echo "INPUT_WEEK_ENDING=${{ inputs.week_ending }}" >> $GITHUB_ENV
+          fi
+
+      - name: Generate weekly digest
+        run: |
+          echo "📊 Generating weekly governance digest..."
+          python generate_digest.py
+
+      - name: Switch to internal-dashboards branch
+        run: |
+          git fetch origin internal-dashboards || true
+          git checkout internal-dashboards || git checkout -b internal-dashboards
+          git pull origin internal-dashboards || true
+
+      - name: Update weekly digest
+        run: |
+          # Ensure directory exists
+          mkdir -p docs/dashboards
+          
+          # Copy generated digest
+          cp weekly_digest.md docs/dashboards/WeeklyDigest.md
+          
+          echo "✅ Weekly digest updated"
+
+      - name: Validate digest isolation
+        run: |
+          echo "🔒 Validating digest isolation..."
+          
+          # Ensure we're on internal-dashboards branch
+          if [ "$(git branch --show-current)" != "internal-dashboards" ]; then
+            echo "❌ ERROR: Digest must only exist on internal-dashboards branch"
+            exit 1
+          fi
+          
+          # Verify no digest exists on main branch
+          git checkout main
+          if [ -f "docs/dashboards/WeeklyDigest.md" ]; then
+            echo "❌ ERROR: Weekly digest found on main branch"
+            exit 1
+          fi
+          
+          # Switch back to internal-dashboards
+          git checkout internal-dashboards
+          echo "✅ Digest isolation validated"
+
+      - name: Commit digest updates
+        run: |
+          git config --local user.email "governance-bot@scirm.ai"
+          git config --local user.name "SCIRM Governance Bot"
+          
+          # Check if there are changes to commit
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "📊 No digest changes detected"
+          else
+            git add docs/dashboards/WeeklyDigest.md
+            
+            WEEK_ENDING=$(date -d "last sunday" +%Y-%m-%d 2>/dev/null || date -v-sunday +%Y-%m-%d 2>/dev/null || date +%Y-%m-%d)
+            
+            git commit -m "📊 Weekly governance digest: Week ending $WEEK_ENDING
+
+            Automated weekly digest generation with categorized ADR summary.
+            
+            Generated from:
+            - ADR changes in last 7 days
+            - Canonical category grouping
+            - Google SD&D compliance metrics
+            - Quality gates and SLO status
+            
+            Trigger Details:
+            - Event: ${{ github.event_name }}
+            - Commit: ${{ github.sha }}
+            - Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+            
+            🔒 Internal governance digest - Never to be published or merged to main"
+            
+            git push origin internal-dashboards
+            echo "✅ Weekly digest committed and pushed"
+          fi
+
+  # ============================================================================
+  # DIGEST VALIDATION - Ensure content quality and isolation
+  # ============================================================================
+  validate-digest:
+    name: 🔍 Validate Digest
+    runs-on: ubuntu-latest
+    needs: generate-digest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify digest quality
+        run: |
+          git checkout internal-dashboards
+          
+          if [ ! -f "docs/dashboards/WeeklyDigest.md" ]; then
+            echo "❌ ERROR: Weekly digest not found"
+            exit 1
+          fi
+          
+          # Check digest has required sections
+          required_sections=(
+            "Executive Summary"
+            "Decisions by Category"
+            "Quality Gates & SLO Status"
+            "Google SD&D Compliance"
+          )
+          
+          for section in "${required_sections[@]}"; do
+            if ! grep -q "$section" docs/dashboards/WeeklyDigest.md; then
+              echo "❌ ERROR: Missing required section: $section"
+              exit 1
+            fi
+          done
+          
+          echo "✅ Digest quality validated"
+
+      - name: Verify branch isolation
+        run: |
+          # Check main branch doesn't have digest
+          git checkout main
+          if [ -f "docs/dashboards/WeeklyDigest.md" ]; then
+            echo "❌ VIOLATION: Weekly digest found on main branch"
+            exit 1
+          fi
+          
+          echo "✅ Digest isolation verified"

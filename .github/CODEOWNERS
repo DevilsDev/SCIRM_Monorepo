@@ -41,6 +41,13 @@
 /requirements*.txt @backend-team @core-team
 /Makefile @devops-team @core-team
 
+# Architecture Decision Records
+/docs/architecture/adr/ @Architect @ComplianceOfficer
+
 # Security and Compliance
 /security/ @security-team @core-team
 /compliance/ @security-team @core-team
+/compliance/dashboards/ @SecurityLead @ComplianceOfficer @SRELead
+
+# Internal Dashboards (internal-dashboards branch only)
+/docs/dashboards/WeeklyDigest.md @ProductManager @SRELead @QA
