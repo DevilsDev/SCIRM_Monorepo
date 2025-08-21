@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// Cloud Storage Security Rules for SCIRM Documentation
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Only allow authenticated users to read documentation files
+    match /docs/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only CI/CD can write via service account
+    }
+    
+    // Block all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

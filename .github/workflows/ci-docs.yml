@@ -1,0 +1,349 @@
+name: CI - Documentation Build & Quality Gates
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/ci-docs.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+
+concurrency:
+  group: ci-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  docs-build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        pip install mkdocs-material mkdocs-mermaid2-plugin
+        
+    - name: Validate MkDocs configuration
+      run: mkdocs config
+      
+    - name: Build documentation (strict mode)
+      run: mkdocs build --strict
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation-site
+        path: site/
+        retention-days: 7
+
+  lint:
+    name: Lint Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install markdownlint
+      run: npm install -g markdownlint-cli
+      
+    - name: Lint Markdown files
+      run: markdownlint docs/**/*.md --ignore docs/dashboards/
+
+  link-check:
+    name: Check Links
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install mkdocs-material mkdocs-mermaid2-plugin
+        
+    - name: Build documentation
+      run: mkdocs build
+      
+    - name: Check internal links
+      uses: lycheeverse/lychee-action@v1
+      with:
+        args: --verbose --no-progress 'site/**/*.html'
+        fail: true
+
+  docs-security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  content-guard:
+    name: Content Guard (Prevent Internal Leaks)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check for internal dashboard content
+      run: |
+        if find docs/ -name "*.md" -path "*/dashboards/*" | grep -q .; then
+          echo "❌ Internal dashboard content found in docs/ directory"
+          echo "Internal dashboards must only exist in internal-dashboards branch"
+          exit 1
+        fi
+        echo "✅ No internal dashboard content found in public docs"
+        
+    - name: Check for sensitive information
+      run: |
+        # Check for potential secrets or sensitive data
+        if grep -r -i "password\|secret\|key\|token" docs/ --include="*.md" | grep -v "example\|placeholder\|TODO"; then
+          echo "❌ Potential sensitive information found"
+          exit 1
+        fi
+        echo "✅ No sensitive information detected"
+
+  docs-quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [docs-build, lint, link-check, docs-security-scan, content-guard]
+    if: always()
+    
+    steps:
+    - name: Check all jobs status
+      run: |
+        if [[ "${{ needs.docs-build.result }}" != "success" ]]; then
+          echo "❌ Documentation build failed"
+          exit 1
+        fi
+        if [[ "${{ needs.lint.result }}" != "success" ]]; then
+          echo "❌ Linting failed"
+          exit 1
+        fi
+        if [[ "${{ needs.link-check.result }}" != "success" ]]; then
+          echo "❌ Link check failed"
+          exit 1
+        fi
+        if [[ "${{ needs.docs-security-scan.result }}" != "success" ]]; then
+          echo "❌ Security scan failed"
+          exit 1
+        fi
+        if [[ "${{ needs.content-guard.result }}" != "success" ]]; then
+          echo "❌ Content guard failed"
+          exit 1
+        fi
+        echo "✅ All quality gates passed"
+          path: site/
+          retention-days: 30
+
+  # ============================================================================
+  # LINK VALIDATION & CONTENT QUALITY
+  # ============================================================================
+  validate-links:
+    name: "🔗 Validate Links"
+    runs-on: ubuntu-latest
+    needs: docs-build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-build-${{ github.sha }}
+          path: site/
+
+      - name: Setup Node.js for link checking
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install link checker
+        run: npm install -g markdown-link-check
+
+      - name: Check internal links
+        run: |
+          echo "🔗 Checking internal documentation links..."
+          
+          # Check markdown files for broken links
+          find docs -name "*.md" -exec markdown-link-check {} \; || {
+            echo "❌ Broken links found in documentation"
+            exit 1
+          }
+          
+          echo "✅ All internal links validated"
+
+  # ============================================================================
+  # SECURITY SCANNING
+  # ============================================================================
+  security-scan:
+    name: "🛡️ Security Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  # ============================================================================
+  # COMPLIANCE VALIDATION
+  # ============================================================================
+  compliance-check:
+    name: "📋 Compliance Check"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required documentation
+        run: |
+          echo "📋 Validating required documentation structure..."
+          
+          required_files=(
+            "docs/PRD.md"
+            "docs/PDD.md" 
+            "docs/AntiPatterns.md"
+            "docs/architecture/adr/ADR-TEMPLATE.md"
+          )
+          
+          missing_files=()
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              missing_files+=("$file")
+            fi
+          done
+          
+          if [ ${#missing_files[@]} -gt 0 ]; then
+            echo "❌ Missing required documentation files:"
+            printf '  - %s\n' "${missing_files[@]}"
+            exit 1
+          fi
+          
+          echo "✅ All required documentation files present"
+
+      - name: Validate ADR format
+        run: |
+          echo "📋 Validating ADR format compliance..."
+          
+          adr_files=($(find docs/architecture/adr -name "ADR-*.md" -not -name "*TEMPLATE*"))
+          
+          if [ ${#adr_files[@]} -eq 0 ]; then
+            echo "ℹ️ No ADRs found - skipping validation"
+            exit 0
+          fi
+          
+          for adr in "${adr_files[@]}"; do
+            echo "Checking: $adr"
+            
+            # Check required sections
+            required_sections=("Status" "Context" "Decision" "Consequences")
+            for section in "${required_sections[@]}"; do
+              if ! grep -q "## $section" "$adr"; then
+                echo "❌ Missing required section '$section' in $adr"
+                exit 1
+              fi
+            done
+          done
+          
+          echo "✅ All ADRs pass format validation"
+
+  # ============================================================================
+  # QUALITY GATES SUMMARY
+  # ============================================================================
+  quality-gate:
+    name: "🚦 Quality Gate"
+    runs-on: ubuntu-latest
+    needs: [docs-build, validate-links, security-scan, compliance-check]
+    if: always()
+    steps:
+      - name: Check quality gate status
+        run: |
+          echo "🚦 Quality Gate Summary"
+          echo "======================"
+          
+          # Check job results
+          build_result="${{ needs.docs-build.result }}"
+          links_result="${{ needs.validate-links.result }}"
+          security_result="${{ needs.security-scan.result }}"
+          compliance_result="${{ needs.compliance-check.result }}"
+          
+          echo "📖 Documentation Build: $build_result"
+          echo "🔗 Link Validation: $links_result"
+          echo "🛡️ Security Scan: $security_result"
+          echo "📋 Compliance Check: $compliance_result"
+          
+          # Determine overall status
+          if [[ "$build_result" == "success" && "$links_result" == "success" && "$security_result" == "success" && "$compliance_result" == "success" ]]; then
+            echo ""
+            echo "✅ ALL QUALITY GATES PASSED"
+            echo "Documentation is ready for deployment"
+          else
+            echo ""
+            echo "❌ QUALITY GATE FAILURE"
+            echo "Please fix the issues above before merging"
+            exit 1
+          fi

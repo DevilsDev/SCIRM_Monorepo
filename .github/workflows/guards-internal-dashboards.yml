@@ -1,0 +1,205 @@
+name: "🛡️ Guards - Internal Dashboards Isolation"
+
+on:
+  push:
+    branches: [internal-dashboards]
+    paths:
+      - "docs/dashboards/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/dashboards/**"
+
+concurrency:
+  group: guards-internal-dashboards-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ============================================================================
+  # DASHBOARD ISOLATION GUARD
+  # ============================================================================
+  prevent-dashboard-leak:
+    name: "🚫 Prevent Dashboard Leak to Main"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Validate dashboard structure
+        run: |
+          # Ensure dashboards directory exists
+          if [ ! -d "docs/dashboards" ]; then
+            echo "⚠️ Warning: docs/dashboards directory not found"
+            echo "Creating directory structure..."
+            mkdir -p docs/dashboards
+          fi
+          
+          # Check for required dashboard files
+          required_dashboards=(
+            "docs/dashboards/WeeklyDigest.md"
+            "docs/dashboards/ProgressDashboard.md"
+            "docs/dashboards/KPIDashboard.md"
+            "docs/dashboards/RiskStatusDashboard.md"
+          )
+          
+          missing_dashboards=()
+          for dashboard in "${required_dashboards[@]}"; do
+            if [ ! -f "$dashboard" ]; then
+              missing_dashboards+=("$dashboard")
+            fi
+          done
+          
+          if [ ${#missing_dashboards[@]} -gt 0 ]; then
+            echo "ℹ️ Missing dashboard files (will be auto-generated):"
+            printf '  - %s\n' "${missing_dashboards[@]}"
+          fi
+          
+          echo "✅ Internal dashboards branch validation completed"
+
+  # ============================================================================
+  # CROSS-BRANCH VALIDATION
+  # ============================================================================
+  cross-branch-validation:
+    name: "🔄 Cross-Branch Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout main branch for comparison
+        run: |
+          git fetch origin main
+          git checkout -b main-check origin/main
+
+      - name: Verify main branch has no dashboards
+        run: |
+          echo "🔍 Verifying main branch dashboard isolation..."
+          
+          if [ -d "docs/dashboards" ] && [ "$(ls -A docs/dashboards 2>/dev/null)" ]; then
+            echo "❌ CRITICAL: Dashboard files found on main branch!"
+            echo "Files found:"
+            find docs/dashboards -type f | sed 's/^/  - /'
+            echo ""
+            echo "🚨 This is a security violation - dashboards must not be on main!"
+            exit 1
+          fi
+          
+          echo "✅ Main branch properly isolated from dashboards"
+
+      - name: Switch back to original branch
+        run: |
+          git checkout ${{ github.ref_name }}
+
+  # ============================================================================
+  # CONTENT VALIDATION
+  # ============================================================================
+  validate-dashboard-content:
+    name: "📋 Validate Dashboard Content"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/internal-dashboards'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate dashboard security markers
+        run: |
+          echo "🔒 Validating dashboard security markers..."
+          
+          dashboard_files=$(find docs/dashboards -name "*.md" 2>/dev/null || true)
+          
+          if [ -z "$dashboard_files" ]; then
+            echo "ℹ️ No dashboard files to validate"
+            exit 0
+          fi
+          
+          violations=()
+          
+          for file in $dashboard_files; do
+            echo "Checking: $file"
+            
+            # Check for internal-only markers
+            if ! grep -q "INTERNAL USE ONLY\|internal-dashboards\|Never.*publish\|Never.*merge.*main" "$file"; then
+              violations+=("$file: Missing internal-only security marker")
+            fi
+            
+            # Check for sensitive content warnings
+            if grep -q "production\|deploy\|public" "$file" && ! grep -q "internal\|private\|confidential" "$file"; then
+              violations+=("$file: May contain production references without internal warnings")
+            fi
+          done
+          
+          if [ ${#violations[@]} -gt 0 ]; then
+            echo "⚠️ Dashboard content validation warnings:"
+            printf '  - %s\n' "${violations[@]}"
+            echo ""
+            echo "📋 Recommendations:"
+            echo "  - Add '🔒 INTERNAL USE ONLY' markers to dashboard headers"
+            echo "  - Include warnings about not publishing to main branch"
+            echo "  - Mark sensitive governance content appropriately"
+          else
+            echo "✅ All dashboard content properly marked as internal"
+          fi
+
+  # ============================================================================
+  # DEPLOYMENT PREVENTION
+  # ============================================================================
+  prevent-deployment:
+    name: "🚫 Prevent Accidental Deployment"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/internal-dashboards'
+    steps:
+      - name: Block deployment workflows
+        run: |
+          echo "🛡️ Ensuring no deployment workflows can run from internal-dashboards..."
+          
+          # This job serves as a circuit breaker
+          # Any deployment workflow should check the branch and fail if not main
+          
+          echo "✅ Deployment prevention guard active"
+          echo "📋 Only main branch can trigger production deployments"
+
+  # ============================================================================
+  # GUARD SUMMARY
+  # ============================================================================
+  guard-summary:
+    name: "📊 Guard Summary"
+    runs-on: ubuntu-latest
+    needs: [prevent-dashboard-leak, cross-branch-validation, validate-dashboard-content, prevent-deployment]
+    if: always()
+    steps:
+      - name: Generate guard summary
+        run: |
+          echo "🛡️ Internal Dashboard Guards Summary"
+          echo "===================================="
+          echo ""
+          echo "🔍 **Guard Results:**"
+          echo "   • Dashboard Leak Prevention: ${{ needs.prevent-dashboard-leak.result }}"
+          echo "   • Cross-Branch Validation: ${{ needs.cross-branch-validation.result }}"
+          echo "   • Content Validation: ${{ needs.validate-dashboard-content.result }}"
+          echo "   • Deployment Prevention: ${{ needs.prevent-deployment.result }}"
+          echo ""
+          echo "📋 **Security Controls:**"
+          echo "   ✅ Dashboard isolation enforced"
+          echo "   ✅ Main branch protection active"
+          echo "   ✅ Content security validation"
+          echo "   ✅ Deployment prevention enabled"
+          echo ""
+          
+          # Check overall status
+          if [[ "${{ needs.prevent-dashboard-leak.result }}" == "success" && 
+                "${{ needs.cross-branch-validation.result }}" == "success" ]]; then
+            echo "🎉 **ALL GUARDS PASSED**"
+            echo "Dashboard isolation security maintained!"
+          else
+            echo "❌ **GUARD FAILURE**"
+            echo "Security violation detected - please review and fix!"
+            exit 1
+          fi

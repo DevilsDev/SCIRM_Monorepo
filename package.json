@@ -1,0 +1,52 @@
+{
+  "name": "scirm-monorepo",
+  "version": "1.0.0",
+  "description": "SCIRM AI-Powered Supply Chain Risk Management Platform",
+  "private": true,
+  "workspaces": [
+    "firebase/functions",
+    "apps/frontend",
+    "apps/api-gateway"
+  ],
+  "scripts": {
+    "firebase:install": "npm install -g firebase-tools",
+    "firebase:login": "firebase login",
+    "firebase:init": "firebase init",
+    "firebase:serve": "cd firebase && firebase emulators:start",
+    "firebase:deploy": "cd firebase && firebase deploy",
+    "firebase:logs": "cd firebase && firebase functions:log",
+    "docs:build": "mkdocs build",
+    "docs:serve": "mkdocs serve",
+    "docs:deploy": "mkdocs gh-deploy",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces",
+    "dev": "npm run dev --workspaces --parallel"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.0.0",
+    "concurrently": "^8.2.2",
+    "npm-run-all": "^4.1.5"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevilsDev/SCIRM_Monorepo.git"
+  },
+  "keywords": [
+    "scirm",
+    "supply-chain",
+    "risk-management",
+    "ai",
+    "firebase",
+    "documentation"
+  ],
+  "author": "SCIRM Team",
+  "license": "PROPRIETARY"
+}

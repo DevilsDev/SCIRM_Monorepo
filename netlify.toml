@@ -1,0 +1,25 @@
+[build]
+  base = "firebase/hosting"
+  publish = "firebase/hosting"
+  command = "echo 'Static site - no build required'"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; frame-src https://accounts.google.com"
+
+[[redirects]]
+  from = "/auth/*"
+  to = "https://scirm-dd5c3.web.app/auth/:splat"
+  status = 200
+
+[context.production.environment]
+  FIREBASE_PROJECT_ID = "scirm-dd5c3"

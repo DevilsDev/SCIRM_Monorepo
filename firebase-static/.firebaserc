@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "scirm-dd5c3",
+    "static": "scirm-dd5c3"
+  },
+  "targets": {
+    "scirm-dd5c3": {
+      "hosting": {
+        "static": [
+          "scirm-dd5c3-static"
+        ]
+      }
+    }
+  }
+}

@@ -1,53 +1,166 @@
-# CODEOWNERS file for SCIRM Platform
-# This file defines code ownership for automatic review assignment
+# SCIRM Code Ownership & Governance
+# ===================================
+# Defines code ownership for automatic review assignment and governance controls
+# Aligned with Google SD&D principles: design-first, quality gates, staged rollout
 
-# Global owners - require review for all changes
-* @core-team
+# ============================================================================
+# CRITICAL INFRASTRUCTURE - Require multiple approvals
+# ============================================================================
 
-# Agent Services
-/services/ @ai-team @core-team
-/services/coordinator/ @ai-team @backend-team
-/services/planner/ @ai-team @backend-team
-/services/researcher/ @ai-team @backend-team
-/services/executor/ @ai-team @backend-team
-/services/reviewer/ @ai-team @backend-team
+# Firebase Infrastructure (CRITICAL - Production Security)
+/firebase/** @EngineerLead @SecurityLead @SRELead
+/firebase/functions/** @EngineerLead @SecurityLead
+/firebase/hosting/** @EngineerLead @SecurityLead
+/firebase/firebase.json @EngineerLead @SecurityLead @SRELead
+/firebase/storage.rules @SecurityLead @ComplianceOfficer
 
-# Frontend
-/apps/frontend/ @frontend-team @core-team
-/apps/frontend/src/components/ @frontend-team
-/apps/frontend/src/pages/ @frontend-team
+# GitHub Actions Workflows (CRITICAL - CI/CD Security)
+/.github/workflows/deploy-firebase.yml @EngineerLead @SecurityLead @QA
+/.github/workflows/ci-docs.yml @EngineerLead @QA
+/.github/workflows/guards-*.yml @SecurityLead @ComplianceOfficer
+/.github/workflows/weekly-digest.yml @ProductManager @QA @SRELead
 
-# API Gateway
-/apps/api-gateway/ @backend-team @core-team
+# Branch Protection & Security
+/.github/CODEOWNERS @SecurityLead @ComplianceOfficer @EngineerLead
+/.github/pull_request_template.md @QA @ComplianceOfficer
 
-# Shared Libraries
-/libs/ @backend-team @ai-team
-/libs/common/ @backend-team
-/libs/rag/ @ai-team
-/libs/cag/ @ai-team
+# ============================================================================
+# DOCUMENTATION & GOVERNANCE
+# ============================================================================
 
-# Infrastructure
-/infra/ @devops-team @core-team
-/.github/workflows/ @devops-team @core-team
-/ops/ @devops-team
+# SCIRM Secure Documentation Platform - Code Ownership
 
-# Documentation
-/docs/ @docs-team @core-team
-/README.md @core-team
-/mkdocs.yml @docs-team
+# Global defaults
+* @EngineerLead @QA
 
-# Configuration Files
-/.env.example @devops-team @core-team
-/requirements*.txt @backend-team @core-team
-/Makefile @devops-team @core-team
+# Firebase auth-gated infrastructure
+/firebase/** @EngineerLead @SecurityLead
+/firebase/functions/** @EngineerLead @SecurityLead @SRE
+
+# Firebase static site
+/firebase-static/** @EngineerLead @QA
+
+# Netlify configuration
+/netlify/** @EngineerLead @QA
+
+# GitHub workflows (critical infrastructure)
+/.github/workflows/deploy-*.yml @EngineerLead @SecurityLead @QA
+/.github/workflows/guards-*.yml @SecurityLead @ComplianceOfficer
+/.github/workflows/ci-*.yml @EngineerLead @QA
+
+# Security and governance
+/security/** @SecurityLead @ComplianceOfficer
+/compliance/** @SecurityLead @ComplianceOfficer
 
 # Architecture Decision Records
-/docs/architecture/adr/ @Architect @ComplianceOfficer
+/docs/architecture/adr/** @Architect @ComplianceOfficer
 
-# Security and Compliance
-/security/ @security-team @core-team
-/compliance/ @security-team @core-team
-/compliance/dashboards/ @SecurityLead @ComplianceOfficer @SRELead
+# Internal dashboards (restricted access)
+/docs/dashboards/** @SecurityLead @ComplianceOfficer @SRE
 
-# Internal Dashboards (internal-dashboards branch only)
-/docs/dashboards/WeeklyDigest.md @ProductManager @SRELead @QA
+# Documentation (general)
+/docs/** @EngineerLead @QA
+
+# Root configuration files
+/README.md @EngineerLead @SecurityLead
+/mkdocs.yml @EngineerLead @QA (Design-First Principle)
+/docs/PRD.md @ProductManager @EngineerLead @ComplianceOfficer
+/docs/PDD.md @EngineerLead @SecurityLead @SRELead
+/docs/AntiPatterns.md @EngineerLead @SecurityLead @ComplianceOfficer
+
+# Architecture Decision Records (ADRs)
+/docs/architecture/adr/ @EngineerLead @SecurityLead @ComplianceOfficer
+/docs/architecture/adr/ADR-TEMPLATE.md @EngineerLead @ComplianceOfficer
+
+# MkDocs Configuration
+/mkdocs.yml @EngineerLead @QA
+/docs/index.md @ProductManager @EngineerLead
+
+# ============================================================================
+# COMPLIANCE & SECURITY
+# ============================================================================
+
+# Security Policies & Configurations
+/security/** @SecurityLead @ComplianceOfficer
+/security/rbac.yml @SecurityLead @ComplianceOfficer @SRELead
+/security/security-policy.yml @SecurityLead @ComplianceOfficer
+
+# Compliance Artifacts & Evidence
+/compliance/** @ComplianceOfficer @SecurityLead @QA
+/compliance/artifacts/** @ComplianceOfficer @SRELead
+/compliance/dashboards/** @ComplianceOfficer @SRELead @ProductManager
+/compliance/gdpr-compliance.yml @ComplianceOfficer @SecurityLead
+/compliance/hipaa-compliance.yml @ComplianceOfficer @SecurityLead
+/compliance/soc2-compliance.yml @ComplianceOfficer @SecurityLead
+
+# ============================================================================
+# INTERNAL DASHBOARDS (internal-dashboards branch ONLY)
+# ============================================================================
+
+# Weekly Governance Digests (INTERNAL ONLY - Never deploy to main)
+/docs/dashboards/WeeklyDigest.md @ProductManager @ComplianceOfficer @SRELead
+/docs/dashboards/ProgressDashboard.md @ProductManager @SRELead
+/docs/dashboards/KPIDashboard.md @ProductManager @SRELead @EngineerLead
+/docs/dashboards/RiskStatusDashboard.md @SecurityLead @ComplianceOfficer @SRELead
+
+# ============================================================================
+# AGENT SERVICES & PLATFORM
+# ============================================================================
+
+# Multi-Agent Swarm Services
+/services/ @EngineerLead @SecurityLead
+/services/coordinator/ @EngineerLead @SecurityLead
+/services/planner/ @EngineerLead @SecurityLead
+/services/researcher/ @EngineerLead @SecurityLead
+/services/executor/ @EngineerLead @SecurityLead
+/services/reviewer/ @EngineerLead @SecurityLead @QA
+
+# Frontend Applications
+/apps/frontend/ @EngineerLead @QA
+/apps/api-gateway/ @EngineerLead @SecurityLead
+
+# Shared Libraries
+/libs/ @EngineerLead @SecurityLead
+/libs/common/ @EngineerLead
+/libs/auth.py @SecurityLead @EngineerLead
+/libs/monitoring.py @SRELead @EngineerLead
+
+# ============================================================================
+# INFRASTRUCTURE & OPERATIONS
+# ============================================================================
+
+# Kubernetes & Infrastructure
+/infra/** @SRELead @EngineerLead @SecurityLead
+/infra/k8s/** @SRELead @EngineerLead
+/ops/** @SRELead @EngineerLead
+
+# Monitoring & Observability
+/ops/monitoring/** @SRELead @EngineerLead
+/ops/deployment/** @SRELead @EngineerLead @SecurityLead
+
+# ============================================================================
+# CONFIGURATION & DEPENDENCIES
+# ============================================================================
+
+# Root Configuration Files
+/.env.example @SecurityLead @EngineerLead @SRELead
+/requirements*.txt @EngineerLead @SecurityLead
+/Makefile @EngineerLead @SRELead
+/docker-compose.dev.yml @EngineerLead @SRELead
+/VERSION @ProductManager @EngineerLead
+/README.md @ProductManager @EngineerLead @QA
+
+# ============================================================================
+# TESTING & QUALITY ASSURANCE
+# ============================================================================
+
+# Integration Tests
+/tests/ @QA @EngineerLead
+/tests/integration/ @QA @EngineerLead @SecurityLead
+
+# ============================================================================
+# DEFAULT FALLBACK
+# ============================================================================
+
+# All other files require at least one approval
+* @EngineerLead
