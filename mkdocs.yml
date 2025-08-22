@@ -1,6 +1,5 @@
 site_name: SCIRM Documentation
 site_url: https://scirm-dd5c3.web.app
-site_description: Supply Chain Intelligence & Risk Management Platform Documentation
 use_directory_urls: true
 
 theme:
@@ -19,25 +18,18 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    - navigation.instant
     - navigation.tabs
-    - navigation.sections
-    - navigation.expand
     - navigation.path
-    - navigation.top
-    - navigation.indexes
-    - search.highlight
-    - search.share
+    - toc.integrate
     - search.suggest
+    - search.highlight
     - content.code.copy
-    - content.action.edit
-    - content.action.view
 
 plugins:
-  - search:
-      lang: en
-  - sitemap:
-      change_frequency: weekly
-      priority: 0.8
+  - search
+  - sitemap
+  - macros
 
 markdown_extensions:
   - admonition
@@ -62,28 +54,34 @@ markdown_extensions:
   - md_in_html
 
 nav:
-  - Home: index.md
   - Introduction:
-    - Overview: intro/overview.md
-    - Getting Started: intro/getting-started.md
+      - Overview: intro/overview.md
+      - Getting Started: intro/getting-started.md
   - Product:
-    - Product Requirements (PRD): product/prd.md
-    - Product Design (PDD): product/pdd.md
-    - Anti-Patterns & Governance: product/anti-patterns.md
+      - PRD: product/PRD.md
+      - PDD: product/PDD.md
+      - Anti-Patterns & Guardrails: product/AntiPatterns.md
   - Architecture:
-    - System Overview: architecture/system-overview.md
-    - Multi-Agent Architecture: architecture/agents.md
-    - Architecture Decision Records: adr/
-  - Security: security/
-  - Development:
-    - Roadmap: roadmap/
-    - Changelog: changelog/
-  - Support: support/
+      - System Architecture: architecture/system-architecture.md
+      - Data Flows: architecture/data-flows.md
+  - Architecture Decisions:
+      - ADR Index: architecture/adr/index.md
+  - Security (Public-Safe):
+      - Security Overview: security/security-overview.md
+  - Compliance:
+      - Documentation Policy: compliance/documentation-policy.md
+      - Evidence Model: compliance/evidence-model.md
+  - Contributing:
+      - Workflow: contributing/git-workflow.md
+      - Commit Signing: contributing/commit-signing.md
+      - Docs Style: contributing/docs-style.md
+  - Release Notes:
+      - Changelog: changelog/release-notes.md
+  - Support:
+      - FAQ: support/faq.md
+      - Contact: support/contact.md
 
 extra:
-  social:
-    - icon: fontawesome/solid/globe
-      link: https://scirm-dd5c3.web.app
   generator: false
 
-copyright: Copyright &copy; 2025 SCIRM Project
+copyright: © SCIRM | Last Updated: {{ macros_info.build_date }} | Commit: {{ macros_info.git_short_commit }}

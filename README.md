@@ -20,30 +20,36 @@ The SCIRM documentation is published as a static website with two deployment opt
 
 ## 🚀 Publishing Documentation
 
-### Automatic Deployment
-Documentation deploys automatically when changes are pushed to the `main` branch:
+### Firebase Hosting Deployment Process
+Documentation deploys **ONLY** from the `firebase-hosting` branch to ensure security and proper review:
 
 ```bash
-# Make documentation changes
+# 1. Make documentation changes on main
 git checkout main
 git add docs/
-git commit -m "docs: update documentation"
+git commit -S -m "docs: update documentation"
 git push origin main
+
+# 2. Create deployment PR from main to firebase-hosting
+git checkout firebase-hosting
+git pull origin firebase-hosting
+git checkout -b deploy/update-docs-$(date +%Y%m%d)
+git merge main
+git push origin deploy/update-docs-$(date +%Y%m%d)
+
+# 3. Open PR: deploy/update-docs-YYYYMMDD → firebase-hosting
+# 4. After PR approval and merge → automatic deployment triggers
 ```
 
-### Manual Deployment
-For immediate deployment or testing:
+### Emergency Deployment
+For urgent fixes (authorized personnel only):
 
 ```bash
-# Install dependencies
-pip install mkdocs-material
-
-# Build locally
-mkdocs build
-
-# Deploy to Firebase static hosting
-cd firebase-static
-firebase deploy --only hosting
+# Direct push to firebase-hosting (creates audit trail)
+git checkout firebase-hosting
+git merge main
+git push origin firebase-hosting
+# Immediately create audit PR: firebase-hosting → main
 ```
 
 ## 📁 Documentation Structure
@@ -96,10 +102,12 @@ Content with [relative links](../other-page.md) and local images:
 - **netlify-setup**: Netlify configuration
 
 ### Deployment Guards
-- ✅ Only `main` branch can deploy public documentation
+- ✅ Only `firebase-hosting` branch can deploy public documentation
+- ✅ `main` branch blocked from deployments (source of truth only)
 - ✅ Internal dashboards blocked from public deployment
 - ✅ Content isolation enforced via CI/CD
 - ✅ Repository links automatically detected and blocked
+- ✅ Guard workflows prevent unauthorized deployment attempts
 
 ## 🔧 Local Development
 

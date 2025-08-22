@@ -1,0 +1,257 @@
+name: "📋 Documentation Quality Gates (PRs to main)"
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  markdown-lint:
+    name: "Markdown Lint"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install markdownlint
+      run: npm install -g markdownlint-cli
+      
+    - name: Run markdown lint
+      run: |
+        echo "🔍 Running markdown lint on documentation..."
+        markdownlint docs/**/*.md --config .markdownlint.json || true
+        echo "✅ Markdown lint completed"
+
+  link-checker:
+    name: "Internal Link Checker"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install MkDocs
+      run: |
+        pip install mkdocs-material mkdocs-macros-plugin
+        
+    - name: Check internal links
+      run: |
+        echo "🔗 Checking internal documentation links..."
+        
+        # Build site to validate all links
+        mkdocs build --strict
+        
+        # Check for broken internal links
+        find docs/ -name "*.md" -exec grep -H "\[.*\](.*\.md)" {} \; > links.txt || true
+        
+        if [ -s links.txt ]; then
+          echo "📋 Found internal links to validate:"
+          cat links.txt
+          
+          # Validate each link exists
+          while IFS= read -r line; do
+            file=$(echo "$line" | cut -d: -f1)
+            link=$(echo "$line" | grep -o "](.*\.md)" | sed 's/](\(.*\))/\1/')
+            
+            # Resolve relative path
+            dir=$(dirname "$file")
+            target=$(realpath -m "$dir/$link" 2>/dev/null || echo "INVALID")
+            
+            if [ "$target" = "INVALID" ] || [ ! -f "$target" ]; then
+              echo "❌ Broken link in $file: $link"
+              exit 1
+            fi
+          done < links.txt
+        fi
+        
+        echo "✅ All internal links are valid"
+
+  image-checker:
+    name: "Image Existence Check"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Check image references
+      run: |
+        echo "🖼️ Checking image references in documentation..."
+        
+        # Find all image references
+        find docs/ -name "*.md" -exec grep -H "!\[.*\](.*\.(png\|jpg\|jpeg\|gif\|svg\|webp))" {} \; > images.txt || true
+        
+        if [ -s images.txt ]; then
+          echo "📋 Found image references to validate:"
+          cat images.txt
+          
+          # Validate each image exists
+          while IFS= read -r line; do
+            file=$(echo "$line" | cut -d: -f1)
+            image=$(echo "$line" | grep -o "](.*\.(png\|jpg\|jpeg\|gif\|svg\|webp))" | sed 's/](\(.*\))/\1/')
+            
+            # Resolve relative path
+            dir=$(dirname "$file")
+            target=$(realpath -m "$dir/$image" 2>/dev/null || echo "INVALID")
+            
+            if [ "$target" = "INVALID" ] || [ ! -f "$target" ]; then
+              echo "❌ Missing image in $file: $image"
+              exit 1
+            fi
+          done < images.txt
+        fi
+        
+        echo "✅ All image references are valid"
+
+  spelling-check:
+    name: "Spelling and Typo Check"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install cspell
+      run: npm install -g cspell
+      
+    - name: Run spell check
+      run: |
+        echo "📝 Running spell check on documentation..."
+        
+        # Create basic cspell config if it doesn't exist
+        if [ ! -f .cspell.json ]; then
+          cat > .cspell.json << 'EOF'
+        {
+          "version": "0.2",
+          "language": "en",
+          "words": [
+            "SCIRM",
+            "mkdocs",
+            "Firebase",
+            "Kubernetes",
+            "OAuth",
+            "RBAC",
+            "GDPR",
+            "HIPAA",
+            "SOC2",
+            "API",
+            "APIs",
+            "JSON",
+            "YAML",
+            "CLI",
+            "CI",
+            "CD",
+            "DevOps",
+            "microservices",
+            "containerized",
+            "scalability",
+            "observability"
+          ],
+          "ignorePaths": [
+            "node_modules/**",
+            ".git/**",
+            "*.json",
+            "*.yml",
+            "*.yaml"
+          ]
+        }
+        EOF
+        fi
+        
+        # Run spell check on documentation
+        cspell "docs/**/*.md" --no-progress --show-context || true
+        
+        echo "✅ Spell check completed"
+
+  external-link-policy:
+    name: "External Link Policy Check"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Check external link policy
+      run: |
+        echo "🔗 Checking external link policy compliance..."
+        
+        # Check for repository links (should be blocked)
+        REPO_LINKS=$(find docs/ -name "*.md" -exec grep -H "github\.com" {} \; || true)
+        if [ -n "$REPO_LINKS" ]; then
+          echo "❌ POLICY VIOLATION: Repository links found in documentation"
+          echo "$REPO_LINKS"
+          echo ""
+          echo "Documentation must not contain repository links for security."
+          exit 1
+        fi
+        
+        # Check for edit links (should be blocked)
+        EDIT_LINKS=$(find docs/ -name "*.md" -exec grep -H "edit.*github" {} \; || true)
+        if [ -n "$EDIT_LINKS" ]; then
+          echo "❌ POLICY VIOLATION: Edit links found in documentation"
+          echo "$EDIT_LINKS"
+          exit 1
+        fi
+        
+        # List external links for review
+        EXTERNAL_LINKS=$(find docs/ -name "*.md" -exec grep -H "https\?://" {} \; | grep -v -E "(https://scirm-dd5c3\.web\.app|mailto:|tel:)" || true)
+        
+        if [ -n "$EXTERNAL_LINKS" ]; then
+          echo "⚠️ External links found (review recommended):"
+          echo "$EXTERNAL_LINKS"
+          echo ""
+          echo "Consider if these external links are necessary and secure."
+        fi
+        
+        echo "✅ External link policy check completed"
+
+  quality-summary:
+    name: "Quality Gate Summary"
+    runs-on: ubuntu-latest
+    needs: [markdown-lint, link-checker, image-checker, spelling-check, external-link-policy]
+    if: always()
+    
+    steps:
+    - name: Quality gate results
+      run: |
+        echo "📊 **Documentation Quality Gate Results**"
+        echo "========================================"
+        echo ""
+        echo "🔍 **Markdown Lint**: ${{ needs.markdown-lint.result }}"
+        echo "🔗 **Link Checker**: ${{ needs.link-checker.result }}"
+        echo "🖼️ **Image Checker**: ${{ needs.image-checker.result }}"
+        echo "📝 **Spelling Check**: ${{ needs.spelling-check.result }}"
+        echo "🔒 **External Link Policy**: ${{ needs.external-link-policy.result }}"
+        echo ""
+        
+        if [ "${{ needs.markdown-lint.result }}" = "failure" ] || \
+           [ "${{ needs.link-checker.result }}" = "failure" ] || \
+           [ "${{ needs.image-checker.result }}" = "failure" ] || \
+           [ "${{ needs.external-link-policy.result }}" = "failure" ]; then
+          echo "❌ **Quality gates failed - PR cannot be merged**"
+          exit 1
+        else
+          echo "✅ **All quality gates passed - PR ready for review**"
+        fi

@@ -48,6 +48,10 @@
           {
             "context": "no-internal-dashboards-to-main",
             "integration_id": null
+          },
+          {
+            "context": "no-deploy-from-main",
+            "integration_id": null
           }
         ],
         "strict_required_status_checks_policy": true
