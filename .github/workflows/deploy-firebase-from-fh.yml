@@ -36,11 +36,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate-branch
     steps:
-    - name: Check secrets
+    - name: Check Required Secrets
+      id: check_secrets
       run: |
-        test -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" || { echo "❌ Missing FIREBASE_SERVICE_ACCOUNT_KEY"; exit 1; }
-        test -n "${{ secrets.FIREBASE_PROJECT_ID }}" || { echo "❌ Missing FIREBASE_PROJECT_ID"; exit 1; }
-        echo "✅ Required secrets validated"
+        missing=0
+        if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" ]; then
+          echo "❌ Missing FIREBASE_SERVICE_ACCOUNT_KEY"; missing=1; fi
+        if [ -z "${{ secrets.FIREBASE_PROJECT_ID }}" ]; then
+          echo "❌ Missing FIREBASE_PROJECT_ID"; missing=1; fi
+        exit $missing
+
+    - name: Debug Secrets Presence (redacted)
+      run: |
+        [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" ] && echo "KEY: PRESENT" || echo "KEY: MISSING"
+        [ -n "${{ secrets.FIREBASE_PROJECT_ID }}" ] && echo "PROJECT_ID: PRESENT" || echo "PROJECT_ID: MISSING"
 
   build-mkdocs:
     name: "Build MkDocs Site"
@@ -144,39 +153,51 @@ jobs:
         pip install mkdocs-mermaid2-plugin
         pip install mkdocs-git-revision-date-localized-plugin
 
+    - name: Prepare Service Account File
+      run: |
+        printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > "$RUNNER_TEMP/fb.json"
+        python3 -c "
+        import json, os
+        p=os.environ['RUNNER_TEMP']+'/fb.json'
+        json.load(open(p))  # throws on invalid JSON
+        print('Service account JSON parsed OK:', p)
+        "
+      env:
+        RUNNER_TEMP: ${{ runner.temp }}
+
+    - name: Export Auth Env
+      run: |
+        echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/fb.json" >> $GITHUB_ENV
+        echo "FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
+
     - name: Setup Firebase CLI
       run: |
         npm install -g firebase-tools
         firebase --version
 
     - name: Authenticate with Firebase
-      env:
-        FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-        FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
       run: |
-        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > $HOME/firebase-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-key.json
-        firebase use $FIREBASE_PROJECT_ID
+        firebase use "$FIREBASE_PROJECT_ID"
         echo "✅ Firebase authentication successful"
 
-    - name: Deploy to Firebase Hosting
-      env:
-        FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-        FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+    - name: Build MkDocs for Deploy
       run: |
-        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > $HOME/firebase-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-key.json
-        
+        echo "🏗️ Building MkDocs documentation site for deployment..."
+        mkdocs build --strict
+        echo "✅ MkDocs build completed successfully"
+
+    - name: Deploy to Firebase Hosting
+      run: |
         # Copy built site to firebase directory
         rm -rf firebase/public/*
         cp -r site/* firebase/public/
         
         # Deploy from firebase directory
         cd firebase
-        firebase deploy --only hosting --non-interactive
+        firebase deploy --only hosting --project "$FIREBASE_PROJECT_ID"
         
         echo "✅ Deployment completed successfully"
-        echo "🌐 Site URL: https://${{ secrets.FIREBASE_PROJECT_ID }}.web.app"
+        echo "🌐 Site URL: https://$FIREBASE_PROJECT_ID.web.app"
 
   write-deployment-evidence:
     name: "Write Deployment Evidence"

@@ -1,0 +1,160 @@
+name: "🔑 Firebase Key Rotation Helper"
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Rotation action to perform'
+        required: true
+        default: 'check-status'
+        type: choice
+        options:
+        - check-status
+        - print-runbook
+        - verify-secrets
+
+permissions:
+  contents: read
+
+jobs:
+  rotation-helper:
+    name: "Key Rotation Helper"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Print Rotation Runbook
+      if: ${{ github.event.inputs.action == 'print-runbook' || github.event.inputs.action == 'check-status' }}
+      run: |
+        echo ""
+        echo "🔑 **Firebase Service Account Key Rotation Runbook**"
+        echo "=================================================="
+        echo ""
+        echo "📋 **Quick Steps:**"
+        echo ""
+        echo "1️⃣ **Create Service Account (one-time):**"
+        echo "   gcloud iam service-accounts create scirm-ci-deployer \\"
+        echo "     --display-name=\"SCIRM Firebase Hosting CI/CD Deployer\" \\"
+        echo "     --project=scirm-dd5c3"
+        echo ""
+        echo "2️⃣ **Grant Minimal Roles:**"
+        echo "   gcloud projects add-iam-policy-binding scirm-dd5c3 \\"
+        echo "     --member=\"serviceAccount:scirm-ci-deployer@scirm-dd5c3.iam.gserviceaccount.com\" \\"
+        echo "     --role=\"roles/firebasehosting.admin\""
+        echo ""
+        echo "3️⃣ **Generate Fresh Key:**"
+        echo "   gcloud iam service-accounts keys create scirm-ci-key.json \\"
+        echo "     --iam-account=scirm-ci-deployer@scirm-dd5c3.iam.gserviceaccount.com \\"
+        echo "     --project=scirm-dd5c3"
+        echo ""
+        echo "4️⃣ **Update GitHub Secrets (manual):**"
+        echo "   • FIREBASE_SERVICE_ACCOUNT_KEY = contents of scirm-ci-key.json"
+        echo "   • FIREBASE_PROJECT_ID = scirm-dd5c3"
+        echo ""
+        echo "5️⃣ **Test Locally (optional):**"
+        echo "   export GOOGLE_APPLICATION_CREDENTIALS=./scirm-ci-key.json"
+        echo "   firebase use scirm-dd5c3"
+        echo "   firebase deploy --only hosting --project scirm-dd5c3 --dry-run"
+        echo ""
+        echo "6️⃣ **Clean Old Keys:**"
+        echo "   # List keys:"
+        echo "   gcloud iam service-accounts keys list \\"
+        echo "     --iam-account=scirm-ci-deployer@scirm-dd5c3.iam.gserviceaccount.com \\"
+        echo "     --project=scirm-dd5c3"
+        echo ""
+        echo "   # Delete old key by KEY_ID:"
+        echo "   gcloud iam service-accounts keys delete KEY_ID \\"
+        echo "     --iam-account=scirm-ci-deployer@scirm-dd5c3.iam.gserviceaccount.com \\"
+        echo "     --project=scirm-dd5c3 --quiet"
+        echo ""
+
+    - name: Verify Current Secrets
+      if: ${{ github.event.inputs.action == 'verify-secrets' || github.event.inputs.action == 'check-status' }}
+      run: |
+        echo ""
+        echo "🔍 **Current Secrets Status:**"
+        echo "============================="
+        echo ""
+        
+        # Check secrets presence
+        if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" ]; then
+          echo "✅ FIREBASE_SERVICE_ACCOUNT_KEY: PRESENT"
+          
+          # Try to validate JSON structure
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > /tmp/test-key.json
+          if python3 -c "import json; json.load(open('/tmp/test-key.json'))" 2>/dev/null; then
+            echo "✅ Service account key: VALID JSON"
+          else
+            echo "❌ Service account key: INVALID JSON"
+          fi
+          rm -f /tmp/test-key.json
+        else
+          echo "❌ FIREBASE_SERVICE_ACCOUNT_KEY: MISSING"
+        fi
+        
+        if [ -n "${{ secrets.FIREBASE_PROJECT_ID }}" ]; then
+          echo "✅ FIREBASE_PROJECT_ID: PRESENT"
+          if [ "${{ secrets.FIREBASE_PROJECT_ID }}" = "scirm-dd5c3" ]; then
+            echo "✅ Project ID: CORRECT (scirm-dd5c3)"
+          else
+            echo "⚠️ Project ID: UNEXPECTED VALUE"
+          fi
+        else
+          echo "❌ FIREBASE_PROJECT_ID: MISSING"
+        fi
+
+    - name: Rotation Reminders
+      if: ${{ github.event.inputs.action == 'check-status' }}
+      run: |
+        echo ""
+        echo "⚠️ **Security Reminders:**"
+        echo "========================="
+        echo ""
+        echo "🚫 **NEVER commit the JSON key to the repository**"
+        echo "🔄 **ALWAYS update GitHub Secrets immediately after generating new key**"
+        echo "🧹 **ALWAYS remove old keys once pipeline is green with new key**"
+        echo ""
+        echo "📋 **Post-Rotation Checklist:**"
+        echo "• [ ] New key generated with gcloud"
+        echo "• [ ] GitHub Secrets updated"
+        echo "• [ ] Test deployment successful"
+        echo "• [ ] Old keys removed"
+        echo "• [ ] Local key files deleted"
+        echo ""
+        echo "🔗 **Full Documentation:**"
+        echo "   docs/governance/firebase-key-rotation.md"
+        echo ""
+        echo "🚀 **Test Deployment:**"
+        echo "   Push a trivial change to firebase-hosting branch:"
+        echo "   echo \"\$(date)\" > docs/.deploy-stamp"
+        echo "   git add docs/.deploy-stamp"
+        echo "   git commit -m \"test: verify new service account key\""
+        echo "   git push origin firebase-hosting"
+        echo ""
+
+    - name: Security Warnings
+      run: |
+        echo ""
+        echo "🔒 **CRITICAL SECURITY NOTES:**"
+        echo "=============================="
+        echo ""
+        echo "⚠️ This workflow does NOT automatically rotate keys"
+        echo "⚠️ Key generation must be done manually with gcloud CLI"
+        echo "⚠️ This prevents privilege escalation in CI/CD"
+        echo ""
+        echo "✅ This workflow only:"
+        echo "   • Prints the rotation runbook"
+        echo "   • Verifies current secret status"
+        echo "   • Provides security reminders"
+        echo ""
+        echo "🔐 **For actual key rotation:**"
+        echo "   1. Use gcloud CLI locally"
+        echo "   2. Follow docs/governance/firebase-key-rotation.md"
+        echo "   3. Update GitHub Secrets manually"
+        echo "   4. Test deployment pipeline"
+        echo "   5. Remove old keys after verification"
+        echo ""
