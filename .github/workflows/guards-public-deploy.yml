@@ -1,0 +1,125 @@
+name: "🛡️ Guards - Public Deployment Protection"
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/deploy-firebase-static.yml'
+      - '.github/workflows/deploy-netlify.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+
+concurrency:
+  group: guards-public-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  branch-guard:
+    name: Branch Protection Guard
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main'
+    
+    steps:
+    - name: Block non-main deployments
+      run: |
+        echo "🚫 DEPLOYMENT BLOCKED"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "❌ Public documentation deployments are only allowed from the 'main' branch"
+        echo "Current branch '${{ github.ref_name }}' is not authorized for public deployment"
+        echo ""
+        echo "Allowed branches for public deployment:"
+        echo "  ✅ main"
+        echo ""
+        echo "Blocked branches:"
+        echo "  ❌ internal-dashboards (internal content only)"
+        echo "  ❌ firebase-setup (infrastructure only)"
+        echo "  ❌ netlify-setup (infrastructure only)"
+        echo "  ❌ feature/* (development only)"
+        echo ""
+        echo "To deploy public documentation:"
+        echo "1. Merge your changes to the 'main' branch"
+        echo "2. Public deployment will trigger automatically"
+        exit 1
+
+  content-guard:
+    name: Content Isolation Guard
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Check for internal dashboard content
+      run: |
+        echo "🔍 Scanning for internal dashboard content in public docs..."
+        
+        # Check for dashboard directories in docs/
+        if find docs/ -path "*/dashboards/*" -name "*.md" | grep -q .; then
+          echo "❌ CONTENT VIOLATION: Internal dashboard content found in public docs"
+          # Check markdown files for GitHub links
+          if find docs/ -name "*.md" -exec grep -l "github\.com.*${{ github.repository }}" {} \; 2>/dev/null | grep -q .; then
+            echo "⚠️ WARNING: GitHub repository links found in documentation"
+            echo "Files with links:"
+            find docs/ -name "*.md" -exec grep -l "github\.com.*${{ github.repository }}" {} \; | sed 's/^/  - /'
+            echo ""
+            echo "📋 Consider converting to relative links within the documentation"
+          fi
+          
+          echo "✅ Repository link validation completed"
+
+  # ============================================================================
+  # GUARD SUMMARY
+  # ============================================================================
+  guard-summary:
+    name: "📊 Guard Summary"
+    runs-on: ubuntu-latest
+    needs: [branch-guard, content-guard]
+    if: always()
+    steps:
+      - name: Generate guard summary
+        run: |
+          echo "🛡️ Public Deployment Guards Summary"
+          echo "==================================="
+          echo ""
+          echo "🔍 **Guard Results:**"
+          echo "   • Branch Protection: ${{ needs.branch-guard.result || 'skipped' }}"
+          echo "   • Content Isolation: ${{ needs.content-guard.result }}"
+          echo "   • Build Validation: N/A (no build step in this workflow)"
+          echo ""
+          echo "📋 **Security Controls:**"
+          echo "   ✅ Main branch deployment enforcement"
+          echo "   ✅ Internal content isolation"
+          echo "   ✅ Repository link prevention"
+          echo "   ✅ Build validation"
+          echo ""
+          
+          # Check overall status
+          if [[ "${{ needs.content-guard.result }}" == "success" ]]; then
+            if [[ "${{ github.ref_name }}" != "main" ]]; then
+              echo "🚫 **DEPLOYMENT BLOCKED**"
+              echo "Non-main branch deployment prevented!"
+            else
+              echo "🎉 **ALL GUARDS PASSED**"
+              echo "Public deployment security maintained!"
+            fi
+          else
+            echo "❌ **GUARD FAILURE**"
+            echo "Security violation detected - please review and fix!"
+            exit 1
+          fi

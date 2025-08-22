@@ -1,117 +1,114 @@
-# SCIRM Documentation Platform
+# SCIRM Documentation
 
-🔒 **Secure AI-Powered Supply Chain Risk Management Documentation**
+Welcome to the SCIRM (Supply Chain Intelligence & Risk Management) documentation portal.
 
-Welcome to the SCIRM documentation platform - your secure gateway to comprehensive supply chain risk management documentation, architecture decisions, and governance materials.
+## Quick Navigation
 
-## 🎯 Platform Overview
+<div class="grid cards" markdown>
 
-SCIRM (Supply Chain Intelligence & Risk Management) is an enterprise-grade AI platform that predicts, monitors, and mitigates supply chain risks in real-time, with primary focus on pharmaceutical and healthcare supply chains.
+-   :material-rocket-launch:{ .lg .middle } **Getting Started**
 
-### 🏗️ Architecture
-- **Multi-Agent AI Swarm**: Coordinated intelligence with specialized agents
-- **Real-Time Risk Assessment**: Sub-500ms response times
-- **Explainable AI**: Transparent decision-making with confidence scores
-- **Enterprise Security**: SOC2, GDPR, HIPAA compliant
+    ---
 
-## 📚 Documentation Sections
+    New to SCIRM? Start here for an overview and quick introduction.
 
-### 📋 Product Documentation
-- **[Product Requirements (PRD)](PRD.md)** - Business goals, features, and success metrics
-- **[Product Design Document (PDD)](PDD.md)** - Technical architecture and implementation
-- **[Anti-Patterns Guide](AntiPatterns.md)** - Governance guardrails and what NOT to do
+    [:octicons-arrow-right-24: Platform Overview](intro/overview.md)
+    [:octicons-arrow-right-24: Getting Started Guide](intro/getting-started.md)
 
-### 🏛️ Architecture & Decisions
-- **[Architecture Decision Records (ADRs)](architecture/adr/)** - Technical decisions and rationale
-- **[System Architecture](architecture/)** - High-level system design and components
+-   :material-cog:{ .lg .middle } **Architecture**
 
-### 🛡️ Security & Compliance
-- **[Security Policies](../security/)** - Security controls and procedures
-- **[Compliance Framework](../compliance/)** - SOC2, GDPR, HIPAA compliance
+    ---
 
-## 🔐 Security Notice
+    Technical system design and multi-agent architecture details.
 
-This documentation platform implements enterprise-grade security:
+    [:octicons-arrow-right-24: System Overview](architecture/system-overview.md)
+    [:octicons-arrow-right-24: Multi-Agent Architecture](architecture/agents.md)
 
-- **🛡️ Authentication Required**: Google OAuth 2.0 with session cookies
-- **🔒 Zero Anonymous Access**: All content requires valid authentication
-- **📊 Audit Logging**: All access logged for compliance
-- **🚨 Security Headers**: HSTS, XFO DENY, CSP enforced
+-   :material-file-document:{ .lg .middle } **Product Documentation**
 
-## 🚀 Getting Started
+    ---
 
-### For Developers
-1. Review the [Product Design Document (PDD)](PDD.md) for technical architecture
-2. Check [Architecture Decision Records](architecture/adr/) for design decisions
-3. Follow security guidelines in [Anti-Patterns Guide](AntiPatterns.md)
+    Business requirements, design documents, and governance.
 
-### For Product Managers
-1. Start with [Product Requirements Document (PRD)](PRD.md)
-2. Review success metrics and business goals
-3. Check compliance requirements
+    [:octicons-arrow-right-24: Product Requirements (PRD)](product/prd.md)
+    [:octicons-arrow-right-24: Product Design (PDD)](product/pdd.md)
+    [:octicons-arrow-right-24: Anti-Patterns & Governance](product/anti-patterns.md)
 
-### For Security & Compliance
-1. Review [Security Policies](../security/) 
-2. Check [Compliance Framework](../compliance/)
-3. Monitor audit trails and evidence
+-   :material-shield-check:{ .lg .middle } **Security & Compliance**
 
-## 🏢 Multi-Agent System
+    ---
 
-SCIRM employs a sophisticated multi-agent architecture:
+    Security principles, compliance frameworks, and best practices.
 
-### 🤖 Agent Roles
-- **Coordinator Agent**: Meta-agent orchestration and state tracking
-- **Planner Agent**: Context maintenance and task planning (CAG)
-- **Researcher Agent**: Data retrieval and ranking (RAG)
-- **Executor Agent**: Actionable recommendation generation
-- **Reviewer Agent**: Output validation and quality assurance
+    [:octicons-arrow-right-24: Security Overview](security/)
+    [:octicons-arrow-right-24: Architecture Decisions](adr/)
 
-### 🧠 AI Capabilities
-- **Contextual AI Generation (CAG)**: Organization-specific personalization
-- **Retrieval Augmented Generation (RAG)**: Live data from ERP, IoT, external APIs
-- **Explainable Outputs**: Reasoning trails with confidence scores
-- **Real-Time Processing**: Sub-500ms response requirements
+</div>
 
-## 📊 Key Features
+## What is SCIRM?
 
-### 🎯 Risk Management
-- **Predictive Analytics**: AI-powered risk forecasting
-- **Real-Time Monitoring**: Continuous supply chain surveillance
-- **Automated Mitigation**: Intelligent response recommendations
-- **Multi-Industry Support**: Pharmaceutical, manufacturing, retail, electronics
+SCIRM is an AI-powered platform that provides intelligent, real-time supply chain risk management through a coordinated swarm of specialized AI agents. The platform delivers sub-500ms risk assessments with explainable recommendations, helping organizations proactively identify and mitigate supply chain disruptions.
 
-### 🔍 Transparency & Explainability
-- **Decision Trails**: Complete reasoning paths for all recommendations
-- **Confidence Scoring**: Reliability metrics for AI outputs
-- **Evidence Linking**: Source attribution for all insights
-- **Audit Compliance**: Complete decision history
+### Key Capabilities
 
-### 🛡️ Enterprise Security
-- **Zero-Trust Architecture**: Comprehensive access controls
-- **Data Governance**: Complete lineage and versioning
-- **Compliance Ready**: SOC2, GDPR, HIPAA aligned
-- **Audit Trails**: Immutable decision logs
+- **Real-Time Risk Assessment**: Sub-500ms response times for critical supply chain alerts
+- **Explainable AI**: All recommendations include reasoning trails and confidence scores  
+- **Multi-Agent Intelligence**: Five specialized AI agents working in coordination
+- **Enterprise Security**: SOC2, GDPR, HIPAA compliance with comprehensive audit trails
+- **Industry Focus**: Initially targeting pharmaceutical & healthcare with extensibility
 
-## 🔗 Quick Navigation
+### Platform Architecture
 
-| Section | Description | Audience |
-|---------|-------------|----------|
-| [PRD](PRD.md) | Business requirements and goals | Product, Business |
-| [PDD](PDD.md) | Technical architecture and design | Engineering, Architecture |
-| [Anti-Patterns](AntiPatterns.md) | Governance and guardrails | All Teams |
-| [ADRs](architecture/adr/) | Architecture decisions | Engineering, Architecture |
-| [Security](../security/) | Security policies and controls | Security, Compliance |
-| [Compliance](../compliance/) | Regulatory compliance framework | Compliance, Legal |
+SCIRM implements a multi-agent swarm architecture:
 
-## 📞 Support & Contact
+1. **Coordinator Agent** - Orchestrates workflow and agent collaboration
+2. **Planner Agent (CAG)** - Maintains organizational context and priorities  
+3. **Researcher Agent (RAG)** - Fetches and ranks real-time data from multiple sources
+4. **Executor Agent** - Generates actionable risk mitigation recommendations
+5. **Quality Reviewer Agent** - Validates outputs and assigns confidence scores
 
-- **Technical Issues**: Create GitHub issue in repository
-- **Security Concerns**: security@scirm.ai
-- **Compliance Questions**: compliance@scirm.ai
-- **General Inquiries**: docs@scirm.ai
+## Documentation Sections
+
+### :material-play-circle: Introduction
+- [Platform Overview](intro/overview.md) - What is SCIRM and why use it
+- [Getting Started](intro/getting-started.md) - Quick introduction to key concepts
+
+### :material-file-document: Product Documentation  
+- [Product Requirements Document (PRD)](product/prd.md) - Business goals and feature requirements
+- [Product Design Document (PDD)](product/pdd.md) - Technical implementation details
+- [Anti-Patterns & Governance](product/anti-patterns.md) - Governance guardrails and what to avoid
+
+### :material-sitemap: Architecture
+- [System Overview](architecture/system-overview.md) - High-level system architecture and data flows
+- [Multi-Agent Architecture](architecture/agents.md) - Detailed AI agent specifications
+- [Architecture Decision Records](adr/) - Design decisions and technical rationale
+
+### :material-shield-check: Security & Compliance
+- [Security Overview](security/) - Security principles and compliance frameworks
+
+### :material-map: Planning & Development
+- [Roadmap](roadmap/) - Development roadmap and future plans
+- [Changelog](changelog/) - Release notes and version history
+
+### :material-help-circle: Support
+- [Support Resources](support/) - FAQ, troubleshooting, and getting help
+
+## Performance Metrics
+
+- **Response Time**: <500ms for risk assessments
+- **Prediction Accuracy**: 85%+ across all risk categories
+- **System Availability**: 99.9% uptime SLA
+- **Concurrent Users**: 10,000+ simultaneous requests supported
+
+## Technology Stack
+
+- **AI/ML**: Python, FastAPI, LangChain, LangGraph, GPT-4/Claude
+- **Data**: Vector databases, Elasticsearch, real-time streaming
+- **Frontend**: React/Next.js with modern UI components
+- **Infrastructure**: Kubernetes, cloud-native deployment
+- **Monitoring**: Prometheus, Grafana, comprehensive observability
 
 ---
 
-🔒 **This platform maintains enterprise-grade security with comprehensive audit trails for regulatory compliance.**
+*Documentation automatically updated with each release. For technical support, see [Support Resources](support/).*
 
-*Last Updated: 2025-08-21 | Platform Version: 1.0.0*

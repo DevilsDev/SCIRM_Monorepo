@@ -1,171 +1,170 @@
-name: Deploy - Firebase Static Site
+name: 🔥 Deploy Firebase Static Documentation
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'docs/**'
-      - 'firebase-static/**'
       - 'mkdocs.yml'
   workflow_dispatch:
 
 concurrency:
   group: deploy-firebase-static-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  guard-checks:
-    name: Deployment Guards
+  deploy:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     
     steps:
-    - name: Verify branch is main
-      run: |
-        if [[ "${{ github.ref_name }}" != "main" ]]; then
-          echo "❌ Static deployments only allowed from main branch"
-          exit 1
-        fi
-        echo "✅ Branch verification passed"
-        
-    - name: Prevent internal dashboard deployment
-      run: |
-        if [[ "${{ github.ref_name }}" == "internal-dashboards" ]]; then
-          echo "❌ Internal dashboards must never be deployed"
-          exit 1
-        fi
-        echo "✅ Internal content guard passed"
-
-  build-docs:
-    name: Build Documentation
-    runs-on: ubuntu-latest
-    needs: guard-checks
-    
-    steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
-      
-    - name: Setup Python
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        cache: 'pip'
-        
-    - name: Install MkDocs dependencies
+
+    - name: Install dependencies
       run: |
-        pip install mkdocs-material mkdocs-mermaid2-plugin
-        
-    - name: Content guard - check for internal files
+        python -m pip install --upgrade pip
+        pip install mkdocs-material
+
+    - name: Validate branch (main only)
       run: |
-        if find docs/ -name "*.md" -path "*/dashboards/*" | grep -q .; then
-          echo "❌ Internal dashboard content found - blocking deployment"
+        if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          echo "❌ ERROR: Public documentation can only be deployed from main branch"
+          echo "Current branch: ${{ github.ref }}"
           exit 1
         fi
-        echo "✅ No internal content found"
-        
-    - name: Build documentation
-      run: mkdocs build --strict
-      
-    - name: Copy to Firebase static directory
-      run: |
-        mkdir -p firebase-static/public
-        cp -r site/* firebase-static/public/
-        
-    - name: Upload build artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: static-site
-        path: firebase-static/public/
-        retention-days: 1
+        echo "✅ Branch validation passed: deploying from main"
 
-  deploy-firebase-static:
-    name: Deploy to Firebase Static Hosting
-    runs-on: ubuntu-latest
-    needs: build-docs
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Download build artifact
-      uses: actions/download-artifact@v3
-      with:
-        name: static-site
-        path: firebase-static/public/
-        
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        
-    - name: Install Firebase CLI
-      run: npm install -g firebase-tools
-      
-    - name: Authenticate to Firebase
+    - name: Check for internal dashboard content
       run: |
-        echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' > service-account.json
-        export GOOGLE_APPLICATION_CREDENTIALS=service-account.json
-        
-    - name: Deploy to Firebase Static Hosting
+        echo "🔍 Checking for internal dashboard content..."
+        if find docs/ -path "*/dashboards/*" -name "*.md" | grep -q .; then
+          echo "❌ ERROR: Internal dashboard content found in /docs"
+          echo "Found files:"
+          find docs/ -path "*/dashboards/*" -name "*.md"
+          echo "Internal dashboards must remain on internal-dashboards branch only"
+          exit 1
+        fi
+        echo "✅ No internal dashboard content found in public docs"
+
+    - name: Check for repository links
       run: |
+        echo "🔍 Checking for repository links..."
+        if grep -r -i "github\.com" docs/ || grep -r "edit_uri" mkdocs.yml || grep -r "repo_url" mkdocs.yml; then
+          echo "❌ ERROR: Repository links found in documentation"
+          echo "Found links:"
+          grep -r -i "github\.com" docs/ || true
+          grep -r "edit_uri\|repo_url" mkdocs.yml || true
+          echo "Remove all repository links per super prompt requirements"
+          exit 1
+        fi
+        echo "✅ No repository links found"
+
+    - name: Build MkDocs site
+      run: |
+        echo "🏗️ Building MkDocs site..."
+        mkdocs build --strict
+        echo "✅ MkDocs build completed successfully"
+
+    - name: Validate build output
+      run: |
+        echo "🔍 Validating build output..."
+        if [ ! -d "site" ]; then
+          echo "❌ ERROR: Build output directory 'site' not found"
+          exit 1
+        fi
+        
+        # Check for dashboard content in build output
+        if find site/ -path "*/dashboards/*" -name "*.html" | grep -q .; then
+          echo "❌ ERROR: Dashboard content found in build output"
+          find site/ -path "*/dashboards/*" -name "*.html"
+          exit 1
+        fi
+        
+        echo "✅ Build output validation passed"
+
+    - name: Setup Firebase CLI
+      run: |
+        npm install -g firebase-tools
+
+    - name: Authenticate with Firebase
+      env:
+        FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+      run: |
+        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > $HOME/firebase-key.json
+        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-key.json
+        firebase --version
+
+    - name: Deploy to Firebase Hosting
+      env:
+        FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-key.json
+      run: |
+        echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" > ${{ runner.temp }}/firebase-key.json
         cd firebase-static
         firebase use ${{ secrets.FIREBASE_PROJECT_ID }}
-        firebase deploy --only hosting:static --force
-        
-    - name: Cleanup
-      run: rm -f service-account.json
+        firebase deploy --only hosting --non-interactive
+        echo "✅ Deployed to https://scirm-dd5c3.web.app"
 
-  capture-evidence:
-    name: Capture Compliance Evidence
-    runs-on: ubuntu-latest
-    needs: [guard-checks, build-docs, deploy-firebase-static]
-    if: always()
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Generate evidence file
+    - name: Generate deployment evidence
       run: |
-        mkdir -p compliance/artifacts
+        echo "📋 Generating deployment evidence..."
         
-        cat > compliance/artifacts/firebase-static-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}.json << EOF
+        # Create evidence directory
+        mkdir -p compliance/artifacts/deployment-logs
+        
+        # Generate evidence JSON
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        EVIDENCE_FILE="compliance/artifacts/deployment-logs/firebase-static-deploy-${TIMESTAMP}.json"
+        
+        cat > "$EVIDENCE_FILE" << EOF
         {
-          "deployment_id": "firebase-static-${{ github.run_id }}",
-          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "deployment_target": "Firebase Static",
           "commit_sha": "${{ github.sha }}",
+          "timestamp": "$TIMESTAMP",
+          "workflow_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+          "site_url": "https://scirm-dd5c3.web.app",
           "branch": "${{ github.ref_name }}",
-          "workflow_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-          "deployment_type": "firebase-static",
-          "artifacts": ["hosting"],
-          "security_scan": {
-            "status": "passed",
-            "vulnerabilities": 0
-          },
-          "compliance_check": {
-            "status": "passed",
-            "controls_verified": ["content_filtering", "public_access_only"]
-          },
-          "guard_checks": {
-            "branch_verification": "${{ needs.guard-checks.result }}",
-            "content_guard": "passed"
-          },
-          "deployment_status": {
-            "build": "${{ needs.build-docs.result }}",
-            "firebase_deploy": "${{ needs.deploy-firebase-static.result }}"
+          "actor": "${{ github.actor }}",
+          "event": "${{ github.event_name }}",
+          "repository": "${{ github.repository }}",
+          "validation_checks": {
+            "branch_compliance": true,
+            "no_dashboard_content": true,
+            "no_repository_links": true,
+            "build_success": true
           }
         }
         EOF
         
-    - name: Commit evidence
+        echo "✅ Evidence generated: $EVIDENCE_FILE"
+
+    - name: Commit evidence to repository
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add compliance/artifacts/
+        git add compliance/artifacts/deployment-logs/
+        git commit -m "docs: add deployment evidence for Firebase static deploy [skip ci]" || exit 0
+        git push
+
+    - name: Deployment summary
+      run: |
+        echo "🚀 Firebase Static Documentation Deployment Complete"
+        echo "📍 Site URL: https://scirm-dd5c3.web.app"
+        echo "🔗 Commit: ${{ github.sha }}"
+        echo "📅 Deployed: $(date -u)"
+        echo "✅ All validation checks passed"
+        echo "📋 Evidence captured in compliance/artifacts/"
         git commit -m "Evidence: Firebase static deployment ${{ github.run_id }}" || exit 0
         git push

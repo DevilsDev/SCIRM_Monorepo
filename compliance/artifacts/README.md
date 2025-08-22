@@ -1,12 +1,12 @@
 # SCIRM# Compliance Evidence & Artifacts
 
-## Overview
-This directory contains automated evidence capture for all deployments and governance activities, supporting SOC2, GDPR, HIPAA, and FDA compliance requirements.
+## Compliance Artifacts
+
+This directory contains automated compliance evidence and audit trails for the SCIRM platform.
 
 ## Evidence Schema
 
-### Deployment Evidence
-Every deployment generates a JSON evidence file with the following schema:
+All deployment evidence follows this JSON schema:
 ```json
 {
   "deployment_id": "firebase-auth-20250822-081239",
