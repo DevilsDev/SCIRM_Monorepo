@@ -1,35 +1,120 @@
-## Description
-Brief description of the changes
+# Pull Request - SCIRM Security & Quality Checklist
 
-## Type of Change
-- [ ] 🚀 New feature (non-breaking change which adds functionality)
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📚 Documentation update
-- [ ] 🔧 Refactoring (no functional changes)
-- [ ] ⚡ Performance improvement
-- [ ] 🔒 Security improvement
+## 📋 PR Information
+- **Type**: [ ] Feature [ ] Bug Fix [ ] Documentation [ ] Refactor [ ] Security [ ] Infrastructure
+- **Scope**: [ ] Frontend [ ] Backend [ ] Agent Services [ ] Infrastructure [ ] Documentation
+- **Breaking Change**: [ ] Yes [ ] No
 
-## Related Issues
+## 📝 Description
+Brief description of the changes and their impact.
+
+## 🔗 Related Issues
 Closes #(issue number)
 
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
+## 🛡️ Security & Compliance Checklist
+
+### ✅ Required Status Checks
+- [ ] `docs-build` - Documentation builds successfully
+- [ ] `lint` - Code style and formatting passes
+- [ ] `tests` - All unit and integration tests pass
+- [ ] `security-scans` - No high/critical vulnerabilities
+- [ ] `codeql-analysis` - Static code analysis passes
+- [ ] `no-internal-dashboards-to-main` - No internal content in public deployment
+
+### 🔐 Commit Security
+- [ ] **All commits are signed** (Verified badge visible on GitHub)
+- [ ] Commit messages follow conventional commit format
+- [ ] No sensitive data (passwords, keys, tokens) in commits
+- [ ] No hardcoded secrets or API keys
+
+### 🚫 Branch Protection Compliance
+- [ ] **NOT merging from `internal-dashboards` to `main`**
+- [ ] Branch is up to date with main
+- [ ] Linear history maintained (no merge commits)
+- [ ] PR has required approvals (2 for main branch)
+
+### 📋 Code Quality
+- [ ] Code follows project style guidelines
+- [ ] Self-review completed
+- [ ] Complex logic is documented
+- [ ] Error handling implemented
+- [ ] Performance impact considered
+
+### 🧪 Testing Requirements
+- [ ] Unit tests added/updated for new functionality
+- [ ] Integration tests cover critical paths
 - [ ] Manual testing completed
-- [ ] All tests passing locally
+- [ ] All tests pass locally
+- [ ] Test coverage maintained or improved
 
-## Checklist
-- [ ] Code follows the project's style guidelines
-- [ ] Self-review of code completed
-- [ ] Code is properly commented, particularly in hard-to-understand areas
-- [ ] Documentation updated (if applicable)
-- [ ] No breaking changes (or breaking changes documented)
-- [ ] Added tests that prove the fix is effective or that the feature works
-- [ ] New and existing unit tests pass locally
+### 📚 Documentation
+- [ ] Documentation updated for new features
+- [ ] API changes documented
+- [ ] ADR created for architectural decisions
+- [ ] README updated if needed
 
-## Screenshots (if applicable)
-Add screenshots to help explain your changes.
+### 🔒 Security Review
+- [ ] No SQL injection vulnerabilities
+- [ ] Input validation implemented
+- [ ] Authentication/authorization checked
+- [ ] Data encryption considered
+- [ ] OWASP Top 10 compliance verified
 
-## Additional Notes
-Any additional information that reviewers should know.
+### 📊 Compliance & Governance
+- [ ] SOC2 controls maintained
+- [ ] GDPR data handling compliant
+- [ ] HIPAA requirements met (if applicable)
+- [ ] Audit trail preserved
+- [ ] No internal dashboards in public docs
+
+## 🎯 Testing Strategy
+Describe how this change was tested:
+- [ ] Unit tests
+- [ ] Integration tests  
+- [ ] Manual testing
+- [ ] Security testing
+- [ ] Performance testing
+
+## 🚨 Risk Assessment
+- **Risk Level**: [ ] Low [ ] Medium [ ] High
+- **Rollback Plan**: Describe rollback strategy if needed
+- **Dependencies**: List any external dependencies
+
+## 📸 Screenshots/Evidence
+Add screenshots, logs, or other evidence of testing.
+
+## 👥 Reviewer Guidelines
+**For Code Owners:**
+- [ ] Security implications reviewed
+- [ ] Architecture alignment verified
+- [ ] Compliance requirements met
+- [ ] Performance impact acceptable
+
+**For Security Team:**
+- [ ] No security vulnerabilities introduced
+- [ ] Authentication/authorization correct
+- [ ] Data handling compliant
+- [ ] Secrets management proper
+
+## 🚀 Deployment Notes
+- [ ] Database migrations needed
+- [ ] Configuration changes required
+- [ ] Infrastructure updates needed
+- [ ] Monitoring/alerting updated
+
+## ⚠️ Breaking Changes
+If this introduces breaking changes, describe:
+- What breaks
+- Migration path
+- Backward compatibility plan
+
+## 📝 Additional Notes
+Any additional context for reviewers.
+
+---
+
+**🛡️ Security Reminder**: This PR will be automatically blocked if:
+- Commits are not signed
+- Internal dashboard content is included
+- Required status checks fail
+- Code owner approval is missing

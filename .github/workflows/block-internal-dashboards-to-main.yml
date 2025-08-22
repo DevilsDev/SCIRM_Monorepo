@@ -1,0 +1,43 @@
+name: "🚫 Block Internal Dashboards to Main"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  no-internal-dashboards-to-main:
+    name: "Prevent Internal Dashboard Merges"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Block internal-dashboards to main
+      run: |
+        echo "🔍 Checking PR source branch..."
+        echo "Source branch: ${{ github.head_ref }}"
+        echo "Target branch: ${{ github.base_ref }}"
+        
+        if [[ "${{ github.head_ref }}" == "internal-dashboards" ]]; then
+          echo ""
+          echo "🚫 **MERGE BLOCKED**"
+          echo "❌ Internal dashboards branch cannot be merged to main"
+          echo ""
+          echo "📋 **Reason:**"
+          echo "   Internal dashboards contain sensitive operational data"
+          echo "   that must remain isolated from public deployments"
+          echo ""
+          echo "✅ **Allowed Actions:**"
+          echo "   • Work within internal-dashboards branch"
+          echo "   • Create PRs within internal-dashboards for reviews"
+          echo "   • Deploy internal dashboards separately (never to main)"
+          echo ""
+          echo "🔒 **Security Policy:**"
+          echo "   This protection ensures compliance with data governance"
+          echo "   and prevents accidental exposure of internal metrics"
+          exit 1
+        fi
+        
+        echo "✅ Source branch validation passed"
+        echo "✅ PR from '${{ github.head_ref }}' to main is allowed"

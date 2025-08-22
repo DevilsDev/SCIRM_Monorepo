@@ -1,0 +1,87 @@
+name: "🔏 Signed Commits Verification Guard"
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  verify-signed-commits:
+    name: "Verify All Commits Are Signed"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Verify commit signatures
+      run: |
+        echo "🔍 Verifying commit signatures in PR..."
+        echo "PR: #${{ github.event.number }}"
+        echo "Base: ${{ github.event.pull_request.base.sha }}"
+        echo "Head: ${{ github.event.pull_request.head.sha }}"
+        echo ""
+        
+        # Get commits in this PR
+        COMMITS=$(git rev-list --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+        
+        if [ -z "$COMMITS" ]; then
+          echo "ℹ️ No commits found in PR"
+          exit 0
+        fi
+        
+        echo "📋 **Commits to verify:**"
+        git log --oneline ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+        echo ""
+        
+        UNSIGNED_COMMITS=()
+        
+        for commit in $COMMITS; do
+          echo "🔍 Checking commit: $commit"
+          
+          # Check if commit is signed (has GPG signature)
+          if git verify-commit $commit 2>/dev/null; then
+            echo "  ✅ Signed (GPG)"
+          # Check for SSH signature in commit message
+          elif git show --format="%GG" -s $commit | grep -q "ssh-"; then
+            echo "  ✅ Signed (SSH)"
+          # Check GitHub's verification status via API if available
+          elif git log --format="%G?" -1 $commit | grep -q "G\|U\|Y"; then
+            echo "  ✅ Signed (GitHub verified)"
+          else
+            echo "  ❌ UNSIGNED"
+            UNSIGNED_COMMITS+=($commit)
+          fi
+        done
+        
+        echo ""
+        
+        if [ ${#UNSIGNED_COMMITS[@]} -gt 0 ]; then
+          echo "🚫 **UNSIGNED COMMITS DETECTED**"
+          echo ""
+          echo "❌ The following commits are not signed:"
+          for commit in "${UNSIGNED_COMMITS[@]}"; do
+            echo "  • $commit: $(git log --format='%s' -1 $commit)"
+          done
+          echo ""
+          echo "🔒 **Required Action:**"
+          echo "All commits must be signed with GPG or SSH keys"
+          echo ""
+          echo "📖 **Setup Instructions:**"
+          echo "1. Configure commit signing: docs/contributing/commit-signing.md"
+          echo "2. Sign commits with: git commit -S"
+          echo "3. Or enable auto-signing: git config commit.gpgsign true"
+          echo ""
+          echo "🔧 **Fix Options:**"
+          echo "• Rebase and sign commits: git rebase --exec 'git commit --amend --no-edit -S' HEAD~N"
+          echo "• Or squash and sign: git reset --soft HEAD~N && git commit -S"
+          exit 1
+        fi
+        
+        echo "✅ **ALL COMMITS SIGNED**"
+        echo "🔒 Commit signature verification passed"
