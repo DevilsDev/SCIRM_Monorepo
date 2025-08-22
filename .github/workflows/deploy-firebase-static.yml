@@ -1,4 +1,4 @@
-name: 🔥 Deploy Firebase Static Documentation
+name: 🚫 DEPRECATED - Firebase Static Deploy (BLOCKED)
 
 on:
   push:
@@ -14,157 +14,28 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  deploy:
+  block-deploy-from-main:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
+    - name: Block deployment from main branch
       run: |
-        python -m pip install --upgrade pip
-        pip install mkdocs-material
-
-    - name: Validate branch (main only)
-      run: |
-        if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-          echo "❌ ERROR: Public documentation can only be deployed from main branch"
-          echo "Current branch: ${{ github.ref }}"
-          exit 1
-        fi
-        echo "✅ Branch validation passed: deploying from main"
-
-    - name: Check for internal dashboard content
-      run: |
-        echo "🔍 Checking for internal dashboard content..."
-        if find docs/ -path "*/dashboards/*" -name "*.md" | grep -q .; then
-          echo "❌ ERROR: Internal dashboard content found in /docs"
-          echo "Found files:"
-          find docs/ -path "*/dashboards/*" -name "*.md"
-          echo "Internal dashboards must remain on internal-dashboards branch only"
-          exit 1
-        fi
-        echo "✅ No internal dashboard content found in public docs"
-
-    - name: Check for repository links
-      run: |
-        echo "🔍 Checking for repository links..."
-        if grep -r -i "github\.com" docs/ || grep -r "edit_uri" mkdocs.yml || grep -r "repo_url" mkdocs.yml; then
-          echo "❌ ERROR: Repository links found in documentation"
-          echo "Found links:"
-          grep -r -i "github\.com" docs/ || true
-          grep -r "edit_uri\|repo_url" mkdocs.yml || true
-          echo "Remove all repository links per super prompt requirements"
-          exit 1
-        fi
-        echo "✅ No repository links found"
-
-    - name: Build MkDocs site
-      run: |
-        echo "🏗️ Building MkDocs site..."
-        mkdocs build --strict
-        echo "✅ MkDocs build completed successfully"
-
-    - name: Validate build output
-      run: |
-        echo "🔍 Validating build output..."
-        if [ ! -d "site" ]; then
-          echo "❌ ERROR: Build output directory 'site' not found"
-          exit 1
-        fi
-        
-        # Check for dashboard content in build output
-        if find site/ -path "*/dashboards/*" -name "*.html" | grep -q .; then
-          echo "❌ ERROR: Dashboard content found in build output"
-          find site/ -path "*/dashboards/*" -name "*.html"
-          exit 1
-        fi
-        
-        echo "✅ Build output validation passed"
-
-    - name: Setup Firebase CLI
-      run: |
-        npm install -g firebase-tools
-
-    - name: Authenticate with Firebase
-      env:
-        FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-      run: |
-        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > $HOME/firebase-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-key.json
-        firebase --version
-
-    - name: Deploy to Firebase Hosting
-      env:
-        FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-key.json
-      run: |
-        echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" > ${{ runner.temp }}/firebase-key.json
-        cd firebase-static
-        firebase use ${{ secrets.FIREBASE_PROJECT_ID }}
-        firebase deploy --only hosting --non-interactive
-        echo "✅ Deployed to https://scirm-dd5c3.web.app"
-
-    - name: Generate deployment evidence
-      run: |
-        echo "📋 Generating deployment evidence..."
-        
-        # Create evidence directory
-        mkdir -p compliance/artifacts/deployment-logs
-        
-        # Generate evidence JSON
-        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        EVIDENCE_FILE="compliance/artifacts/deployment-logs/firebase-static-deploy-${TIMESTAMP}.json"
-        
-        cat > "$EVIDENCE_FILE" << EOF
-        {
-          "deployment_target": "Firebase Static",
-          "commit_sha": "${{ github.sha }}",
-          "timestamp": "$TIMESTAMP",
-          "workflow_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-          "site_url": "https://scirm-dd5c3.web.app",
-          "branch": "${{ github.ref_name }}",
-          "actor": "${{ github.actor }}",
-          "event": "${{ github.event_name }}",
-          "repository": "${{ github.repository }}",
-          "validation_checks": {
-            "branch_compliance": true,
-            "no_dashboard_content": true,
-            "no_repository_links": true,
-            "build_success": true
-          }
-        }
-        EOF
-        
-        echo "✅ Evidence generated: $EVIDENCE_FILE"
-
-    - name: Commit evidence to repository
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add compliance/artifacts/deployment-logs/
-        git commit -m "docs: add deployment evidence for Firebase static deploy [skip ci]" || exit 0
-        git push
-
-    - name: Deployment summary
-      run: |
-        echo "🚀 Firebase Static Documentation Deployment Complete"
-        echo "📍 Site URL: https://scirm-dd5c3.web.app"
-        echo "🔗 Commit: ${{ github.sha }}"
-        echo "📅 Deployed: $(date -u)"
-        echo "✅ All validation checks passed"
-        echo "📋 Evidence captured in compliance/artifacts/"
-        git commit -m "Evidence: Firebase static deployment ${{ github.run_id }}" || exit 0
-        git push
+        echo "🚫 DEPLOYMENT BLOCKED: main must never deploy public docs"
+        echo "Current branch: ${{ github.ref }}"
+        echo "Event: ${{ github.event_name }}"
+        echo ""
+        echo "✅ **CORRECT DEPLOYMENT PROCESS:**"
+        echo "   1. Changes merged to main (this branch)"
+        echo "   2. Sync main → firebase-hosting via docs-sync workflow"
+        echo "   3. Deploy from firebase-hosting branch only"
+        echo ""
+        echo "🔒 **Security Policy:**"
+        echo "   • main = source of truth (no deployments)"
+        echo "   • firebase-hosting = deployment branch only"
+        echo "   • Separation prevents accidental deployments"
+        echo ""
+        echo "This guard enforces deployment discipline"
+        exit 1

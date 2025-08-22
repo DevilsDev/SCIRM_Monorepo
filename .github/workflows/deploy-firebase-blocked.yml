@@ -1,0 +1,38 @@
+name: "🚫 DEPRECATED - Firebase Deploy (BLOCKED)"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "firebase/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  block-deploy-from-main:
+    name: "🚫 Block Main Deploy"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Block deployment from main branch
+        run: |
+          echo "🚫 DEPLOYMENT BLOCKED: main must never deploy public docs"
+          echo "Current branch: ${{ github.ref }}"
+          echo "Event: ${{ github.event_name }}"
+          echo ""
+          echo "✅ **CORRECT DEPLOYMENT PROCESS:**"
+          echo "   1. Changes merged to main (this branch)"
+          echo "   2. Sync main → firebase-hosting via docs-sync workflow"
+          echo "   3. Deploy from firebase-hosting branch only"
+          echo ""
+          echo "🔒 **Security Policy:**"
+          echo "   • main = source of truth (no deployments)"
+          echo "   • firebase-hosting = deployment branch only"
+          echo "   • Separation prevents accidental deployments"
+          echo ""
+          echo "This guard enforces deployment discipline"
+          exit 1

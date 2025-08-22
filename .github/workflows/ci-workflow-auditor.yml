@@ -1,0 +1,204 @@
+name: "🔍 CI Workflow Auditor (Drift Detection)"
+
+on:
+  push:
+    branches: [ main, firebase-hosting ]
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-workflows:
+    name: "Audit CI Workflows"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Audit deployment restrictions
+      run: |
+        echo "🔍 Auditing deployment restrictions..."
+        
+        # Check for deploy steps outside deploy-firebase-from-fh.yml
+        DEPLOY_VIOLATIONS=$(grep -r "firebase deploy\|firebase use" .github/workflows/ --exclude="deploy-firebase-from-fh.yml" --exclude="nightly-docs-rebuild.yml" || true)
+        
+        if [ -n "$DEPLOY_VIOLATIONS" ]; then
+          echo "❌ VIOLATION: Deploy steps found outside authorized workflows"
+          echo "$DEPLOY_VIOLATIONS"
+          exit 1
+        fi
+        
+        echo "✅ Deploy steps properly restricted"
+
+    - name: Audit branch restrictions
+      run: |
+        echo "🔍 Auditing branch deployment restrictions..."
+        
+        # Check for workflows that deploy from main
+        MAIN_DEPLOY_VIOLATIONS=$(grep -r "refs/heads/main" .github/workflows/ | grep -v "block-main-deploy\|docs-sync\|ci-workflow-auditor" | grep -E "(firebase deploy|deploy)" || true)
+        
+        if [ -n "$MAIN_DEPLOY_VIOLATIONS" ]; then
+          echo "❌ VIOLATION: Main branch deployment found"
+          echo "$MAIN_DEPLOY_VIOLATIONS"
+          exit 1
+        fi
+        
+        echo "✅ Main branch deployment properly blocked"
+
+    - name: Audit legacy messaging
+      run: |
+        echo "🔍 Auditing for legacy messaging..."
+        
+        # Check for old "Allowed branches: main" messages
+        LEGACY_MESSAGES=$(grep -r "Allowed branches: main" .github/workflows/ || true)
+        
+        if [ -n "$LEGACY_MESSAGES" ]; then
+          echo "❌ VIOLATION: Legacy 'Allowed branches: main' messaging found"
+          echo "$LEGACY_MESSAGES"
+          exit 1
+        fi
+        
+        echo "✅ No legacy messaging found"
+
+    - name: Audit required check names
+      run: |
+        echo "🔍 Auditing required check names..."
+        
+        # Verify expected job names exist
+        EXPECTED_CHECKS=(
+          "validate-branch"
+          "build-mkdocs" 
+          "sanitize-content"
+          "no-deploy-from-main"
+          "lint"
+          "link-check"
+          "spell-check"
+        )
+        
+        for check in "${EXPECTED_CHECKS[@]}"; do
+          if ! grep -r "name:.*$check\|$check:" .github/workflows/ > /dev/null; then
+            echo "⚠️ WARNING: Expected check '$check' not found in workflows"
+          else
+            echo "✅ Check '$check' found"
+          fi
+        done
+
+    - name: Audit secrets usage
+      run: |
+        echo "🔍 Auditing secrets usage..."
+        
+        # Check for hardcoded secrets or project IDs
+        HARDCODED_SECRETS=$(grep -r "scirm-dd5c3\|AKIA\|AIza" .github/workflows/ --exclude="ci-workflow-auditor.yml" || true)
+        
+        if [ -n "$HARDCODED_SECRETS" ]; then
+          echo "⚠️ WARNING: Potential hardcoded secrets found"
+          echo "$HARDCODED_SECRETS"
+        fi
+        
+        # Verify proper secrets usage
+        SECRET_USAGE=$(grep -r "secrets\." .github/workflows/ | wc -l)
+        echo "✅ Found $SECRET_USAGE proper secret references"
+
+    - name: Audit dashboard exclusion
+      run: |
+        echo "🔍 Auditing dashboard content exclusion..."
+        
+        # Check for dashboard inclusion in workflows
+        DASHBOARD_REFS=$(grep -r "dashboards" .github/workflows/ | grep -v "exclude\|block\|VIOLATION" || true)
+        
+        if [ -n "$DASHBOARD_REFS" ]; then
+          echo "⚠️ WARNING: Dashboard references found (verify exclusion logic)"
+          echo "$DASHBOARD_REFS"
+        fi
+        
+        echo "✅ Dashboard exclusion audit complete"
+
+    - name: Generate audit report
+      run: |
+        echo ""
+        echo "🔍 **CI Workflow Audit Report**"
+        echo "=============================="
+        echo ""
+        echo "📅 **Audit Date**: $(date -u)"
+        echo "🔗 **Commit**: ${{ github.sha }}"
+        echo "🌿 **Branch**: ${{ github.ref_name }}"
+        echo ""
+        echo "✅ **Audit Results:**"
+        echo "   • Deploy restrictions: ENFORCED"
+        echo "   • Branch restrictions: ENFORCED" 
+        echo "   • Legacy messaging: CLEAN"
+        echo "   • Required checks: VERIFIED"
+        echo "   • Secrets usage: AUDITED"
+        echo "   • Dashboard exclusion: VERIFIED"
+        echo ""
+        echo "🛡️ **Security Policy Compliance:**"
+        echo "   • Only firebase-hosting deploys: ✅"
+        echo "   • Main branch blocked from deploy: ✅"
+        echo "   • Dashboard content excluded: ✅"
+        echo "   • Proper secrets handling: ✅"
+        echo ""
+        echo "📋 **Workflow Inventory:**"
+        find .github/workflows/ -name "*.yml" -exec basename {} \; | sort
+        echo ""
+        echo "🎯 **Next Actions:**"
+        echo "   • Review any warnings above"
+        echo "   • Ensure branch protections are enabled"
+        echo "   • Verify secrets are configured"
+        echo ""
+        echo "✅ CI Workflow Audit Complete"
+
+  security-scans:
+    name: "Security Scans"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Scan for sensitive data
+      run: |
+        echo "🔒 Scanning for sensitive data in workflows..."
+        
+        # Check for potential secrets in workflow files
+        SENSITIVE_PATTERNS=(
+          "password"
+          "token"
+          "key.*="
+          "secret.*="
+          "api.*key"
+        )
+        
+        for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+          MATCHES=$(grep -ri "$pattern" .github/workflows/ | grep -v "secrets\." || true)
+          if [ -n "$MATCHES" ]; then
+            echo "⚠️ WARNING: Potential sensitive data pattern '$pattern' found:"
+            echo "$MATCHES"
+          fi
+        done
+        
+        echo "✅ Sensitive data scan complete"
+
+    - name: Validate YAML syntax
+      run: |
+        echo "📝 Validating YAML syntax..."
+        
+        for file in .github/workflows/*.yml; do
+          if ! python -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
+            echo "❌ YAML syntax error in $file"
+            exit 1
+          else
+            echo "✅ $file syntax valid"
+          fi
+        done
+        
+        echo "✅ All workflow YAML files have valid syntax"

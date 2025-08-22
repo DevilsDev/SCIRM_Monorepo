@@ -95,11 +95,12 @@ Content with [relative links](../other-page.md) and local images:
 
 ## 🛡️ Branch Strategy & Guards
 
-### Branch Protection
-- **main**: Production documentation, requires 2 approvals
-- **internal-dashboards**: Internal content only, never deployed publicly
-- **firebase-setup**: Infrastructure scaffolding
-- **netlify-setup**: Netlify configuration
+### Branch Isolation & One-Way Flow
+- **main**: Public documentation authoring (NO DEPLOYMENTS)
+- **firebase-hosting**: Exclusive deployment branch (ONLY branch that deploys)
+- **internal-dashboards**: Internal content (never deployed publicly)
+- **One-way flow**: main → docs-sync → firebase-hosting → Firebase Hosting
+- Automated guards prevent internal content from being deployed publicly
 
 ### Deployment Guards
 - ✅ Only `firebase-hosting` branch can deploy public documentation

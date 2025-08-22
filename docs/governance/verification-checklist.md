@@ -27,6 +27,21 @@
 - [ ] **No /docs/dashboards/** or /compliance/dashboards/** content in site
 - [ ] **No external links** other than allow-list (scirm-dd5c3.web.app, optional company domain)
 
+## 🔄 One-Way Flow Process
+
+This verification system enforces a strict one-way deployment flow:
+
+1. **main** → Source of truth for documentation (NO DEPLOYMENTS)
+2. **docs-sync workflow** → Syncs changes to firebase-hosting (dashboards excluded)
+3. **firebase-hosting** → Exclusive deployment branch (ONLY branch that deploys)
+4. **Firebase Hosting** → Live site at https://scirm-dd5c3.web.app
+
+**Security Policy**: 
+- ✅ Only firebase-hosting deploys
+- 🚫 Main branch blocked from deployment  
+- 🚫 Internal dashboards never sync to firebase-hosting
+- 🔒 Content sanitizer blocks repository links and internal content
+
 ## 🌿 Branch Policy
 
 - [ ] **Deployed commit** belongs to firebase-hosting

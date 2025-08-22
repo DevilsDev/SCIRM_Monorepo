@@ -3,10 +3,13 @@ name: "🔥 Deploy Firebase Hosting (firebase-hosting branch only)"
 on:
   push:
     branches: [ firebase-hosting ]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
   workflow_dispatch:
 
 concurrency:
-  group: deploy-firebase-firebase-hosting
+  group: deploy-firebase-hosting-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -14,38 +17,41 @@ permissions:
   id-token: write
 
 jobs:
-  deploy:
-    name: "Deploy to Firebase Hosting"
+  validate-branch:
+    name: "Validate Deploy Branch"
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Validate branch (firebase-hosting only)
+    - name: Validate deploy branch
       run: |
-        echo "🔍 Validating deployment branch..."
-        echo "Current ref: ${{ github.ref }}"
-        echo "Required ref: refs/heads/firebase-hosting"
-        
-        if [ "${{ github.ref }}" != "refs/heads/firebase-hosting" ]; then
-          echo ""
-          echo "🚫 **DEPLOYMENT BLOCKED**"
-          echo "❌ Firebase Hosting deployments are ONLY allowed from firebase-hosting branch"
-          echo "Current branch: ${{ github.ref_name }}"
-          echo ""
-          echo "✅ **Correct Process:**"
-          echo "1. Merge changes to main via PR (with reviews + checks)"
-          echo "2. Create PR from main → firebase-hosting"
-          echo "3. Merge to firebase-hosting → triggers deployment"
-          echo ""
-          echo "🔒 **Security Policy:**"
-          echo "This ensures all deployments go through proper review process"
+        if [ "${GITHUB_REF}" != "refs/heads/firebase-hosting" ]; then
+          echo "🚫 DEPLOYMENT BLOCKED: Only firebase-hosting may deploy"
+          echo "Current branch: ${GITHUB_REF}"
+          echo "Required branch: refs/heads/firebase-hosting"
           exit 1
         fi
-        
         echo "✅ Branch validation passed - deploying from firebase-hosting"
 
-    - name: Checkout repository
+  check-secrets:
+    name: "Check Required Secrets"
+    runs-on: ubuntu-latest
+    needs: validate-branch
+    steps:
+    - name: Check secrets
+      run: |
+        test -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" || { echo "❌ Missing FIREBASE_SERVICE_ACCOUNT_KEY"; exit 1; }
+        test -n "${{ secrets.FIREBASE_PROJECT_ID }}" || { echo "❌ Missing FIREBASE_PROJECT_ID"; exit 1; }
+        echo "✅ Required secrets validated"
+
+  build-mkdocs:
+    name: "Build MkDocs Site"
+    runs-on: ubuntu-latest
+    needs: [validate-branch, check-secrets]
+    
+    steps:
+    - name: Checkout firebase-hosting branch
       uses: actions/checkout@v4
       with:
+        ref: firebase-hosting
         fetch-depth: 0
 
     - name: Set up Python
@@ -53,118 +59,117 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install MkDocs and plugins
+    - name: Install MkDocs and dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install mkdocs-material mkdocs-mermaid2-plugin mkdocs-macros-plugin
+        pip install mkdocs-material
+        pip install mkdocs-mermaid2-plugin
+        pip install mkdocs-git-revision-date-localized-plugin
 
-    - name: Validate secrets
+    - name: Build MkDocs site
+      id: build-status
       run: |
-        echo "🔍 Validating required secrets..."
-        if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}" ]; then
-          echo "❌ FIREBASE_SERVICE_ACCOUNT_KEY secret not found"
-          exit 1
-        fi
-        if [ -z "${{ secrets.FIREBASE_PROJECT_ID }}" ]; then
-          echo "❌ FIREBASE_PROJECT_ID secret not found"
-          exit 1
-        fi
-        echo "✅ All required secrets are available"
+        echo "🏗️ Building MkDocs documentation site..."
+        mkdocs build --strict
+        echo "✅ MkDocs build completed successfully"
+        echo "status=success" >> $GITHUB_OUTPUT
+
+  sanitize-content:
+    name: "Sanitize Content"
+    runs-on: ubuntu-latest
+    needs: build-mkdocs
+    outputs:
+      docs-content-sanitized: ${{ steps.sanitizer.outputs.status }}
+    steps:
+    - name: Checkout firebase-hosting branch
+      uses: actions/checkout@v4
+      with:
+        ref: firebase-hosting
+        fetch-depth: 0
 
     - name: Content sanitizer and security scan
       id: sanitizer
       run: |
-        echo "🔍 Running content sanitizer and security checks..."
-        
         # Check for dashboard directories in docs/
         if find docs/ -path "*/dashboards/*" -name "*.md" | grep -q .; then
           echo "❌ SECURITY VIOLATION: Internal dashboard content found in public docs"
-          echo "Found files:"
-          find docs/ -path "*/dashboards/*" -name "*.md"
-          echo ""
-          echo "Internal dashboards must remain on internal-dashboards branch only"
           exit 1
         fi
         
         # Check for compliance dashboards
         if find compliance/ -path "*/dashboards/*" -name "*.md" 2>/dev/null | grep -q .; then
           echo "❌ SECURITY VIOLATION: Compliance dashboard content found"
-          echo "Compliance dashboards must not be deployed publicly"
           exit 1
         fi
         
         # Check for external links not in allow-list
-        echo "🔗 Checking external links..."
         ALLOWED_DOMAINS="scirm-dd5c3.web.app"
-        
-        # Find all markdown files and check for external links
         EXTERNAL_LINKS=$(find docs/ -name "*.md" -exec grep -H "https\?://" {} \; | grep -v -E "(https://(${ALLOWED_DOMAINS})|mailto:|tel:)" || true)
-        
         if [ -n "$EXTERNAL_LINKS" ]; then
           echo "⚠️ WARNING: External links found (review required):"
           echo "$EXTERNAL_LINKS"
-          echo ""
-          echo "Only links to ${ALLOWED_DOMAINS} are automatically allowed."
-          echo "Other external links should be reviewed for security."
         fi
         
         # Check for repository links
         REPO_LINKS=$(find docs/ -name "*.md" -exec grep -H "github\.com" {} \; || true)
         if [ -n "$REPO_LINKS" ]; then
           echo "❌ SECURITY VIOLATION: Repository links found in documentation"
-          echo "$REPO_LINKS"
-          echo ""
-          echo "Documentation must not contain repository links for security."
           exit 1
         fi
         
         echo "✅ Content sanitizer passed - safe for public deployment"
-        echo "docs_content_sanitized=true" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: Build MkDocs site
+  deploy-to-firebase:
+    name: "Deploy to Firebase"
+    runs-on: ubuntu-latest
+    needs: [validate-branch, check-secrets, build-mkdocs, sanitize-content]
+
+    steps:
+    - name: Checkout firebase-hosting branch
+      uses: actions/checkout@v4
+      with:
+        ref: firebase-hosting
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install MkDocs and dependencies
       run: |
-        echo "🏗️ Building MkDocs site..."
-        mkdocs build --strict
-        
-        # Validate build output
-        if [ ! -d "site" ]; then
-          echo "❌ Build failed - site directory not created"
-          exit 1
-        fi
-        
-        # Check for accidental dashboard content in build
-        if find site/ -path "*/dashboards/*" -name "*.html" | grep -q .; then
-          echo "❌ Dashboard content found in build output"
-          find site/ -path "*/dashboards/*" -name "*.html"
-          exit 1
-        fi
-        
-        echo "✅ MkDocs build completed successfully"
+        python -m pip install --upgrade pip
+        pip install mkdocs-material
+        pip install mkdocs-mermaid2-plugin
+        pip install mkdocs-git-revision-date-localized-plugin
 
     - name: Setup Firebase CLI
       run: |
         npm install -g firebase-tools
+        firebase --version
 
     - name: Authenticate with Firebase
       env:
         FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
         FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
       run: |
-        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > ${{ runner.temp }}/firebase-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=${{ runner.temp }}/firebase-key.json
-        firebase --version
+        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > $HOME/firebase-key.json
+        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-key.json
         firebase use $FIREBASE_PROJECT_ID
+        echo "✅ Firebase authentication successful"
 
     - name: Deploy to Firebase Hosting
       env:
+        FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
         FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-key.json
       run: |
-        echo "🚀 Deploying to Firebase Hosting..."
+        echo "$FIREBASE_SERVICE_ACCOUNT_KEY" > $HOME/firebase-key.json
+        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-key.json
         
-        # Copy site to firebase hosting directory
-        mkdir -p firebase/hosting
-        cp -r site/* firebase/hosting/
+        # Copy built site to firebase directory
+        rm -rf firebase/public/*
+        cp -r site/* firebase/public/
         
         # Deploy from firebase directory
         cd firebase
@@ -172,6 +177,18 @@ jobs:
         
         echo "✅ Deployment completed successfully"
         echo "🌐 Site URL: https://${{ secrets.FIREBASE_PROJECT_ID }}.web.app"
+
+  write-deployment-evidence:
+    name: "Write Deployment Evidence"
+    runs-on: ubuntu-latest
+    needs: [validate-branch, check-secrets, build-mkdocs, sanitize-content, deploy-to-firebase]
+
+    steps:
+    - name: Checkout firebase-hosting branch
+      uses: actions/checkout@v4
+      with:
+        ref: firebase-hosting
+        fetch-depth: 0
 
     - name: Generate deployment evidence
       run: |
@@ -216,13 +233,16 @@ jobs:
         if git diff --staged --quiet; then
           echo "ℹ️ No evidence changes to commit"
         else
-          git commit -S -m "evidence: Firebase hosting deployment $(date -u +%Y%m%d-%H%M%S) [skip ci]
+          git commit -S -m "evidence: Firebase deployment $(date -u +%Y%m%d-%H%M%S) [skip ci]
 
-          Deployment evidence for commit ${{ github.sha }}
+          Automated deployment evidence for firebase-hosting branch.
+
           Site: https://${{ secrets.FIREBASE_PROJECT_ID }}.web.app
-          Workflow: ${{ github.run_id }}"
+          Commit: $(git rev-parse --short HEAD)
+          Workflow: ${{ github.run_id }}
+          Timestamp: $(date -u)"
           git push
-          echo "✅ Evidence committed to firebase-hosting branch"
+          echo "✅ Deployment evidence committed to firebase-hosting branch"
         fi
 
     - name: Deployment summary

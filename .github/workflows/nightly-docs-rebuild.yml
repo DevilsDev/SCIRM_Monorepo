@@ -2,11 +2,12 @@ name: "🌙 Nightly Documentation Rebuild"
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Daily at 02:00 UTC
+    # Run at 2 AM UTC daily
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 concurrency:
-  group: nightly-docs-rebuild
+  group: nightly-rebuild
   cancel-in-progress: true
 
 permissions:
@@ -15,8 +16,9 @@ permissions:
 
 jobs:
   nightly-rebuild:
-    name: "Nightly Rebuild and Deploy"
+    name: "Rebuild and Deploy Documentation"
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/firebase-hosting' || github.event_name == 'schedule' }}
     
     steps:
     - name: Checkout firebase-hosting branch
