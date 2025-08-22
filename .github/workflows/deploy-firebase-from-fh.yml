@@ -56,7 +56,7 @@ jobs:
     - name: Install MkDocs and plugins
       run: |
         python -m pip install --upgrade pip
-        pip install mkdocs-material mkdocs-mermaid2-plugin
+        pip install mkdocs-material mkdocs-mermaid2-plugin mkdocs-macros-plugin
 
     - name: Validate secrets
       run: |
@@ -71,9 +71,10 @@ jobs:
         fi
         echo "✅ All required secrets are available"
 
-    - name: Security scan - Check for internal content
+    - name: Content sanitizer and security scan
+      id: sanitizer
       run: |
-        echo "🔍 Scanning for internal dashboard content..."
+        echo "🔍 Running content sanitizer and security checks..."
         
         # Check for dashboard directories in docs/
         if find docs/ -path "*/dashboards/*" -name "*.md" | grep -q .; then
@@ -92,7 +93,33 @@ jobs:
           exit 1
         fi
         
-        echo "✅ No internal dashboard content found - safe for public deployment"
+        # Check for external links not in allow-list
+        echo "🔗 Checking external links..."
+        ALLOWED_DOMAINS="scirm-dd5c3.web.app"
+        
+        # Find all markdown files and check for external links
+        EXTERNAL_LINKS=$(find docs/ -name "*.md" -exec grep -H "https\?://" {} \; | grep -v -E "(https://(${ALLOWED_DOMAINS})|mailto:|tel:)" || true)
+        
+        if [ -n "$EXTERNAL_LINKS" ]; then
+          echo "⚠️ WARNING: External links found (review required):"
+          echo "$EXTERNAL_LINKS"
+          echo ""
+          echo "Only links to ${ALLOWED_DOMAINS} are automatically allowed."
+          echo "Other external links should be reviewed for security."
+        fi
+        
+        # Check for repository links
+        REPO_LINKS=$(find docs/ -name "*.md" -exec grep -H "github\.com" {} \; || true)
+        if [ -n "$REPO_LINKS" ]; then
+          echo "❌ SECURITY VIOLATION: Repository links found in documentation"
+          echo "$REPO_LINKS"
+          echo ""
+          echo "Documentation must not contain repository links for security."
+          exit 1
+        fi
+        
+        echo "✅ Content sanitizer passed - safe for public deployment"
+        echo "docs_content_sanitized=true" >> $GITHUB_OUTPUT
 
     - name: Build MkDocs site
       run: |
@@ -153,37 +180,32 @@ jobs:
         # Create evidence directory
         mkdir -p compliance/artifacts/deployment-logs
         
-        # Generate evidence JSON
+        # Generate evidence JSON with exact schema
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        SHORT_SHA=$(git rev-parse --short HEAD)
         EVIDENCE_FILE="compliance/artifacts/deployment-logs/firebase-hosting-deploy-${TIMESTAMP}.json"
         
         cat > "$EVIDENCE_FILE" << EOF
         {
+          "artifact_type": "deployment",
           "deployment_target": "Firebase Hosting",
+          "site_url": "https://${{ secrets.FIREBASE_PROJECT_ID }}.web.app",
           "branch": "firebase-hosting",
           "commit_sha": "${{ github.sha }}",
+          "short_sha": "$SHORT_SHA",
           "timestamp": "$TIMESTAMP",
           "workflow_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-          "site_url": "https://${{ secrets.FIREBASE_PROJECT_ID }}.web.app",
-          "actor": "${{ github.actor }}",
-          "event": "${{ github.event_name }}",
-          "repository": "${{ github.repository }}",
-          "validation_checks": {
-            "branch_compliance": true,
-            "no_internal_content": true,
-            "build_success": true,
-            "secrets_validated": true,
-            "security_scan_passed": true
+          "mkdocs_version": "$(pip show mkdocs | grep Version | cut -d' ' -f2 || echo 'unknown')",
+          "sanitizer_summary": {
+            "external_links_blocked": 0,
+            "dashboard_content_detected": false,
+            "allowlist": ["https://${{ secrets.FIREBASE_PROJECT_ID }}.web.app"]
           },
-          "deployment_metadata": {
-            "mkdocs_version": "$(pip show mkdocs | grep Version | cut -d' ' -f2)",
-            "python_version": "$(python --version | cut -d' ' -f2)",
-            "firebase_cli_version": "$(firebase --version | head -1)"
-          }
+          "status": "success"
         }
         EOF
         
-        echo "✅ Evidence generated: $EVIDENCE_FILE"
+        echo "✅ Deployment evidence generated: $EVIDENCE_FILE"
 
     - name: Commit evidence to firebase-hosting branch
       run: |
