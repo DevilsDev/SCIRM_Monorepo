@@ -29,8 +29,6 @@ theme:
     - search.share
     - search.suggest
     - content.code.copy
-    - content.action.edit
-    - content.action.view
 
 plugins:
   - search:
@@ -70,12 +68,21 @@ nav:
     - Product Requirements (PRD): product/prd.md
     - Product Design (PDD): product/pdd.md
     - Anti-Patterns & Governance: product/anti-patterns.md
+  - Reports:
+    - Executive Report: reports/ExecutiveReport.md
+    - Release Notes: reports/ReleaseNotes.md
+    - Compliance Checklist: reports/ComplianceChecklist.md
   - Architecture:
     - System Overview: architecture/system-overview.md
     - Multi-Agent Architecture: architecture/agents.md
-    - Architecture Decision Records: adr/
-  - Security: security/
+    - Architecture Decision Records: architecture/adr/
+  - Security:
+    - Overview: security/README.md
+    - Firebase Security: security/firebase-security.md
+    - Secrets Management: security/Secrets-Management.md
   - Development:
+    - Git Workflow: contributing/git-workflow.md
+    - Commit Signing: contributing/commit-signing.md
     - Roadmap: roadmap/
     - Changelog: changelog/
   - Support: support/

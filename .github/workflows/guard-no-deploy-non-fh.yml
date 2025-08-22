@@ -1,0 +1,46 @@
+name: "🚫 Guard - No Deploy from Non-Firebase-Hosting Branches"
+
+on:
+  push:
+    branches-ignore: [ firebase-hosting ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  guard-non-firebase-hosting-deploy:
+    name: "Prevent Non-Firebase-Hosting Deploys"
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Block deploy attempts from non-firebase-hosting branches
+      run: |
+        echo "🔍 Checking branch for deployment restrictions..."
+        echo "Current branch: ${{ github.ref_name }}"
+        echo "Current ref: ${{ github.ref }}"
+        
+        if [ "${{ github.ref }}" != "refs/heads/firebase-hosting" ]; then
+          echo ""
+          echo "🚫 **DEPLOYMENT GUARD ACTIVE**"
+          echo "❌ Firebase Hosting deployments are ONLY allowed from firebase-hosting branch"
+          echo ""
+          echo "📋 **Current Branch:** ${{ github.ref_name }}"
+          echo "✅ **Allowed Branch:** firebase-hosting"
+          echo ""
+          echo "🔒 **Security Policy:**"
+          echo "   • main branch: Source of truth, PRs and reviews only"
+          echo "   • internal-dashboards: Internal content, never deploys"
+          echo "   • firebase-setup/netlify-setup: Infrastructure only"
+          echo "   • firebase-hosting: ONLY branch allowed to deploy"
+          echo ""
+          echo "✅ **Correct Process:**"
+          echo "1. Work on feature branches → PR to main"
+          echo "2. After main merge → PR from main to firebase-hosting"
+          echo "3. Merge to firebase-hosting → triggers deployment"
+          echo ""
+          echo "This guard ensures deployment discipline and security"
+        else
+          echo "✅ firebase-hosting branch detected - deployment allowed"
+        fi

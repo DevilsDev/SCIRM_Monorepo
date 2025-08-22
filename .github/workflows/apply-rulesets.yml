@@ -72,6 +72,27 @@ jobs:
           echo "✅ Internal dashboards ruleset created (ID: $RULESET_ID)"
         fi
 
+    - name: Apply Firebase Hosting Ruleset
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🔥 Applying firebase-hosting branch protection..."
+        
+        # Check if ruleset exists
+        EXISTING_ID=$(gh api repos/${{ github.repository }}/rulesets --jq '.[] | select(.name == "Firebase Hosting Branch - Deploy Protection") | .id' || echo "")
+        
+        if [ -n "$EXISTING_ID" ]; then
+          echo "📝 Updating existing ruleset (ID: $EXISTING_ID)"
+          gh api --method PATCH repos/${{ github.repository }}/rulesets/$EXISTING_ID \
+            --input .github/rulesets/firebase-hosting-protection.json
+          echo "✅ Firebase hosting ruleset updated (ID: $EXISTING_ID)"
+        else
+          echo "🆕 Creating new ruleset"
+          RULESET_ID=$(gh api --method POST repos/${{ github.repository }}/rulesets \
+            --input .github/rulesets/firebase-hosting-protection.json --jq '.id')
+          echo "✅ Firebase hosting ruleset created (ID: $RULESET_ID)"
+        fi
+
     - name: Apply Setup Branches Ruleset
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
