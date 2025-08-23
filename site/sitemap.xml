@@ -21,6 +21,18 @@
          <lastmod>2025-08-23</lastmod>
     </url>
     <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/database/</loc>
+         <lastmod>2025-08-23</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/dataflow/</loc>
+         <lastmod>2025-08-23</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/er-diagram/</loc>
+         <lastmod>2025-08-23</lastmod>
+    </url>
+    <url>
          <loc>https://scirm-dd5c3.web.app/architecture/system-architecture/</loc>
          <lastmod>2025-08-23</lastmod>
     </url>
@@ -110,6 +122,10 @@
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/development/contributing/</loc>
+         <lastmod>2025-08-23</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/development/doc-style/</loc>
          <lastmod>2025-08-23</lastmod>
     </url>
     <url>

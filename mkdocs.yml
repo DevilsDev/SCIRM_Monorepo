@@ -29,7 +29,8 @@ theme:
 
 plugins:
   - search
-  - macros
+  - macros:
+      module_name: docs/macros/main.py
 
 markdown_extensions:
   - admonition
