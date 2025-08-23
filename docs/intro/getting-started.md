@@ -21,7 +21,7 @@ This guide helps you understand and navigate the SCIRM documentation.
 ### 📈 Project Information
 - **[Roadmap](../roadmap/roadmap.md)** - Development timeline and milestones
 - **[Changelog](../changelog/releases.md)** - Release notes and version history
-- **[ADRs](../adr/index.md)** - Architectural Decision Records
+- **[ADRs](../architecture/adr/index.md)** - Architectural Decision Records
 
 ## Understanding SCIRM
 
@@ -45,7 +45,7 @@ This guide helps you understand and navigate the SCIRM documentation.
 1. **Review the [Product Requirements](../product/prd.md)** to understand business objectives
 2. **Explore the [Architecture](../architecture/system-overview.md)** to see how it works
 3. **Check the [Security Overview](../security/overview.md)** for compliance details
-4. **Browse [ADRs](../adr/index.md)** for technical decisions and rationale
+4. **Browse [ADRs](../architecture/adr/index.md)** for technical decisions and rationale
 
 ## Support
 

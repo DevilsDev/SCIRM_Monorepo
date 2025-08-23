@@ -1,0 +1,1604 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://scirm-dd5c3.web.app/security/Firebase-Deploy-Branch-Governance/">
+      
+      
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.18">
+    
+    
+      
+        <title>Firebase Deploy Branch Governance - SCIRM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.7e37652d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#firebase-deploy-branch-governance" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="SCIRM Documentation" class="md-header__button md-logo" aria-label="SCIRM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SCIRM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Firebase Deploy Branch Governance
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../intro/overview/" class="md-tabs__link">
+          
+  
+  
+  Introduction
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../product/PRD.md" class="md-tabs__link">
+          
+  
+  
+  Product
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/system-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/adr/" class="md-tabs__link">
+          
+  
+  
+  Architecture Decisions
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../security-overview/" class="md-tabs__link">
+          
+  
+  
+  Security: Public-Safe
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../compliance/documentation-policy/" class="md-tabs__link">
+          
+  
+  
+  Compliance: Evidence Model
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/git-workflow/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../changelog/release-notes/" class="md-tabs__link">
+          
+  
+  
+  Release Notes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../support/faq/" class="md-tabs__link">
+          
+  
+  
+  Support
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="SCIRM Documentation" class="md-nav__button md-logo" aria-label="SCIRM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    SCIRM Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Introduction
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Introduction
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../intro/getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Product
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Product
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product/PRD.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    PRD
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product/PDD.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    PDD
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../product/AntiPatterns.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Anti-Patterns & Guardrails
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Architecture
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Architecture
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/system-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    System Architecture
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/data-flows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Data Flows
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Architecture Decisions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Architecture Decisions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    ADR Index
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Security: Public-Safe
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Security: Public-Safe
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Compliance: Evidence Model
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Compliance: Evidence Model
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compliance/documentation-policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Documentation Policy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compliance/evidence-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Evidence Model
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            Contributing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/git-workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Workflow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/commit-signing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Commit Signing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/docs-style/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Docs Style
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Release Notes
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            Release Notes
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Changelog
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Support
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            Support
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../support/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../support/contact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contact
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="firebase-deploy-branch-governance">Firebase Deploy Branch Governance</h1>
+<p><strong>Document Version:</strong> v1.0.0<br />
+<strong>Last Updated:</strong> 2025-01-27<br />
+<strong>Owner:</strong> DevOps &amp; Security Team<br />
+<strong>Status:</strong> Active  </p>
+<h2 id="overview">Overview</h2>
+<p>This document establishes the governance framework for Firebase Hosting deployments in the SCIRM repository, implementing a dedicated <code>firebase-hosting</code> branch strategy to ensure secure, auditable, and controlled deployments.</p>
+<h2 id="branch-strategy">Branch Strategy</h2>
+<h3 id="branch-roles">Branch Roles</h3>
+<table>
+<thead>
+<tr>
+<th>Branch</th>
+<th>Purpose</th>
+<th>Deployment</th>
+<th>Direct Push</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main</code></td>
+<td>Source of truth, authoring, reviews, CI checks</td>
+<td>❌ None</td>
+<td>❌ Blocked</td>
+</tr>
+<tr>
+<td><code>firebase-hosting</code></td>
+<td><strong>Exclusive Firebase Hosting deployments</strong></td>
+<td>✅ Firebase only</td>
+<td>⚠️ Discouraged</td>
+</tr>
+<tr>
+<td><code>internal-dashboards</code></td>
+<td>Internal content, governance dashboards</td>
+<td>❌ None</td>
+<td>❌ Blocked</td>
+</tr>
+<tr>
+<td><code>firebase-setup</code></td>
+<td>Infrastructure scaffolding</td>
+<td>❌ None</td>
+<td>❌ Blocked</td>
+</tr>
+<tr>
+<td><code>netlify-setup</code></td>
+<td>Netlify configuration</td>
+<td>❌ None</td>
+<td>❌ Blocked</td>
+</tr>
+</tbody>
+</table>
+<h3 id="deployment-rules">Deployment Rules</h3>
+<ol>
+<li><strong>Firebase Hosting deployments ONLY occur from <code>firebase-hosting</code> branch</strong></li>
+<li><strong>All other branches are deployment-blocked by guard workflows</strong></li>
+<li><strong>Content flows:</strong> <code>main</code> → PR → <code>firebase-hosting</code> → Deploy</li>
+<li><strong>Emergency deployments:</strong> Direct push to <code>firebase-hosting</code> with immediate PR for audit</li>
+</ol>
+<h2 id="workflow-architecture">Workflow Architecture</h2>
+<h3 id="deploy-workflow-deploy-firebase-from-fhyml">Deploy Workflow: <code>deploy-firebase-from-fh.yml</code></h3>
+<p><strong>Triggers:</strong>
+- Push to <code>firebase-hosting</code> branch
+- Manual workflow dispatch on <code>firebase-hosting</code></p>
+<p><strong>Security Validations:</strong>
+- Branch validation (must be <code>firebase-hosting</code>)
+- Internal content guard (blocks internal dashboards)
+- Security scanning (Bandit, Safety, Semgrep)
+- Signed commit verification</p>
+<p><strong>Deployment Process:</strong>
+1. MkDocs site build with public-safe navigation
+2. Firebase CLI deployment to <code>scirm-dd5c3.web.app</code>
+3. Deployment evidence JSON generation
+4. Evidence commit back to <code>firebase-hosting</code></p>
+<h3 id="guard-workflows">Guard Workflows</h3>
+<h4 id="guard-no-deploy-non-fhyml"><code>guard-no-deploy-non-fh.yml</code></h4>
+<ul>
+<li><strong>Purpose:</strong> Block deploy attempts from any branch except <code>firebase-hosting</code></li>
+<li><strong>Status Check:</strong> <code>guard-non-firebase-hosting-deploy</code></li>
+<li><strong>Action:</strong> Fails immediately with clear error message</li>
+</ul>
+<h4 id="block-main-deployyml"><code>block-main-deploy.yml</code></h4>
+<ul>
+<li><strong>Purpose:</strong> Prevent any deployment jobs on <code>main</code> branch</li>
+<li><strong>Status Check:</strong> <code>no-deploy-from-main</code></li>
+<li><strong>Action:</strong> Blocks deploy workflows, allows CI/CD checks</li>
+</ul>
+<h2 id="branch-protection-rules">Branch Protection Rules</h2>
+<h3 id="firebase-hosting-branch-firebase-hosting">Firebase Hosting Branch (<code>firebase-hosting</code>)</h3>
+<p><strong>Ruleset:</strong> <code>firebase-hosting-protection.json</code></p>
+<ul>
+<li>✅ <strong>Pull Request Required:</strong> 1 approval minimum</li>
+<li>✅ <strong>Code Owner Review:</strong> Required for critical changes</li>
+<li>✅ <strong>Signed Commits:</strong> Mandatory</li>
+<li>✅ <strong>Linear History:</strong> No merge commits</li>
+<li>✅ <strong>Creation/Deletion Protection:</strong> Branch cannot be deleted</li>
+<li>✅ <strong>Force Push Protection:</strong> Blocked</li>
+</ul>
+<h3 id="main-branch-main">Main Branch (<code>main</code>)</h3>
+<p><strong>Additional Protections:</strong>
+- ✅ <strong>Required Status Checks:</strong> <code>no-deploy-from-main</code>
+- ✅ <strong>2 Approvals Required</strong>
+- ✅ <strong>All CI checks must pass</strong></p>
+<h2 id="content-flow-process">Content Flow Process</h2>
+<h3 id="standard-content-updates">Standard Content Updates</h3>
+<ol>
+<li><strong>Author</strong> creates feature branch from <code>main</code></li>
+<li><strong>Author</strong> opens PR to <code>main</code> with all required checks</li>
+<li><strong>Reviewers</strong> approve PR (2 approvals + code owners)</li>
+<li><strong>Merge</strong> to <code>main</code> (squash merge preferred)</li>
+<li><strong>Deploy Manager</strong> creates PR from <code>main</code> to <code>firebase-hosting</code></li>
+<li><strong>Deploy Manager</strong> merges to <code>firebase-hosting</code></li>
+<li><strong>Automatic</strong> Firebase deployment triggers</li>
+<li><strong>Evidence</strong> JSON committed to <code>/compliance/artifacts/deployment-logs/</code></li>
+</ol>
+<h3 id="emergency-deployments">Emergency Deployments</h3>
+<ol>
+<li><strong>Authorized Personnel</strong> push directly to <code>firebase-hosting</code></li>
+<li><strong>Immediate</strong> PR creation from <code>firebase-hosting</code> to <code>main</code> for audit</li>
+<li><strong>Post-incident</strong> review and documentation</li>
+</ol>
+<h2 id="security-controls">Security Controls</h2>
+<h3 id="secrets-management">Secrets Management</h3>
+<p><strong>Required GitHub Secrets:</strong>
+- <code>FIREBASE_SERVICE_ACCOUNT_KEY</code>: Firebase service account JSON
+- <code>FIREBASE_PROJECT_ID</code>: Firebase project identifier (<code>scirm-dd5c3</code>)</p>
+<p><strong>Access Control:</strong>
+- Secrets accessible only to <code>firebase-hosting</code> deploy workflow
+- Service account follows principle of least privilege
+- Regular secret rotation (quarterly)</p>
+<h3 id="content-isolation">Content Isolation</h3>
+<p><strong>Internal Content Guard:</strong>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Blocks deployment if internal dashboard content detected</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>find<span class="w"> </span>site/<span class="w"> </span>-name<span class="w"> </span><span class="s2">&quot;*.html&quot;</span><span class="w"> </span>-exec<span class="w"> </span>grep<span class="w"> </span>-l<span class="w"> </span><span class="s2">&quot;internal-dashboard\|compliance-cockpit\|sensitive-data&quot;</span><span class="w"> </span><span class="o">{}</span><span class="w"> </span><span class="se">\;</span>
+</span></code></pre></div></p>
+<p><strong>Public Safety Checks:</strong>
+- No repository links in deployed content
+- No internal URLs or sensitive endpoints
+- No development secrets or API keys</p>
+<h3 id="audit-trail">Audit Trail</h3>
+<p><strong>Deployment Evidence:</strong> <code>/compliance/artifacts/deployment-logs/</code>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;deployment_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uuid&quot;</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-01-27T10:30:00Z&quot;</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;branch&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;firebase-hosting&quot;</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;commit_sha&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123&quot;</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;deployer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;github-actions&quot;</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://scirm-dd5c3.web.app&quot;</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">&quot;workflow_run&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://github.com/repo/actions/runs/123&quot;</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">&quot;security_scans&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">&quot;bandit&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;passed&quot;</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nt">&quot;safety&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;passed&quot;</span><span class="p">,</span><span class="w"> </span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="nt">&quot;semgrep&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;passed&quot;</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<h2 id="compliance-framework">Compliance Framework</h2>
+<h3 id="soc-2-type-ii-controls">SOC 2 Type II Controls</h3>
+<ul>
+<li><strong>CC6.1:</strong> Logical access controls restrict unauthorized deployment</li>
+<li><strong>CC6.2:</strong> System boundaries enforced through branch isolation</li>
+<li><strong>CC6.3:</strong> Access rights reviewed through PR approval process</li>
+<li><strong>CC7.1:</strong> System monitoring through deployment evidence capture</li>
+</ul>
+<h3 id="change-management">Change Management</h3>
+<ul>
+<li><strong>CM-3:</strong> Configuration change control through PR workflow</li>
+<li><strong>CM-5:</strong> Access restrictions for configuration changes</li>
+<li><strong>CM-6:</strong> Configuration settings documented and enforced</li>
+<li><strong>CM-8:</strong> Information system component inventory maintained</li>
+</ul>
+<h2 id="roles-and-responsibilities">Roles and Responsibilities</h2>
+<h3 id="deploy-manager">Deploy Manager</h3>
+<ul>
+<li><strong>Permissions:</strong> Push to <code>firebase-hosting</code>, merge PRs</li>
+<li><strong>Responsibilities:</strong> Content promotion, deployment oversight</li>
+<li><strong>Requirements:</strong> Security training, signed commits</li>
+</ul>
+<h3 id="content-authors">Content Authors</h3>
+<ul>
+<li><strong>Permissions:</strong> Create PRs to <code>main</code></li>
+<li><strong>Responsibilities:</strong> Content creation, testing, documentation</li>
+<li><strong>Requirements:</strong> Signed commits, security awareness</li>
+</ul>
+<h3 id="security-team">Security Team</h3>
+<ul>
+<li><strong>Permissions:</strong> Emergency access, audit review</li>
+<li><strong>Responsibilities:</strong> Policy enforcement, incident response</li>
+<li><strong>Requirements:</strong> Security clearance, audit training</li>
+</ul>
+<h2 id="monitoring-and-alerting">Monitoring and Alerting</h2>
+<h3 id="deployment-monitoring">Deployment Monitoring</h3>
+<p><strong>Success Metrics:</strong>
+- Deployment success rate: &gt;99%
+- Time to deploy: &lt;10 minutes
+- Security scan pass rate: 100%</p>
+<p><strong>Alert Conditions:</strong>
+- Failed deployment to <code>firebase-hosting</code>
+- Security scan failures
+- Unauthorized deployment attempts
+- Missing deployment evidence</p>
+<h3 id="compliance-monitoring">Compliance Monitoring</h3>
+<p><strong>Evidence Collection:</strong>
+- All deployments logged with full metadata
+- Security scan results archived
+- Access logs maintained for 7 years
+- Audit trail immutable and timestamped</p>
+<h2 id="incident-response">Incident Response</h2>
+<h3 id="unauthorized-deployment-attempt">Unauthorized Deployment Attempt</h3>
+<ol>
+<li><strong>Immediate:</strong> Guard workflow blocks deployment</li>
+<li><strong>Alert:</strong> Security team notified via Slack/email</li>
+<li><strong>Investigation:</strong> Review logs and determine cause</li>
+<li><strong>Remediation:</strong> Address root cause, update controls</li>
+<li><strong>Documentation:</strong> Incident report and lessons learned</li>
+</ol>
+<h3 id="failed-security-scan">Failed Security Scan</h3>
+<ol>
+<li><strong>Block:</strong> Deployment automatically blocked</li>
+<li><strong>Notification:</strong> Development team alerted</li>
+<li><strong>Analysis:</strong> Security team reviews findings</li>
+<li><strong>Resolution:</strong> Fix vulnerabilities before retry</li>
+<li><strong>Verification:</strong> Re-run scans and validate fixes</li>
+</ol>
+<h3 id="emergency-access">Emergency Access</h3>
+<ol>
+<li><strong>Authorization:</strong> Security team approval required</li>
+<li><strong>Access:</strong> Temporary elevated permissions granted</li>
+<li><strong>Monitoring:</strong> All actions logged and monitored</li>
+<li><strong>Cleanup:</strong> Permissions revoked after incident</li>
+<li><strong>Review:</strong> Post-incident analysis and documentation</li>
+</ol>
+<h2 id="rollback-procedures">Rollback Procedures</h2>
+<h3 id="standard-rollback">Standard Rollback</h3>
+<ol>
+<li><strong>Identify</strong> last known good commit on <code>firebase-hosting</code></li>
+<li><strong>Create</strong> rollback PR to <code>firebase-hosting</code></li>
+<li><strong>Merge</strong> rollback PR (expedited approval)</li>
+<li><strong>Deploy</strong> automatically triggers</li>
+<li><strong>Verify</strong> rollback success and functionality</li>
+</ol>
+<h3 id="emergency-rollback">Emergency Rollback</h3>
+<ol>
+<li><strong>Direct push</strong> previous good commit to <code>firebase-hosting</code></li>
+<li><strong>Immediate</strong> deployment triggers</li>
+<li><strong>Create</strong> audit PR for rollback action</li>
+<li><strong>Document</strong> incident and rollback reason</li>
+<li><strong>Schedule</strong> proper fix and forward deployment</li>
+</ol>
+<h2 id="maintenance-and-updates">Maintenance and Updates</h2>
+<h3 id="quarterly-reviews">Quarterly Reviews</h3>
+<ul>
+<li><strong>Policy Review:</strong> Update governance based on lessons learned</li>
+<li><strong>Access Review:</strong> Validate user permissions and roles</li>
+<li><strong>Secret Rotation:</strong> Update Firebase service account keys</li>
+<li><strong>Audit:</strong> Review compliance evidence and gaps</li>
+</ul>
+<h3 id="annual-assessments">Annual Assessments</h3>
+<ul>
+<li><strong>Security Assessment:</strong> Penetration testing and vulnerability review</li>
+<li><strong>Compliance Audit:</strong> SOC 2 and regulatory compliance verification</li>
+<li><strong>Process Improvement:</strong> Workflow optimization and automation</li>
+<li><strong>Training Update:</strong> Security awareness and procedure training</li>
+</ul>
+<h2 id="appendix">Appendix</h2>
+<h3 id="quick-reference-commands">Quick Reference Commands</h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Create deployment PR</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>git<span class="w"> </span>checkout<span class="w"> </span>main
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>git<span class="w"> </span>checkout<span class="w"> </span>firebase-hosting
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>firebase-hosting
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>git<span class="w"> </span>merge<span class="w"> </span>main
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>firebase-hosting
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># Emergency rollback</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>git<span class="w"> </span>checkout<span class="w"> </span>firebase-hosting
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>git<span class="w"> </span>reset<span class="w"> </span>--hard<span class="w"> </span>&lt;last-good-commit&gt;
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>git<span class="w"> </span>push<span class="w"> </span>--force-with-lease<span class="w"> </span>origin<span class="w"> </span>firebase-hosting
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="c1"># Check deployment status</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>gh<span class="w"> </span>run<span class="w"> </span>list<span class="w"> </span>--branch<span class="w"> </span>firebase-hosting<span class="w"> </span>--workflow<span class="w"> </span>deploy-firebase-from-fh.yml
+</span></code></pre></div>
+<h3 id="contact-information">Contact Information</h3>
+<ul>
+<li><strong>Security Team:</strong> security@scirm.dev</li>
+<li><strong>DevOps Team:</strong> devops@scirm.dev</li>
+<li><strong>Emergency Hotline:</strong> +1-555-SCIRM-911</li>
+<li><strong>Compliance Officer:</strong> compliance@scirm.dev</li>
+</ul>
+<hr />
+<p><strong>Document Control:</strong>
+- <strong>Classification:</strong> Internal Use
+- <strong>Retention:</strong> 7 years
+- <strong>Review Cycle:</strong> Quarterly
+- <strong>Approval:</strong> Security Officer, DevOps Lead, Compliance Officer</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      © SCIRM | Last Updated: {{ macros_info.build_date }} | Commit: {{ macros_info.git_short_commit }}
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.tabs", "navigation.path", "toc.integrate", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.92b07e13.min.js"></script>
+      
+    
+  </body>
+</html>

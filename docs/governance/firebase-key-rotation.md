@@ -117,7 +117,7 @@ gcloud iam service-accounts keys delete KEY_ID \
    git push origin firebase-hosting
    ```
 
-2. **Monitor workflow** at: https://github.com/SCIRM/monorepo/actions
+2. **Monitor workflow** in GitHub Actions tab
 
 3. **Verify deployment** at: https://scirm-dd5c3.web.app
 
@@ -177,7 +177,7 @@ The deploy workflow includes robust secrets checking:
 
 ## 🔗 Related Documentation
 
-- [Firebase Key Rotation Helper Workflow](../../.github/workflows/firebase-key-rotation-helper.yml)
-- [Deploy Workflow](../../.github/workflows/deploy-firebase-from-fh.yml)
+- Firebase Key Rotation Helper Workflow: `.github/workflows/firebase-key-rotation-helper.yml`
+- Deploy Workflow: `.github/workflows/deploy-firebase-from-fh.yml`
 - [Security Documentation](../security/)
-- [Compliance Artifacts](../../compliance/artifacts/)
+- Compliance Artifacts: `compliance/artifacts/`

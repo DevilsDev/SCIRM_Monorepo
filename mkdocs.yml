@@ -28,7 +28,6 @@ theme:
 
 plugins:
   - search
-  - sitemap
   - macros
 
 markdown_extensions:
@@ -54,13 +53,14 @@ markdown_extensions:
   - md_in_html
 
 nav:
+  - Home: index.md
   - Introduction:
       - Overview: intro/overview.md
       - Getting Started: intro/getting-started.md
   - "Product":
-      - "PRD": product/PRD.md
-      - "PDD": product/PDD.md
-      - "Anti-Patterns & Guardrails": product/AntiPatterns.md
+      - "PRD": product/prd.md
+      - "PDD": product/pdd.md
+      - "Anti-Patterns & Guardrails": product/anti-patterns.md
   - Architecture:
       - System Architecture: architecture/system-architecture.md
       - Data Flows: architecture/data-flows.md
@@ -83,5 +83,9 @@ nav:
 
 extra:
   generator: false
+  github:
+    repository: DevilsDev/SCIRM_Monorepo
+    default_branch: main
+    deploy_branch: firebase-hosting
 
 copyright: "© SCIRM | Last Updated: {{ macros_info.build_date }} | Commit: {{ macros_info.git_short_commit }}"

@@ -40,8 +40,8 @@ Welcome to the SCIRM (Supply Chain Intelligence & Risk Management) documentation
 
     Security principles, compliance frameworks, and best practices.
 
-    [:octicons-arrow-right-24: Security Overview](security/)
-    [:octicons-arrow-right-24: Architecture Decisions](adr/)
+    [:octicons-arrow-right-24: Security Overview](security/security-overview.md)
+    [:octicons-arrow-right-24: Architecture Decisions](architecture/adr/index.md)
 
 </div>
 
@@ -81,17 +81,17 @@ SCIRM implements a multi-agent swarm architecture:
 ### :material-sitemap: Architecture
 - [System Overview](architecture/system-overview.md) - High-level system architecture and data flows
 - [Multi-Agent Architecture](architecture/agents.md) - Detailed AI agent specifications
-- [Architecture Decision Records](adr/) - Design decisions and technical rationale
+- [Architecture Decision Records](architecture/adr/index.md) - Design decisions and technical rationale
 
 ### :material-shield-check: Security & Compliance
-- [Security Overview](security/) - Security principles and compliance frameworks
+- [Security Overview](security/security-overview.md) - Security principles and compliance frameworks
 
 ### :material-map: Planning & Development
-- [Roadmap](roadmap/) - Development roadmap and future plans
-- [Changelog](changelog/) - Release notes and version history
+- [Roadmap](roadmap/README.md) - Development roadmap and future plans
+- [Changelog](changelog/README.md) - Release notes and version history
 
 ### :material-help-circle: Support
-- [Support Resources](support/) - FAQ, troubleshooting, and getting help
+- [Support Resources](support/README.md) - FAQ, troubleshooting, and getting help
 
 ## Performance Metrics
 

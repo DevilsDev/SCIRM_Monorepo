@@ -33,4 +33,4 @@ The system deploys as containerized microservices on Kubernetes with:
 - Centralized logging and monitoring
 - Automated CI/CD pipelines
 
-For detailed technical specifications, see our [Product Design Document](../product/PDD.md).
+For detailed technical specifications, see our [Product Design Document](../product/pdd.md).
