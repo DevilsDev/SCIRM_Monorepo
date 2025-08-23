@@ -257,16 +257,16 @@ graph TB
 ## Examples and Templates
 
 ### Document Templates
-- [PRD Template](../templates/prd-template.md)
-- [PDD Template](../templates/pdd-template.md)
-- [ADR Template](../templates/adr-template.md)
-- [Runbook Template](../templates/runbook-template.md)
+- `docs/templates/prd-template.md` - Product Requirements Document template
+- `docs/templates/pdd-template.md` - Product Design Document template  
+- `docs/templates/adr-template.md` - Architecture Decision Record template
+- `docs/templates/runbook-template.md` - Operational runbook template
 
 ### Mermaid Examples
-- [Architecture Diagrams](../examples/architecture-examples.md)
-- [Flow Charts](../examples/flow-examples.md)
-- [Sequence Diagrams](../examples/sequence-examples.md)
-- [Gantt Charts](../examples/gantt-examples.md)
+- `docs/examples/architecture-examples.md` - System architecture diagrams
+- `docs/examples/flow-examples.md` - Process flow charts
+- `docs/examples/sequence-examples.md` - Interaction sequence diagrams
+- `docs/examples/gantt-examples.md` - Project timeline charts
 
 ## Enforcement and Compliance
 
