@@ -19,6 +19,7 @@ theme:
         name: Switch to light mode
   features:
     - navigation.instant
+    - navigation.sections
     - navigation.tabs
     - navigation.path
     - toc.integrate
@@ -61,9 +62,13 @@ nav:
       - "PRD": product/prd.md
       - "PDD": product/pdd.md
       - "Anti-Patterns & Guardrails": product/anti-patterns.md
+  - "Roadmap":
+      - "Development Roadmap": roadmap/roadmap.md
   - Architecture:
       - System Architecture: architecture/system-architecture.md
-      - Data Flows: architecture/data-flows.md
+      - Database Design: architecture/database.md
+      - Entity Relationships: architecture/er-diagram.md
+      - Data Flows: architecture/dataflow.md
   - "Architecture Decisions":
       - "ADR Index": architecture/adr/index.md
   - "Security: Public-Safe":

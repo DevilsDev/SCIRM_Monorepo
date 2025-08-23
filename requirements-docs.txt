@@ -1,0 +1,9 @@
+# MkDocs Documentation Requirements
+# Pinned versions for reproducible builds
+
+mkdocs>=1.5.3,<2
+mkdocs-material>=9.5.31,<10
+mkdocs-macros-plugin>=1.0.5,<2
+
+# Additional plugins for enhanced functionality
+pymdown-extensions>=10.0,<11
