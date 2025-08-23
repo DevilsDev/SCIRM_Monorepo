@@ -179,5 +179,5 @@ The deploy workflow includes robust secrets checking:
 
 - Firebase Key Rotation Helper Workflow: `.github/workflows/firebase-key-rotation-helper.yml`
 - Deploy Workflow: `.github/workflows/deploy-firebase-from-fh.yml`
-- [Security Documentation](../security/)
+- [Security Documentation](../security/README.md)
 - Compliance Artifacts: `compliance/artifacts/`

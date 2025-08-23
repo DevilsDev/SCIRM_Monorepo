@@ -110,5 +110,5 @@ SCIRM implements a multi-agent swarm architecture:
 
 ---
 
-*Documentation automatically updated with each release. For technical support, see [Support Resources](support/).*
+*Documentation automatically updated with each release. For technical support, see [Support Resources](support/README.md).*
 
