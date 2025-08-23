@@ -67,25 +67,55 @@ nav:
       - "Development Roadmap": roadmap/roadmap.md
   - Architecture:
       - System Architecture: architecture/system-architecture.md
+      - System Overview: architecture/system-overview.md
+      - AI Agents: architecture/agents.md
       - Database Design: architecture/database.md
       - Entity Relationships: architecture/er-diagram.md
       - Data Flows: architecture/dataflow.md
+      - Legacy Data Flows: architecture/data-flows.md
   - "Architecture Decisions":
       - "ADR Index": architecture/adr/index.md
-  - "Security: Public-Safe":
+      - "ADR-001: Multi-Agent Swarm": architecture/adr/ADR-001-multi-agent-swarm-architecture.md
+      - "ADR-002: RAG Implementation": architecture/adr/ADR-002-rag-implementation-strategy.md
+      - "ADR-003: Agent Communication": architecture/adr/ADR-003-agent-communication-protocol.md
+      - "ADR-003: GitHub Pages Security": architecture/adr/ADR-003-secure-github-pages-publishing.md
+      - "ADR-004: Data Governance": architecture/adr/ADR-004-data-governance-framework.md
+      - "ADR-005: Branch Protection": architecture/adr/ADR-005-branch-protection-strategy.md
+      - "ADR-006: Dashboard Isolation": architecture/adr/ADR-006-internal-dashboard-isolation.md
+  - "Security":
       - "Security Overview": security/security-overview.md
-  - "Compliance: Evidence Model":
+      - "Firebase Branch Governance": security/Firebase-Deploy-Branch-Governance.md
+      - "Compliance": security/compliance.md
+      - "Security Details": security/overview.md
+  - "Governance":
+      - "Firebase Key Rotation": governance/firebase-key-rotation.md
+      - "Verification Checklist": governance/verification-checklist.md
+  - "Operations":
+      - "Deployment Runbook": operations/runbooks/deployment-runbook.md
+  - "Development":
+      - "Branching Strategy": development/branching.md
+      - "Contributing Guide": development/contributing.md
+      - "Documentation Style": development/doc-style.md
+      - "Release Process": development/releases.md
+  - "Examples":
+      - "Architecture Diagrams": examples/architecture-examples.md
+      - "Flow Charts": examples/flow-examples.md
+      - "Gantt Charts": examples/gantt-examples.md
+      - "Sequence Diagrams": examples/sequence-examples.md
+  - "Compliance":
       - "Documentation Policy": compliance/documentation-policy.md
       - "Evidence Model": compliance/evidence-model.md
   - Contributing:
-      - Workflow: contributing/git-workflow.md
+      - Git Workflow: contributing/git-workflow.md
       - Commit Signing: contributing/commit-signing.md
-      - Docs Style: contributing/docs-style.md
+      - Docs Style Guide: contributing/docs-style.md
   - Release Notes:
       - Changelog: changelog/release-notes.md
+      - Release History: changelog/releases.md
   - Support:
       - FAQ: support/faq.md
       - Contact: support/contact.md
+      - Troubleshooting: support/troubleshooting.md
 
 extra:
   generator: false
