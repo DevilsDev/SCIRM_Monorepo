@@ -180,11 +180,34 @@ jobs:
         firebase use "$FIREBASE_PROJECT_ID"
         echo "✅ Firebase authentication successful"
 
+    - name: Debug mkdocs.yml (lines 75-100)
+      run: |
+        echo "🔍 Debug: mkdocs.yml lines 75-100 with line numbers:"
+        sed -n '75,100p' mkdocs.yml | nl -v75
+        echo ""
+
+    - name: Lint mkdocs.yml
+      run: |
+        python3 -c "
+        import sys, yaml
+        with open('mkdocs.yml','r',encoding='utf-8') as f:
+            yaml.safe_load(f)  # raise on error
+        print('mkdocs.yml parsed OK')
+        "
+
     - name: Build MkDocs for Deploy
       run: |
         echo "🏗️ Building MkDocs documentation site for deployment..."
         mkdocs build --strict
         echo "✅ MkDocs build completed successfully"
+
+    - name: Upload mkdocs.yml on build failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: mkdocs-config-debug
+        path: mkdocs.yml
+        retention-days: 7
 
     - name: Deploy to Firebase Hosting
       run: |

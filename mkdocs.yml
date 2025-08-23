@@ -57,20 +57,20 @@ nav:
   - Introduction:
       - Overview: intro/overview.md
       - Getting Started: intro/getting-started.md
-  - Product:
-      - PRD: product/PRD.md
-      - PDD: product/PDD.md
-      - Anti-Patterns & Guardrails: product/AntiPatterns.md
+  - "Product":
+      - "PRD": product/PRD.md
+      - "PDD": product/PDD.md
+      - "Anti-Patterns & Guardrails": product/AntiPatterns.md
   - Architecture:
       - System Architecture: architecture/system-architecture.md
       - Data Flows: architecture/data-flows.md
-  - Architecture Decisions:
-      - ADR Index: architecture/adr/index.md
-  - Security (Public-Safe):
-      - Security Overview: security/security-overview.md
-  - Compliance:
-      - Documentation Policy: compliance/documentation-policy.md
-      - Evidence Model: compliance/evidence-model.md
+  - "Architecture Decisions":
+      - "ADR Index": architecture/adr/index.md
+  - "Security: Public-Safe":
+      - "Security Overview": security/security-overview.md
+  - "Compliance: Evidence Model":
+      - "Documentation Policy": compliance/documentation-policy.md
+      - "Evidence Model": compliance/evidence-model.md
   - Contributing:
       - Workflow: contributing/git-workflow.md
       - Commit Signing: contributing/commit-signing.md
@@ -84,4 +84,4 @@ nav:
 extra:
   generator: false
 
-copyright: © SCIRM | Last Updated: {{ macros_info.build_date }} | Commit: {{ macros_info.git_short_commit }}
+copyright: "© SCIRM | Last Updated: {{ macros_info.build_date }} | Commit: {{ macros_info.git_short_commit }}"
