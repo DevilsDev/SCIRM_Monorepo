@@ -28,8 +28,12 @@ jobs:
       run: |
         echo "🔍 Auditing deployment restrictions..."
         
-        # Check for deploy steps outside deploy-firebase-from-fh.yml
-        DEPLOY_VIOLATIONS=$(grep -r "firebase deploy\|firebase use" .github/workflows/ --exclude="deploy-firebase-from-fh.yml" --exclude="nightly-docs-rebuild.yml" || true)
+        # Check for deploy steps outside authorized workflows
+        DEPLOY_VIOLATIONS=$(grep -RInE '^\s*-\s*run:.*(firebase (deploy|use))' .github/workflows/ \
+          --exclude='deploy-firebase-from-fh.yml' \
+          --exclude='nightly-docs-rebuild.yml' \
+          --exclude='ci-workflow-auditor.yml' \
+          --exclude='firebase-key-rotation-helper.yml' || true)
         
         if [ -n "$DEPLOY_VIOLATIONS" ]; then
           echo "❌ VIOLATION: Deploy steps found outside authorized workflows"

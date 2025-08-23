@@ -32,13 +32,13 @@ jobs:
       run: |
         echo "🚫 DEPLOYMENT BLOCKED"
         echo "Branch: ${{ github.ref_name }}"
-        echo "❌ Public documentation deployments are only allowed from the 'main' branch"
-        echo "Current branch '${{ github.ref_name }}' is not authorized for public deployment"
-        echo ""
-        echo "Allowed branches for public deployment:"
-        echo "  ✅ main"
-        echo ""
-        echo "Blocked branches:"
+    - name: Enforce deploy branch
+      if: ${{ github.ref != 'refs/heads/firebase-hosting' }}
+      run: |
+        echo "🚫 DEPLOYMENT BLOCKED"
+        echo "Branch: ${GITHUB_REF#refs/heads/}"
+        echo "❌ Public documentation deployments are only allowed from the 'firebase-hosting' branch"
+        exit 1
         echo "  ❌ internal-dashboards (internal content only)"
         echo "  ❌ firebase-setup (infrastructure only)"
         echo "  ❌ netlify-setup (infrastructure only)"

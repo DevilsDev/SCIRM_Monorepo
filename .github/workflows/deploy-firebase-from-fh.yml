@@ -71,9 +71,9 @@ jobs:
     - name: Install MkDocs and dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install mkdocs-material
-        pip install mkdocs-mermaid2-plugin
-        pip install mkdocs-git-revision-date-localized-plugin
+        pip install --upgrade "mkdocs>=1.5.3,<2" \
+          "mkdocs-material>=9.5.31,<10" \
+          "mkdocs-macros-plugin>=1.0.5,<2"
 
     - name: Build MkDocs site
       id: build-status
@@ -132,6 +132,7 @@ jobs:
   deploy-to-firebase:
     name: "Deploy to Firebase"
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/firebase-hosting' }}
     needs: [validate-branch, check-secrets, build-mkdocs, sanitize-content]
 
     steps:
