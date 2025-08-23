@@ -137,3 +137,15 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# MkDocs build output and cache
+site/
+__pycache__/
+*.pyc
+*.pyo
+
+# Windows system files
+NUL
+CON
+PRN
+AUX

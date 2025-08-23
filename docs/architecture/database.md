@@ -299,9 +299,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Flyway Migration
         run: |
-          flyway -url=${{ secrets.DB_URL }} \
-                 -user=${{ secrets.DB_USER }} \
-                 -password=${{ secrets.DB_PASSWORD }} \
+          flyway -url="${{ secrets.DB_URL }}" \
+                 -user="${{ secrets.DB_USER }}" \
+                 -password="${{ secrets.DB_PASSWORD }}" \
                  migrate
 ```
 
