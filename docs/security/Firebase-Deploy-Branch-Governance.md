@@ -136,7 +136,7 @@ find site/ -name "*.html" -exec grep -l "internal-dashboard\|compliance-cockpit\
   "commit_sha": "abc123",
   "deployer": "github-actions",
   "target": "https://scirm-dd5c3.web.app",
-  "workflow_run": "https://github.com/repo/actions/runs/123",
+  "workflow_run": "actions/runs/123",
   "security_scans": {
     "bandit": "passed",
     "safety": "passed", 
