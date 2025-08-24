@@ -1,0 +1,57 @@
+name: Task/Playbook
+description: Create a task or debugging playbook
+title: "[TASK] "
+labels: ["type: task", "prio: p1"]
+body:
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: Symptoms
+      description: What are the observable issues?
+      placeholder: "Parse errors, undefined macros, missing files..."
+    validations:
+      required: true
+  - type: textarea
+    id: root-cause
+    attributes:
+      label: Root Cause / Probable Causes
+      description: What is causing this issue?
+      placeholder: "YAML syntax errors, missing dependencies..."
+    validations:
+      required: true
+  - type: textarea
+    id: fix-steps
+    attributes:
+      label: Step-by-Step Fix
+      description: Detailed resolution steps
+      placeholder: "1. Check YAML syntax\n2. Quote titles with colons\n3. Fix indentation"
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: How to confirm the fix worked
+      placeholder: "python -m mkdocs build --strict clean"
+    validations:
+      required: true
+  - type: textarea
+    id: prevention
+    attributes:
+      label: Prevent Recurrence
+      description: How to avoid this issue in the future
+      placeholder: "Add pre-commit hooks, update CI checks"
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Copy-Paste Checklist
+      description: Commands developers can run locally
+      placeholder: "```bash\n# Check syntax\nmkdocs build --strict\n# Fix common issues\n...\n```"
+  - type: textarea
+    id: postmortem
+    attributes:
+      label: Post-Mortem Template
+      description: Short summary for commit messages
+      placeholder: "Root cause: YAML syntax → Fix: quoted titles → Verified: strict build clean"

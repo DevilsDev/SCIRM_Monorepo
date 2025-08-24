@@ -1,0 +1,105 @@
+name: Epic
+description: Create a new Epic for major feature development
+title: "[EPIC] "
+labels: ["type: epic", "prio: p1"]
+body:
+  - type: input
+    id: context
+    attributes:
+      label: Context
+      description: Business context and problem statement
+      placeholder: "Multi-tenant SoR for supply chain entities..."
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: What are we trying to achieve?
+      placeholder: "Enable CRUD operations with RLS enforcement..."
+    validations:
+      required: true
+  - type: textarea
+    id: scope-in
+    attributes:
+      label: "Scope (In)"
+      description: What is included in this epic?
+      placeholder: "Tables, CRUD endpoints, OpenAPI, migrations..."
+    validations:
+      required: true
+  - type: textarea
+    id: scope-out
+    attributes:
+      label: "Scope (Out)"
+      description: What is explicitly NOT included?
+      placeholder: "Analytics marts, agent orchestration..."
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: Concrete outputs expected
+      placeholder: "DB schema + migrations, API with OpenAPI..."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this is done?
+      placeholder: "CRUD works with RLS, OpenAPI published..."
+    validations:
+      required: true
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of Done
+      description: Quality gates and completion criteria
+      placeholder: "ADR written, monitoring hooks, rollback plan..."
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks & Mitigations
+      description: What could go wrong and how to prevent it?
+      placeholder: "Data leakage → RLS + negative tests"
+    validations:
+      required: true
+  - type: input
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Other epics or work this depends on
+      placeholder: "Epic A, Epic B"
+  - type: input
+    id: branch
+    attributes:
+      label: Branch Strategy
+      description: Feature branch naming pattern
+      placeholder: "feat/epic-name → PR to main"
+    validations:
+      required: true
+  - type: textarea
+    id: ci-checks
+    attributes:
+      label: CI Checks
+      description: Required CI/CD validations
+      placeholder: "build, lint, tests, security scans, docs build (strict)"
+    validations:
+      required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Task Checklist
+      description: Breakdown of work items (use - [ ] format)
+      placeholder: "- [ ] Author migrations\n- [ ] Implement CRUD\n- [ ] Unit tests"
+    validations:
+      required: true
+  - type: textarea
+    id: linked-docs
+    attributes:
+      label: Linked Docs
+      description: Related documentation paths
+      placeholder: "docs/product/pdd.md, docs/architecture/database.md"

@@ -1,0 +1,779 @@
+name: Seed GitHub Issues
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (preview only)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  seed-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Create Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              // Types
+              { name: 'type: epic', color: '7B68EE', description: 'Large feature or capability' },
+              { name: 'type: feature', color: '0E8A16', description: 'New feature or enhancement' },
+              { name: 'type: task', color: '1D76DB', description: 'Task or maintenance work' },
+              { name: 'type: bug', color: 'D73A4A', description: 'Bug or defect' },
+              { name: 'type: doc', color: 'FEF2C0', description: 'Documentation' },
+              
+              // Areas
+              { name: 'area: api', color: 'F9D0C4', description: 'API Gateway and endpoints' },
+              { name: 'area: database', color: 'C2E0C6', description: 'Database and migrations' },
+              { name: 'area: rag', color: 'FFDAC1', description: 'RAG ingestion and search' },
+              { name: 'area: agents', color: 'FFE4E1', description: 'Agent swarm orchestration' },
+              { name: 'area: cag', color: 'E1D5E7', description: 'Context-aware guardrails' },
+              { name: 'area: observability', color: 'D4EDDA', description: 'Monitoring and metrics' },
+              { name: 'area: ci-cd', color: 'CCE5FF', description: 'CI/CD pipelines' },
+              { name: 'area: deploy', color: 'F8D7DA', description: 'Deployment and hosting' },
+              { name: 'area: docs', color: 'FFF3CD', description: 'Documentation system' },
+              
+              // Priorities
+              { name: 'prio: p0', color: 'B60205', description: 'Critical priority' },
+              { name: 'prio: p1', color: 'D93F0B', description: 'High priority' },
+              { name: 'prio: p2', color: 'FBCA04', description: 'Medium priority' },
+              
+              // Risks
+              { name: 'risk: security', color: '8B0000', description: 'Security risk' },
+              { name: 'risk: compliance', color: '4B0082', description: 'Compliance risk' },
+              { name: 'risk: data', color: 'FF6347', description: 'Data risk' },
+              
+              // Status
+              { name: 'blocked', color: '000000', description: 'Blocked by dependency' },
+              { name: 'needs: design', color: '6F42C1', description: 'Needs design review' },
+              { name: 'needs: decision', color: 'E99695', description: 'Needs decision' },
+              { name: 'good first issue', color: '7057FF', description: 'Good for newcomers' }
+            ];
+            
+            for (const label of labels) {
+              try {
+                if (!context.payload.inputs.dry_run || context.payload.inputs.dry_run === 'false') {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description
+                  });
+                }
+                console.log(`✓ Created label: ${label.name}`);
+              } catch (error) {
+                if (error.status === 422) {
+                  console.log(`- Label already exists: ${label.name}`);
+                } else {
+                  console.error(`✗ Failed to create label ${label.name}:`, error.message);
+                }
+              }
+            }
+
+      - name: Create Epic Issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const epics = [
+              {
+                title: '[EPIC] Core OLTP API (System of Record)',
+                labels: ['type: epic', 'area: api', 'area: database', 'prio: p1'],
+                body: "## Context\n" +
+                      "Multi-tenant System of Record for supply chain entities with RLS enforcement by org_id.\n\n" +
+                      "## Goals\n" +
+                      "Enable secure CRUD operations for supply chain data with proper tenant isolation.\n\n" +
+                      "## Scope (In)\n" +
+                      "- Tables: supplier, facility, item, purchase_order, po_line, shipment, shipment_event, risk_event\n" +
+                      "- CRUD endpoints with OpenAPI specification\n" +
+                      "- Flyway/Liquibase migrations\n" +
+                      "- Seed data and sample queries\n" +
+                      "- RBAC and basic rate limiting\n\n" +
+                      "## Scope (Out)\n" +
+                      "- Analytics marts (covered in other epics)\n" +
+                      "- Agent orchestration (covered in Epic C)\n" +
+                      "- RAG pipelines (covered in Epic B)\n\n" +
+                      "## Deliverables\n" +
+                      "- Database schema with migrations\n" +
+                      "- API with OpenAPI documentation\n" +
+                      "- Unit and contract tests\n" +
+                      "- Documentation updates (PDD/PRD + DB spec)\n\n" +
+                      "## Acceptance Criteria\n" +
+                      "- CRUD operations work with RLS enforcement\n" +
+                      "- OpenAPI specification published\n" +
+                      "- All tests pass in CI\n" +
+                      "- Documentation updated\n\n" +
+                      "## Definition of Done\n" +
+                      "- ADR written (if schema changes from baseline)\n" +
+                      "- Monitoring hooks implemented\n" +
+                      "- Rollback plan documented\n\n" +
+                      "## Risks & Mitigations\n" +
+                      "- **Risk**: Data leakage across organizations\n" +
+                      "- **Mitigation**: RLS policies + negative tests\n\n" +
+                      "## Dependencies\n" +
+                      "None (foundation epic)\n\n" +
+                      "## Branch Strategy\n" +
+                      "feat/oltp-api → PR to main\n\n" +
+                      "## CI Checks\n" +
+                      "- build, lint, tests\n" +
+                      "- security scans\n" +
+                      "- docs build (strict mode)\n\n" +
+                      "## Task Checklist\n" +
+                      "- [ ] Author migrations with constraints & indexes\n" +
+                      "- [ ] Enable pgvector extension (for future use)\n" +
+                      "- [ ] Implement CRUD operations with RLS gates\n" +
+                      "- [ ] Generate OpenAPI specification\n" +
+                      "- [ ] Write unit and contract tests\n" +
+                      "- [ ] Create RLS negative tests\n" +
+                      "- [ ] Generate seed data and sample queries\n" +
+                      "- [ ] Update docs/product/pdd.md\n" +
+                      "- [ ] Update docs/architecture/database.md (ER + flows)\n" +
+                      "- [ ] Add ADR if schema deviates from baseline\n\n" +
+                      "## Linked Docs\n" +
+                      "- docs/product/pdd.md\n" +
+                      "- docs/architecture/database.md"
+              },
+              {
+                title: '[EPIC] RAG Ingestion & Search',
+                labels: ['type: epic', 'area: rag', 'area: database', 'prio: p1'],
+                body: "## Context\n" +
+                      "Document ingestion pipeline: Documents→chunks→embeddings→citations with hybrid BM25+vector search.\n\n" +
+                      "## Goals\n" +
+                      "Enable semantic search over supply chain documents with citation tracking.\n\n" +
+                      "## Scope (In)\n" +
+                      "- Tables: rag_collection, rag_document, rag_chunk, rag_embedding, rag_citation\n" +
+                      "- Document loaders (Markdown, PDF)\n" +
+                      "- Text chunking strategy\n" +
+                      "- Embedding job pipeline\n" +
+                      "- Top-k search endpoint with hybrid ranking\n" +
+                      "- Basic evaluation harness (nDCG/MRR)\n\n" +
+                      "## Scope (Out)\n" +
+                      "- Cross-region vector store migration (future enhancement)\n\n" +
+                      "## Deliverables\n" +
+                      "- RAG ingestion pipeline\n" +
+                      "- Vector index with hybrid search\n" +
+                      "- Search API with citations\n" +
+                      "- Evaluation report with metrics\n" +
+                      "- Updated documentation\n\n" +
+                      "## Acceptance Criteria\n" +
+                      "- Ingestion and search working on seed corpus\n" +
+                      "- Evaluation metrics logged and above threshold\n" +
+                      "- Citations returned with search results\n\n" +
+                      "## Definition of Done\n" +
+                      "- Monitoring and cost accounting for embeddings\n" +
+                      "- Rollback plan documented\n\n" +
+                      "## Dependencies\n" +
+                      "- Epic A (database and API baseline)\n\n" +
+                      "## Branch Strategy\n" +
+                      "feat/rag-ingest → PR to main\n\n" +
+                      "## CI Checks\n" +
+                      "- Unit and integration tests\n" +
+                      "- Docs build (strict mode)\n" +
+                      "- Content sanitizer (no repo links)\n" +
+                      "- Security scans\n\n" +
+                      "## Task Checklist\n" +
+                      "- [ ] Create RAG database tables\n" +
+                      "- [ ] Build vector index with pgvector\n" +
+                      "- [ ] Implement document loaders (MD/PDF)\n" +
+                      "- [ ] Create text chunking strategy\n" +
+                      "- [ ] Build embedding pipeline\n" +
+                      "- [ ] Implement hybrid search (BM25 + vector)\n" +
+                      "- [ ] Create search endpoint with citations\n" +
+                      "- [ ] Build evaluation harness\n" +
+                      "- [ ] Generate evaluation report\n" +
+                      "- [ ] Update PDD and database documentation\n" +
+                      "- [ ] Add ADR if index strategy changes\n\n" +
+                      "## Linked Docs\n" +
+                      "- docs/product/pdd.md\n" +
+                      "- docs/architecture/database.md"
+              },
+              {
+                title: '[EPIC] Agent Swarm Orchestration',
+                labels: ['type: epic', 'area: agents', 'area: rag', 'prio: p1'],
+                body: "## Context\n" +
+                      "Multi-agent orchestration: Planner/Researcher/Executor/Verifier with tool use and telemetry persistence.\n\n" +
+                      "## Goals\n" +
+                      "Enable coordinated AI agents to process supply chain queries end-to-end.\n\n" +
+                      "## Scope (In)\n" +
+                      "- Tables: agent_run, agent_step, prompt_template, prompt_use\n" +
+                      "- Minimal orchestrator service\n" +
+                      "- Agent roles: Planner/Researcher/Executor/Verifier\n" +
+                      "- Tool definitions: search_rag, write_insight, create_ticket (stub)\n" +
+                      "- One E2E flow: Ask→Insight→Citations\n" +
+                      "- Telemetry persistence\n\n" +
+                      "## Scope (Out)\n" +
+                      "- Advanced scheduling algorithms (future enhancement)\n" +
+                      "- Multi-tenant isolation at tool layer (future enhancement)\n\n" +
+                      "## Deliverables\n" +
+                      "- Orchestrator service\n" +
+                      "- Agent role implementations\n" +
+                      "- E2E \"Ask→Insight→Citations\" flow\n" +
+                      "- Persisted telemetry\n" +
+                      "- Updated documentation\n\n" +
+                      "## Acceptance Criteria\n" +
+                      "- Telemetry present for each agent step\n" +
+                      "- E2E flow works on seed corpus\n" +
+                      "- Agent costs recorded\n\n" +
+                      "## Definition of Done\n" +
+                      "- Observability baseline (logs/metrics)\n" +
+                      "- ADR if architecture diverges from baseline\n\n" +
+                      "## Dependencies\n" +
+                      "- Epic A (database and API baseline)\n" +
+                      "- Epic B (RAG search functionality)\n\n" +
+                      "## Branch Strategy\n" +
+                      "feat/agent-swarm → PR to main\n\n" +
+                      "## CI Checks\n" +
+                      "- Unit and integration tests\n" +
+                      "- Docs build (strict mode)\n" +
+                      "- Security scans\n\n" +
+                      "## Task Checklist\n" +
+                      "- [ ] Create agent telemetry tables\n" +
+                      "- [ ] Build minimal orchestrator service\n" +
+                      "- [ ] Implement agent roles (Planner/Researcher/Executor/Verifier)\n" +
+                      "- [ ] Create tool definitions and registry\n" +
+                      "- [ ] Build E2E Ask→Insight→Citations flow\n" +
+                      "- [ ] Implement telemetry persistence\n" +
+                      "- [ ] Add cost tracking\n" +
+                      "- [ ] Create observability baseline\n" +
+                      "- [ ] Update PDD and database documentation\n" +
+                      "- [ ] Add ADR if architecture changes\n\n" +
+                      "## Linked Docs\n" +
+                      "- docs/product/pdd.md\n" +
+                      "- docs/architecture/database.md"
+              },
+              {
+                title: '[EPIC] CAG (Context-Aware Guardrails)',
+                labels: ['type: epic', 'area: cag', 'risk: security', 'prio: p1'],
+                body: "## Context\n" +
+                      "Runtime policy enforcement with violation logging and audit trails.\n\n" +
+                      "## Goals\n" +
+                      "Ensure AI agent outputs comply with security, compliance, and business policies.\n\n" +
+                      "## Scope (In)\n" +
+                      "- Tables: cag_policy, cag_violation\n" +
+                      "- Evaluation hook per agent step\n" +
+                      "- Sample policies: PII redaction, vendor blacklist, cost ceiling, hallucination confidence\n" +
+                      "- Violation logging and auditability\n" +
+                      "- Policy model and enforcement engine\n\n" +
+                      "## Scope (Out)\n" +
+                      "- External policy engine integrations (future enhancement)\n\n" +
+                      "## Deliverables\n" +
+                      "- Policy model and schema\n" +
+                      "- Enforcement hooks in agent pipeline\n" +
+                      "- Sample policy implementations\n" +
+                      "- Violation detection and logging\n" +
+                      "- Red-team documentation\n" +
+                      "- Dashboards (later phase)\n\n" +
+                      "## Acceptance Criteria\n" +
+                      "- Violations recorded for simulated policy breaches\n" +
+                      "- All tests pass\n" +
+                      "- Documentation updated\n\n" +
+                      "## Definition of Done\n" +
+                      "- Evidence artifacts captured in CI\n" +
+                      "- ADR for policy model architecture\n\n" +
+                      "## Dependencies\n" +
+                      "- Epic A (database and API baseline)\n" +
+                      "- Epic C (agent hook points)\n\n" +
+                      "## Branch Strategy\n" +
+                      "feat/cag-guardrails → PR to main\n\n" +
+                      "## CI Checks\n" +
+                      "- Security scans\n" +
+                      "- Unit tests\n" +
+                      "- Docs build (strict mode)\n\n" +
+                      "## Task Checklist\n" +
+                      "- [ ] Create CAG policy and violation tables\n" +
+                      "- [ ] Design policy model schema\n" +
+                      "- [ ] Implement evaluation hooks in agent steps\n" +
+                      "- [ ] Create sample policies (PII, vendor, cost, confidence)\n" +
+                      "- [ ] Build violation detection and logging\n" +
+                      "- [ ] Add policy enforcement engine\n" +
+                      "- [ ] Create red-team documentation\n" +
+                      "- [ ] Add evidence artifacts to CI\n" +
+                      "- [ ] Update PDD and database documentation\n" +
+                      "- [ ] Write ADR for policy model\n\n" +
+                      "## Linked Docs\n" +
+                      "- docs/product/pdd.md\n" +
+                      "- docs/architecture/database.md"
+              },
+              {
+                title: '[EPIC] Observability & Dashboards',
+                labels: ['type: epic', 'area: observability', 'area: ci-cd', 'prio: p2'],
+                body: "## Context\n" +
+                      "Structured logging, metrics, traces with docs site auto-sync and evidence capture.\n\n" +
+                      "## Goals\n" +
+                      "Enable monitoring, debugging, and performance optimization of the SCIRM platform.\n\n" +
+                      "## Scope (In)\n" +
+                      "- JSON logging with structured format\n" +
+                      "- Minimal tracing for request flows\n" +
+                      "- Metrics: latency, hit-rate, precision@k, agent cost\n" +
+                      "- CI artifacts and evidence capture\n" +
+                      "- Firebase public docs updates\n" +
+                      "- Basic dashboards for KPIs\n\n" +
+                      "## Scope (Out)\n" +
+                      "- Full SRE dashboards beyond initial metrics (later enhancement)\n\n" +
+                      "## Deliverables\n" +
+                      "- Structured logging baseline\n" +
+                      "- Metrics collection and emission\n" +
+                      "- CI evidence workflow\n" +
+                      "- Docs page with KPIs\n" +
+                      "- Basic monitoring dashboards\n\n" +
+                      "## Acceptance Criteria\n" +
+                      "- Metrics emitted for all key operations\n" +
+                      "- CI captures artifacts successfully\n" +
+                      "- Docs reflect current KPIs\n" +
+                      "- Monitoring alerts configured\n\n" +
+                      "## Definition of Done\n" +
+                      "- SLOs documented\n" +
+                      "- Error budget policy stated\n" +
+                      "- Monitoring runbooks created\n\n" +
+                      "## Dependencies\n" +
+                      "- Epic A (database and API baseline)\n" +
+                      "- Epic B (RAG search functionality)\n" +
+                      "- Epic C (agent orchestration)\n" +
+                      "- Epic D (CAG policy enforcement)\n\n" +
+                      "## Branch Strategy\n" +
+                      "feat/observability → PR to main\n\n" +
+                      "## CI Checks\n" +
+                      "- Docs build (strict mode)\n" +
+                      "- Content sanitization\n" +
+                      "- Header verification\n\n" +
+                      "## Task Checklist\n" +
+                      "- [ ] Implement JSON structured logging\n" +
+                      "- [ ] Add minimal request tracing\n" +
+                      "- [ ] Create metrics collection (latency, hit-rate, precision@k, cost)\n" +
+                      "- [ ] Build CI artifacts and evidence capture\n" +
+                      "- [ ] Update Firebase docs with KPIs\n" +
+                      "- [ ] Create basic monitoring dashboards\n" +
+                      "- [ ] Document SLOs and error budgets\n" +
+                      "- [ ] Create monitoring runbooks\n" +
+                      "- [ ] Update PDD and observability documentation\n\n" +
+                      "## Linked Docs\n" +
+                      "- docs/product/pdd.md\n" +
+                      "- docs/architecture/observability.md\n" +
+                      "- docs/operations/slos.md"
+              }
+            ];
+
+            for (const epic of epics) {
+              try {
+                // Check if issue already exists
+                const existingIssues = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all'
+                });
+                
+                const exists = existingIssues.data.some(issue => issue.title === epic.title);
+                
+                if (exists) {
+                  console.log(`- Epic already exists: ${epic.title}`);
+                  continue;
+                }
+                
+                if (!context.payload.inputs.dry_run || context.payload.inputs.dry_run === 'false') {
+                  await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: epic.title,
+                    body: epic.body,
+                    labels: epic.labels
+                  });
+                }
+                console.log(`✓ Created epic: ${epic.title}`);
+              } catch (error) {
+                console.error(`✗ Failed to create epic ${epic.title}:`, error.message);
+              }
+            }
+
+      - name: Create Debugging Playbook Issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const playbooks = [
+              {
+                title: '[PLAYBOOK] MkDocs Strict Build Fails',
+                labels: ['type: task', 'area: docs', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- Parse errors in YAML configuration\n" +
+                      "- Undefined macros or variables\n" +
+                      "- Missing referenced files\n" +
+                      "- Directory links in navigation\n" +
+                      "- Build warnings in strict mode\n\n" +
+                      "## Probable Causes\n" +
+                      "- YAML syntax errors (unquoted titles with colons)\n" +
+                      "- Incorrect indentation\n" +
+                      "- Missing or misconfigured docs/main.py\n" +
+                      "- Directory paths instead of file paths in nav\n" +
+                      "- Missing dependencies in requirements-docs.txt\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Check YAML syntax**: Validate mkdocs.yml structure\n" +
+                      "2. **Quote titles**: Add quotes around nav titles containing colons\n" +
+                      "3. **Fix indentation**: Ensure consistent YAML spacing\n" +
+                      "4. **Correct nav paths**: Replace directory/ with directory/README.md\n" +
+                      "5. **Create stubs**: Add minimal files for missing references (H1 + TODO)\n" +
+                      "6. **Verify macros**: Ensure docs/main.py contains define_env function\n" +
+                      "7. **Pin dependencies**: Install from requirements-docs.txt with versions\n" +
+                      "8. **Check Mermaid**: Ensure diagrams are properly fenced as \`\`\`mermaid\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "python -m mkdocs build --strict\n" +
+                      "# Should complete with no warnings or errors\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Add pre-commit hooks for YAML validation\n" +
+                      "- Include MkDocs strict build in CI\n" +
+                      "- Document navigation conventions\n" +
+                      "- Regular dependency updates\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Validate YAML\n" +
+                      "python -c \"import yaml; yaml.safe_load(open('mkdocs.yml'))\"\n\n" +
+                      "# Check for common issues\n" +
+                      "grep -n \":\" mkdocs.yml | grep -v \"'\"\n" +
+                      "find docs -name \"*.md\" -exec grep -l \"TODO\" {} \\;\n\n" +
+                      "# Test build\n" +
+                      "python -m mkdocs build --strict --clean\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [YAML syntax/missing files/etc] → Fix: [specific changes] → Verified: mkdocs build --strict clean"
+              },
+              {
+                title: '[PLAYBOOK] Firebase Hosting Deploy Fails',
+                labels: ['type: task', 'area: deploy', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- Missing or invalid Firebase secrets\n" +
+                      "- Project ID mismatch errors\n" +
+                      "- Wrong site directory configuration\n" +
+                      "- Deploy only allowed from specific branch\n\n" +
+                      "## Probable Causes\n" +
+                      "- FIREBASE_SERVICE_ACCOUNT_KEY not set or invalid JSON\n" +
+                      "- FIREBASE_PROJECT_ID mismatch\n" +
+                      "- MkDocs output directory doesn't match firebase.json\n" +
+                      "- Deploying from wrong branch (not firebase-hosting)\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Validate secrets**: Check FIREBASE_SERVICE_ACCOUNT_KEY is valid JSON\n" +
+                      "2. **Verify project ID**: Ensure FIREBASE_PROJECT_ID matches target\n" +
+                      "3. **Check site directory**: Confirm MkDocs outputs to site/ directory\n" +
+                      "4. **Match firebase.json**: Ensure hosting.public points to correct path\n" +
+                      "5. **Branch enforcement**: Deploy only from firebase-hosting branch\n" +
+                      "6. **Security headers**: Verify CSP, HSTS, XFO, XCTO headers\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# Successful deploy with evidence artifact\n" +
+                      "firebase deploy --only hosting\n" +
+                      "# Check deployment logs for file count and success\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Branch protection rules\n" +
+                      "- Automated secret validation\n" +
+                      "- CI checks for firebase.json consistency\n" +
+                      "- Evidence artifact capture\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Validate Firebase config\n" +
+                      "firebase projects:list\n" +
+                      "cat firebase.json | jq '.hosting.public'\n\n" +
+                      "# Check MkDocs output\n" +
+                      "ls -la site/\n" +
+                      "mkdocs build\n\n" +
+                      "# Test deploy (dry run)\n" +
+                      "firebase deploy --only hosting --dry-run\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [missing secrets/config mismatch/etc] → Fix: [specific changes] → Verified: successful deploy + evidence artifact"
+              },
+              {
+                title: '[PLAYBOOK] GitHub Actions Secrets/Guards Failing',
+                labels: ['type: task', 'area: ci-cd', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- \"Missing secret\" errors in workflows\n" +
+                      "- Auditor flags deploy in wrong workflows\n" +
+                      "- Branch guard failures\n" +
+                      "- False positive security alerts\n\n" +
+                      "## Probable Causes\n" +
+                      "- Secrets not configured in repository settings\n" +
+                      "- Weak shell guards for secret presence checks\n" +
+                      "- Auditor scanning helper workflows instead of deploy steps\n" +
+                      "- Incorrect branch conditions in workflow files\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Robust secret checks**: Use proper shell guards that read from \${{ secrets.* }}\n" +
+                      "2. **Tighten auditor scope**: Grep only \"- run:\" lines containing deploy commands\n" +
+                      "3. **Branch enforcement**: Ensure deploy jobs have if: github.ref == 'refs/heads/firebase-hosting'\n" +
+                      "4. **Exclude helpers**: Prevent auditor from scanning helper/utility workflows\n" +
+                      "5. **Clear error messages**: Provide specific missing secret names (no content)\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# All required checks pass\n" +
+                      "# Guardrails remain intact\n" +
+                      "# No false positives in auditor\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Standardize secret validation patterns\n" +
+                      "- Regular auditor accuracy testing\n" +
+                      "- Document branch strategy clearly\n" +
+                      "- Automated guardrail verification\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Check workflow syntax\n" +
+                      "yamllint .github/workflows/*.yml\n\n" +
+                      "# Validate secret references\n" +
+                      "grep -r \"secrets\\\\.\" .github/workflows/\n\n" +
+                      "# Test branch conditions\n" +
+                      "git branch --show-current\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [weak guards/wrong scope/etc] → Fix: [specific changes] → Verified: checks pass + guardrails intact"
+              },
+              {
+                title: '[PLAYBOOK] Database Migrations & RLS',
+                labels: ['type: task', 'area: database', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- Migration order errors\n" +
+                      "- RLS policy bypass\n" +
+                      "- Foreign key constraint failures\n" +
+                      "- Cross-organization data leakage\n\n" +
+                      "## Probable Causes\n" +
+                      "- Incorrect migration sequencing\n" +
+                      "- Missing RLS default deny policies\n" +
+                      "- Inadequate constraint definitions\n" +
+                      "- Missing negative tests for tenant isolation\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Two-phase migrations**: Structure for schema then data changes\n" +
+                      "2. **Enforce RLS**: Set default deny policies for all tables\n" +
+                      "3. **Add constraints**: Proper foreign keys and check constraints\n" +
+                      "4. **Negative tests**: Verify cross-org access is blocked\n" +
+                      "5. **Rollback plan**: Document reversal procedures\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# CRUD operations work with RLS\n" +
+                      "# Negative tests pass (cross-org blocked)\n" +
+                      "# All constraints enforced\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Migration review checklist\n" +
+                      "- Automated RLS testing\n" +
+                      "- Constraint validation in CI\n" +
+                      "- Regular security audits\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Test migrations\n" +
+                      "flyway migrate\n" +
+                      "flyway info\n\n" +
+                      "# Verify RLS policies\n" +
+                      "psql -c \"SELECT * FROM pg_policies;\"\n\n" +
+                      "# Test tenant isolation\n" +
+                      "psql -c \"SET row_security = on; SELECT test_cross_org_access();\"\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [migration order/RLS gaps/etc] → Fix: [specific changes] → Verified: CRUD + RLS tests green"
+              },
+              {
+                title: '[PLAYBOOK] RAG Ingestion/Search Breaks',
+                labels: ['type: task', 'area: rag', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- Missing chunks or embeddings\n" +
+                      "- Evaluation metrics showing zero/NaN\n" +
+                      "- Slow or failing search queries\n" +
+                      "- Citation tracking broken\n\n" +
+                      "## Probable Causes\n" +
+                      "- Document loaders failing on file formats\n" +
+                      "- Chunking strategy producing empty results\n" +
+                      "- Embedding job environment misconfiguration\n" +
+                      "- Vector index corruption or missing\n" +
+                      "- BM25 fallback not working\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Validate loaders**: Test document parsing for MD/PDF\n" +
+                      "2. **Check chunker**: Verify text segmentation produces valid chunks\n" +
+                      "3. **Embedding environment**: Validate API keys and model access\n" +
+                      "4. **Rebuild index**: Recreate vector index with proper configuration\n" +
+                      "5. **Hybrid fallback**: Ensure BM25 works when vector search fails\n" +
+                      "6. **Evaluation pipeline**: Fix metrics calculation and thresholds\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# Top-k search returns results with citations\n" +
+                      "# Evaluation metrics above threshold\n" +
+                      "# Both vector and BM25 search working\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Comprehensive ingestion testing\n" +
+                      "- Monitoring for embedding costs\n" +
+                      "- Regular index health checks\n" +
+                      "- Evaluation metric alerts\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Test document loading\n" +
+                      "python -c \"from loaders import load_document; print(load_document('test.pdf'))\"\n\n" +
+                      "# Check embeddings\n" +
+                      "python -c \"from embedder import embed_text; print(embed_text('test')[:5])\"\n\n" +
+                      "# Test search\n" +
+                      "curl -X POST /api/search -d '{\"query\": \"test\", \"top_k\": 5}'\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [loader failure/index corruption/etc] → Fix: [specific changes] → Verified: search + citations working"
+              },
+              {
+                title: '[PLAYBOOK] Agent Swarm Telemetry Missing',
+                labels: ['type: task', 'area: agents', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- No agent_run or agent_step records\n" +
+                      "- Unknown token costs and latency\n" +
+                      "- Missing orchestration logs\n" +
+                      "- Tool usage not tracked\n\n" +
+                      "## Probable Causes\n" +
+                      "- Orchestration not writing to telemetry tables\n" +
+                      "- Missing token counting in LLM calls\n" +
+                      "- Tool wrappers not logging usage\n" +
+                      "- Database connection issues\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Ensure telemetry writes**: Verify orchestrator persists run/step data\n" +
+                      "2. **Add token counting**: Wrap LLM calls with usage tracking\n" +
+                      "3. **Latency measurement**: Record timing for each agent step\n" +
+                      "4. **Tool logging**: Wrap all tools with usage telemetry\n" +
+                      "5. **Database verification**: Check connection and table structure\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# agent_run and agent_step records present for E2E flow\n" +
+                      "# Token costs and latency recorded\n" +
+                      "# Tool usage tracked\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Telemetry integration testing\n" +
+                      "- Cost monitoring alerts\n" +
+                      "- Regular data quality checks\n" +
+                      "- Observability dashboards\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Check telemetry tables\n" +
+                      "psql -c \"SELECT COUNT(*) FROM agent_run;\"\n" +
+                      "psql -c \"SELECT COUNT(*) FROM agent_step;\"\n\n" +
+                      "# Test E2E flow\n" +
+                      "python -c \"from orchestrator import run_workflow; run_workflow('test query')\"\n\n" +
+                      "# Verify cost tracking\n" +
+                      "psql -c \"SELECT SUM(token_cost) FROM agent_step WHERE created_at > NOW() - INTERVAL '1 hour';\"\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [missing telemetry/no token counting/etc] → Fix: [specific changes] → Verified: runs/steps recorded for E2E"
+              },
+              {
+                title: '[PLAYBOOK] CAG Policy Not Enforced',
+                labels: ['type: task', 'area: cag', 'risk: security', 'prio: p0'],
+                body: "## Symptoms\n" +
+                      "- Risky outputs not blocked or logged\n" +
+                      "- Policy violations not recorded\n" +
+                      "- No audit trail for decisions\n" +
+                      "- Compliance failures\n\n" +
+                      "## Probable Causes\n" +
+                      "- Evaluation hook not wired to agent steps\n" +
+                      "- Sample policies not implemented\n" +
+                      "- Missing violation logging\n" +
+                      "- Test coverage gaps\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Wire evaluation hook**: Ensure CAG runs on every agent step\n" +
+                      "2. **Implement policies**: Add sample policies with proper logic\n" +
+                      "3. **Violation logging**: Record all policy breaches with context\n" +
+                      "4. **Add tests**: Comprehensive coverage including red-team scenarios\n" +
+                      "5. **Red-team documentation**: Document attack vectors and defenses\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# Violations recorded on simulated breaches\n" +
+                      "# Policy tests pass\n" +
+                      "# Audit trail complete\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Regular red-team exercises\n" +
+                      "- Policy effectiveness monitoring\n" +
+                      "- Compliance audit automation\n" +
+                      "- Security review process\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Test policy enforcement\n" +
+                      "python -c \"from cag import evaluate_policy; print(evaluate_policy('PII_test', 'SSN: 123-45-6789'))\"\n\n" +
+                      "# Check violation logs\n" +
+                      "psql -c \"SELECT * FROM cag_violation ORDER BY created_at DESC LIMIT 5;\"\n\n" +
+                      "# Run red-team tests\n" +
+                      "python -m pytest tests/security/test_redteam.py -v\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [missing hook/no policies/etc] → Fix: [specific changes] → Verified: violations recorded on breaches"
+              },
+              {
+                title: '[PLAYBOOK] Auditor False Positives',
+                labels: ['type: task', 'area: ci-cd', 'prio: p1'],
+                body: "## Symptoms\n" +
+                      "- Auditor flags helper workflows\n" +
+                      "- Echo commands trigger false alerts\n" +
+                      "- Non-deploy steps flagged as deploy\n" +
+                      "- CI pipeline blocked incorrectly\n\n" +
+                      "## Probable Causes\n" +
+                      "- Auditor scanning all workflow files instead of deploy steps\n" +
+                      "- Regex patterns too broad\n" +
+                      "- Helper workflows included in scope\n" +
+                      "- Missing test coverage for auditor logic\n\n" +
+                      "## Step-by-Step Fix\n" +
+                      "1. **Scope to run steps**: Grep only \"- run:\" lines with firebase/deploy commands\n" +
+                      "2. **Exclude helpers**: Skip auditor and utility workflow files\n" +
+                      "3. **Refine patterns**: Make regex more specific to actual deploy commands\n" +
+                      "4. **Add tests**: Verify auditor catches real violations but not false positives\n" +
+                      "5. **Documentation**: Clear examples of what should/shouldn't be flagged\n\n" +
+                      "## Verification\n" +
+                      "\`\`\`bash\n" +
+                      "# No false positives on helper workflows\n" +
+                      "# Real violations still caught\n" +
+                      "# Auditor tests pass\n" +
+                      "\`\`\`\n\n" +
+                      "## Prevent Recurrence\n" +
+                      "- Regular auditor accuracy testing\n" +
+                      "- Pattern validation in CI\n" +
+                      "- Clear scoping documentation\n" +
+                      "- Feedback loop for improvements\n\n" +
+                      "## Copy-Paste Checklist\n" +
+                      "\`\`\`bash\n" +
+                      "# Test auditor patterns\n" +
+                      "grep -r \"firebase\\\\|deploy\" .github/workflows/ | grep \"- run:\"\n\n" +
+                      "# Verify exclusions\n" +
+                      "ls .github/workflows/*auditor* .github/workflows/*helper*\n\n" +
+                      "# Run auditor tests\n" +
+                      "python -m pytest tests/ci/test_auditor.py -v\n" +
+                      "\`\`\`\n\n" +
+                      "## Post-Mortem Template\n" +
+                      "Root cause: [broad patterns/wrong scope/etc] → Fix: [specific changes] → Verified: no false positives + real violations caught"
+              }
+            ];
+
+            for (const playbook of playbooks) {
+              try {
+                // Check if issue already exists
+                const existingIssues = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all'
+                });
+                
+                const exists = existingIssues.data.some(issue => issue.title === playbook.title);
+                
+                if (exists) {
+                  console.log(`- Playbook already exists: ${playbook.title}`);
+                  continue;
+                }
+                
+                if (!context.payload.inputs.dry_run || context.payload.inputs.dry_run === 'false') {
+                  await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: playbook.title,
+                    body: playbook.body,
+                    labels: playbook.labels
+                  });
+                }
+                console.log(`✓ Created playbook: ${playbook.title}`);
+              } catch (error) {
+                console.error(`✗ Failed to create playbook ${playbook.title}:`, error.message);
+              }
+            }

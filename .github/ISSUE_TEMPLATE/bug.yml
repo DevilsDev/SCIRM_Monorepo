@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a bug or defect
+title: "[BUG] "
+labels: ["type: bug", "prio: p1"]
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction Steps
+      description: Steps to reproduce the issue
+      placeholder: "1. Run command X\n2. Navigate to Y\n3. See error"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen?
+      placeholder: "The system should..."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens?
+      placeholder: "Instead, the system..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/Error Messages
+      description: Relevant log output or error messages
+      placeholder: "```\nError: ...\n```"
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: System details where the bug occurs
+      placeholder: "OS: Windows 11\nPython: 3.11\nBrowser: Chrome 120"
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: How severe is this bug?
+      options:
+        - "Critical - System down"
+        - "High - Major feature broken"
+        - "Medium - Minor feature issue"
+        - "Low - Cosmetic issue"
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Priority level
+      options:
+        - "P0 - Critical"
+        - "P1 - High"
+        - "P2 - Medium"
+    validations:
+      required: true
