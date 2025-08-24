@@ -1,6 +1,6 @@
 name: Epic
 description: Create a new Epic for major feature development
-title: "[EPIC] "
+title: "Epic — "
 labels: ["type: epic", "prio: p1"]
 body:
   - type: input
@@ -8,15 +8,15 @@ body:
     attributes:
       label: Context
       description: Business context and problem statement
-      placeholder: "Multi-tenant SoR for supply chain entities..."
+      placeholder: "Multi-tenant SoR for supply chain entities with RLS enforcement by org_id..."
     validations:
       required: true
   - type: textarea
     id: goals
     attributes:
-      label: Goals
-      description: What are we trying to achieve?
-      placeholder: "Enable CRUD operations with RLS enforcement..."
+      label: Goals & Non-Goals
+      description: What are we trying to achieve and what is explicitly out of scope?
+      placeholder: "Goals: Enable secure CRUD operations...\nNon-Goals: Analytics marts, external integrations..."
     validations:
       required: true
   - type: textarea
@@ -24,7 +24,7 @@ body:
     attributes:
       label: "Scope (In)"
       description: What is included in this epic?
-      placeholder: "Tables, CRUD endpoints, OpenAPI, migrations..."
+      placeholder: "Tables, CRUD endpoints, OpenAPI, migrations, seed data, RBAC..."
     validations:
       required: true
   - type: textarea
@@ -32,7 +32,7 @@ body:
     attributes:
       label: "Scope (Out)"
       description: What is explicitly NOT included?
-      placeholder: "Analytics marts, agent orchestration..."
+      placeholder: "Analytics marts, agent orchestration, RAG pipelines..."
     validations:
       required: true
   - type: textarea
@@ -40,7 +40,7 @@ body:
     attributes:
       label: Deliverables
       description: Concrete outputs expected
-      placeholder: "DB schema + migrations, API with OpenAPI..."
+      placeholder: "DB schema + migrations, API with OpenAPI, tests (unit + contract), docs updates..."
     validations:
       required: true
   - type: textarea
@@ -48,15 +48,15 @@ body:
     attributes:
       label: Acceptance Criteria
       description: How do we know this is done?
-      placeholder: "CRUD works with RLS, OpenAPI published..."
+      placeholder: "CRUD works with RLS enforced, OpenAPI published, tests & CI green, docs updated..."
     validations:
       required: true
   - type: textarea
     id: dod
     attributes:
-      label: Definition of Done
+      label: Definition of Done (DoD)
       description: Quality gates and completion criteria
-      placeholder: "ADR written, monitoring hooks, rollback plan..."
+      placeholder: "ADR written (if schema changes), monitoring hooks implemented, rollback plan documented..."
     validations:
       required: true
   - type: textarea
@@ -64,7 +64,7 @@ body:
     attributes:
       label: Risks & Mitigations
       description: What could go wrong and how to prevent it?
-      placeholder: "Data leakage → RLS + negative tests"
+      placeholder: "Risk: Data leakage across orgs → Mitigation: RLS policies + negative tests"
     validations:
       required: true
   - type: input
@@ -72,7 +72,7 @@ body:
     attributes:
       label: Dependencies
       description: Other epics or work this depends on
-      placeholder: "Epic A, Epic B"
+      placeholder: "None (foundation epic) or Epic A, Epic B"
   - type: input
     id: branch
     attributes:
@@ -86,7 +86,7 @@ body:
     attributes:
       label: CI Checks
       description: Required CI/CD validations
-      placeholder: "build, lint, tests, security scans, docs build (strict)"
+      placeholder: "build, lint, tests, security scans, docs build (strict), sanitizer"
     validations:
       required: true
   - type: textarea
@@ -94,12 +94,21 @@ body:
     attributes:
       label: Task Checklist
       description: Breakdown of work items (use - [ ] format)
-      placeholder: "- [ ] Author migrations\n- [ ] Implement CRUD\n- [ ] Unit tests"
+      placeholder: "- [ ] Author migrations with constraints & indexes\n- [ ] Implement CRUD with RLS gates\n- [ ] Generate OpenAPI spec\n- [ ] Unit + contract tests\n- [ ] Update docs (PDD/PRD + DB spec)"
     validations:
       required: true
   - type: textarea
     id: linked-docs
     attributes:
       label: Linked Docs
-      description: Related documentation paths
-      placeholder: "docs/product/pdd.md, docs/architecture/database.md"
+      description: Related documentation paths (no external repo links)
+      placeholder: "docs/product/prd.md, docs/product/pdd.md, docs/architecture/database.md"
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **📝 Reminder**: If architecture changes materially, add/modify an ADR under `docs/architecture/adr/`
+        
+        **🔄 Branch Strategy**: Work on `feat/*` branches; PR into `main`. Docs deploy from `firebase-hosting` only.
+        
+        **✅ CI Requirements**: All PRs must pass build, lint, tests, security scans, and MkDocs strict build + sanitizer.

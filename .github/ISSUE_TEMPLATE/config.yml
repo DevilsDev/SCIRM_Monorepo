@@ -1,0 +1,21 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation & Support
+    url: https://github.com/DevilsDev/SCIRM_Monorepo/blob/main/docs/support/README.md
+    about: Check our documentation and support resources
+  - name: Security Issues
+    url: https://github.com/DevilsDev/SCIRM_Monorepo/security/advisories/new
+    about: Report security vulnerabilities privately
+template_chooser:
+  - name: Epic
+    description: Large cross-cutting initiatives (OLTP API, RAG, Agents, CAG, Observability)
+    labels: ["type: epic", "prio: p1"]
+  - name: Task/Feature
+    description: Shippable units beneath epics (service endpoints, pipelines, dashboards)
+    labels: ["type: task", "prio: p1"]
+  - name: Bug Report
+    description: Report bugs or defects in the SCIRM system
+    labels: ["type: bug", "prio: p1"]
+  - name: Debugging Playbook
+    description: Create reusable debugging runbooks and troubleshooting guides
+    labels: ["type: task", "prio: p1"]

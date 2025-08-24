@@ -1,57 +1,112 @@
-name: Task/Playbook
-description: Create a task or debugging playbook
+name: Task/Feature
+description: Create a task or feature for shippable units beneath epics
 title: "[TASK] "
 labels: ["type: task", "prio: p1"]
 body:
   - type: textarea
-    id: symptoms
+    id: summary
     attributes:
-      label: Symptoms
-      description: What are the observable issues?
-      placeholder: "Parse errors, undefined macros, missing files..."
+      label: Summary
+      description: Brief description of the task or feature
+      placeholder: "Implement user authentication endpoint with JWT tokens..."
     validations:
       required: true
   - type: textarea
-    id: root-cause
+    id: background
     attributes:
-      label: Root Cause / Probable Causes
-      description: What is causing this issue?
-      placeholder: "YAML syntax errors, missing dependencies..."
+      label: Background
+      description: Context and motivation for this task
+      placeholder: "Users need secure authentication to access protected resources..."
     validations:
       required: true
   - type: textarea
-    id: fix-steps
+    id: implementation
     attributes:
-      label: Step-by-Step Fix
-      description: Detailed resolution steps
-      placeholder: "1. Check YAML syntax\n2. Quote titles with colons\n3. Fix indentation"
+      label: Implementation Plan
+      description: Technical approach and key steps
+      placeholder: "1. Create auth service\n2. Implement JWT generation\n3. Add middleware for token validation..."
     validations:
       required: true
   - type: textarea
-    id: verification
+    id: testing
     attributes:
-      label: Verification
-      description: How to confirm the fix worked
-      placeholder: "python -m mkdocs build --strict clean"
+      label: Testing Plan
+      description: How will this be tested?
+      placeholder: "Unit tests for auth service, integration tests for endpoints, security testing..."
+    validations:
+      required: true
+  - type: dropdown
+    id: docs-needed
+    attributes:
+      label: Docs Update Needed
+      description: Does this require documentation updates?
+      options:
+        - "No"
+        - "Yes - API documentation"
+        - "Yes - User guide"
+        - "Yes - Architecture docs"
+        - "Yes - Multiple docs"
     validations:
       required: true
   - type: textarea
-    id: prevention
+    id: docs-files
     attributes:
-      label: Prevent Recurrence
-      description: How to avoid this issue in the future
-      placeholder: "Add pre-commit hooks, update CI checks"
+      label: Documentation Files
+      description: Which documentation files need updates? (if applicable)
+      placeholder: "docs/product/pdd.md, docs/api/authentication.md"
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this is complete?
+      placeholder: "- [ ] Authentication endpoint returns valid JWT\n- [ ] Invalid credentials return 401\n- [ ] Tests pass in CI"
     validations:
       required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which area does this task belong to?
+      options:
+        - "api"
+        - "database"
+        - "rag"
+        - "agents"
+        - "cag"
+        - "observability"
+        - "ci-cd"
+        - "deploy"
+        - "docs"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: Task priority level
+      options:
+        - "prio: p1"
+        - "prio: p2"
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks
+      description: Potential issues and mitigation strategies
+      placeholder: "Risk: Security vulnerabilities → Mitigation: Security review and penetration testing"
   - type: textarea
     id: checklist
     attributes:
-      label: Copy-Paste Checklist
-      description: Commands developers can run locally
-      placeholder: "```bash\n# Check syntax\nmkdocs build --strict\n# Fix common issues\n...\n```"
-  - type: textarea
-    id: postmortem
+      label: Implementation Checklist
+      description: Detailed task breakdown (use - [ ] format)
+      placeholder: "- [ ] Create auth service class\n- [ ] Implement JWT generation\n- [ ] Add token validation middleware\n- [ ] Write unit tests\n- [ ] Update API documentation"
+    validations:
+      required: true
+  - type: markdown
     attributes:
-      label: Post-Mortem Template
-      description: Short summary for commit messages
-      placeholder: "Root cause: YAML syntax → Fix: quoted titles → Verified: strict build clean"
+      value: |
+        ---
+        **🔄 Branch Strategy**: Work on `feat/*` branches; PR into `main`. Docs deploy from `firebase-hosting` only.
+        
+        **✅ CI Requirements**: All PRs must pass build, lint, tests, security scans, and MkDocs strict build + sanitizer.

@@ -1,0 +1,98 @@
+name: Debugging Playbook
+description: Create a reusable debugging playbook or runbook
+title: "[PLAYBOOK] "
+labels: ["type: task", "prio: p1"]
+body:
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: Symptoms
+      description: What are the observable issues or error conditions?
+      placeholder: "Parse errors in YAML configuration, undefined macros, missing files, build warnings..."
+    validations:
+      required: true
+  - type: textarea
+    id: probable-causes
+    attributes:
+      label: Probable Causes
+      description: What typically causes these symptoms?
+      placeholder: "YAML syntax errors (unquoted titles with colons), incorrect indentation, missing dependencies..."
+    validations:
+      required: true
+  - type: textarea
+    id: fix-steps
+    attributes:
+      label: Step-by-Step Fix
+      description: Detailed resolution steps in order
+      placeholder: "1. **Check YAML syntax**: Validate mkdocs.yml structure\n2. **Quote titles**: Add quotes around nav titles containing colons\n3. **Fix indentation**: Ensure consistent YAML spacing..."
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: How to confirm the fix worked
+      placeholder: "```bash\npython -m mkdocs build --strict\n# Should complete with no warnings or errors\n```"
+    validations:
+      required: true
+  - type: textarea
+    id: prevention
+    attributes:
+      label: Prevent Recurrence
+      description: How to avoid this issue in the future
+      placeholder: "Add pre-commit hooks for YAML validation, include MkDocs strict build in CI, document navigation conventions..."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which area does this playbook cover?
+      options:
+        - "ci-cd"
+        - "docs"
+        - "database"
+        - "rag"
+        - "agents"
+        - "cag"
+        - "deploy"
+        - "api"
+        - "observability"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: Playbook priority level
+      options:
+        - "prio: p0"
+        - "prio: p1"
+        - "prio: p2"
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Copy-Paste Checklist
+      description: Commands developers can run locally to diagnose and fix
+      placeholder: "```bash\n# Validate YAML\npython -c \"import yaml; yaml.safe_load(open('mkdocs.yml'))\"\n\n# Check for common issues\ngrep -n \":\" mkdocs.yml | grep -v \"'\"\n\n# Test build\npython -m mkdocs build --strict --clean\n```"
+    validations:
+      required: true
+  - type: textarea
+    id: postmortem
+    attributes:
+      label: Post-Mortem Template
+      description: Short summary format for commit messages and incident reports
+      placeholder: "Root cause: [YAML syntax/missing files/etc] → Fix: [specific changes] → Verified: [confirmation method]"
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **📚 Common Playbooks**: MkDocs Strict Build Fails, Firebase Hosting Deploy Fails, GitHub Actions Secrets/Guards Failing, Database Migrations & RLS, RAG Ingestion/Search Breaks, Agent Swarm Telemetry Missing, CAG Policy Not Enforced, Auditor False Positives
+        
+        **🔄 Branch Strategy**: Work on `feat/*` branches; PR into `main`. Docs deploy from `firebase-hosting` only.
+        
+        **✅ CI Requirements**: All PRs must pass build, lint, tests, security scans, and MkDocs strict build + sanitizer.

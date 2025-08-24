@@ -1,14 +1,22 @@
 name: Bug Report
-description: Report a bug or defect
+description: Report a bug or defect in SCIRM system
 title: "[BUG] "
 labels: ["type: bug", "prio: p1"]
 body:
   - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: System details where the bug occurs
+      placeholder: "OS: Windows 11\nPython: 3.11\nBrowser: Chrome 120\nBranch: main\nCommit: abc123"
+    validations:
+      required: true
+  - type: textarea
     id: repro
     attributes:
-      label: Reproduction Steps
-      description: Steps to reproduce the issue
-      placeholder: "1. Run command X\n2. Navigate to Y\n3. See error"
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the issue
+      placeholder: "1. Run command `python -m mkdocs build --strict`\n2. Navigate to docs/product/\n3. See error in terminal output"
     validations:
       required: true
   - type: textarea
@@ -16,7 +24,7 @@ body:
     attributes:
       label: Expected Behavior
       description: What should happen?
-      placeholder: "The system should..."
+      placeholder: "The build should complete successfully without warnings or errors..."
     validations:
       required: true
   - type: textarea
@@ -24,43 +32,80 @@ body:
     attributes:
       label: Actual Behavior
       description: What actually happens?
-      placeholder: "Instead, the system..."
+      placeholder: "Build fails with YAML parsing error..."
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Logs/Error Messages
-      description: Relevant log output or error messages
-      placeholder: "```\nError: ...\n```"
-  - type: textarea
-    id: environment
-    attributes:
-      label: Environment
-      description: System details where the bug occurs
-      placeholder: "OS: Windows 11\nPython: 3.11\nBrowser: Chrome 120"
+      label: Logs/Artifacts
+      description: Relevant log output, error messages, or screenshots
+      placeholder: "```\nERROR - Config value: 'nav'. Error: File not found: docs/missing.md\n```"
     validations:
       required: true
   - type: dropdown
     id: impact
     attributes:
       label: Impact
-      description: How severe is this bug?
+      description: How severe is this bug's impact?
       options:
-        - "Critical - System down"
-        - "High - Major feature broken"
-        - "Medium - Minor feature issue"
-        - "Low - Cosmetic issue"
+        - "Critical - System down, blocking deployment"
+        - "High - Major feature broken, affects users"
+        - "Medium - Minor feature issue, workaround exists"
+        - "Low - Cosmetic issue, no functional impact"
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Temporary solution or mitigation (if any)
+      placeholder: "Temporarily comment out the problematic nav entry in mkdocs.yml"
+  - type: textarea
+    id: root-cause
+    attributes:
+      label: Root Cause
+      description: Known or suspected root cause (when identified)
+      placeholder: "Missing file reference in navigation configuration"
+  - type: textarea
+    id: fix-plan
+    attributes:
+      label: Fix Plan
+      description: Proposed solution or fix approach
+      placeholder: "1. Create missing file or update nav reference\n2. Add validation to prevent future occurrences\n3. Update CI to catch this earlier"
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: Bug priority level
+      options:
+        - "prio: p0"
+        - "prio: p1"
+        - "prio: p2"
     validations:
       required: true
   - type: dropdown
-    id: severity
+    id: risk
     attributes:
-      label: Severity
-      description: Priority level
+      label: Risk Category
+      description: Risk classification (optional)
       options:
-        - "P0 - Critical"
-        - "P1 - High"
-        - "P2 - Medium"
+        - "None"
+        - "risk: security"
+        - "risk: compliance"
+        - "risk: data"
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification Steps
+      description: How to verify the fix works
+      placeholder: "1. Apply fix\n2. Run `python -m mkdocs build --strict`\n3. Confirm build completes without errors\n4. Deploy to staging and verify site loads"
     validations:
       required: true
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **🔄 Branch Strategy**: Work on `feat/*` branches; PR into `main`. Docs deploy from `firebase-hosting` only.
+        
+        **✅ CI Requirements**: All PRs must pass build, lint, tests, security scans, and MkDocs strict build + sanitizer.

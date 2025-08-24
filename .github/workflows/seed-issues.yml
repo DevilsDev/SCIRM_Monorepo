@@ -24,11 +24,11 @@ jobs:
           script: |
             const labels = [
               // Types
-              { name: 'type: epic', color: '7B68EE', description: 'Large feature or capability' },
+              { name: 'type: epic', color: '7B68EE', description: 'Large cross-cutting initiatives' },
               { name: 'type: feature', color: '0E8A16', description: 'New feature or enhancement' },
               { name: 'type: task', color: '1D76DB', description: 'Task or maintenance work' },
               { name: 'type: bug', color: 'D73A4A', description: 'Bug or defect' },
-              { name: 'type: doc', color: 'FEF2C0', description: 'Documentation' },
+              { name: 'type: doc', color: 'FEF2C0', description: 'Documentation updates' },
               
               // Areas
               { name: 'area: api', color: 'F9D0C4', description: 'API Gateway and endpoints' },
