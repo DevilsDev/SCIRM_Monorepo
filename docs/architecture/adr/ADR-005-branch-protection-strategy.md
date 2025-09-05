@@ -279,5 +279,5 @@ flowchart LR
 
 - [GitHub Branch Protection Documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches)
 - [Git Flow Branching Model](https://nvie.com/posts/a-successful-git-branching-model/)
-- [SCIRM Security Policies](../../security/)
-- [CI/CD Workflow Documentation](../../.github/workflows/)
+- [SCIRM Security Policies](../../security/security-overview.md)
+- [CI/CD Workflow Documentation](../../development/contributing.md)

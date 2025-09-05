@@ -247,4 +247,4 @@ graph LR
 - [Database Architecture](database.md)
 - [Observability Metrics](../observability/metrics.md)
 - [Agent Sequences](agent-sequences.md)
-- [ADR-003: Performance Requirements](adr/ADR-003-performance-requirements.md)
+- [ADR-003: Agent Communication Protocol](adr/ADR-003-agent-communication-protocol.md)

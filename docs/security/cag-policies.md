@@ -351,4 +351,4 @@ ORDER BY v.detected_at DESC;
 - [Database Architecture](../architecture/database.md)
 - [Agent Sequences](../architecture/agent-sequences.md)
 - [Security Overview](security-overview.md)
-- [ADR-005: CAG Policy Framework](../architecture/adr/ADR-005-cag-policy-framework.md)
+- [ADR-005: Branch Protection Strategy](../architecture/adr/ADR-005-branch-protection-strategy.md)

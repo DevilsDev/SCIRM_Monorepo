@@ -197,6 +197,6 @@ graph TB
 
 - [SCIRM Database Architecture](../database.md)
 - [Security Policies](../../security/cag-policies.md)
-- [Compliance Documentation](../../compliance/)
+- [Compliance Documentation](../../compliance/documentation-policy.md)
 - [GDPR Compliance Guide](https://gdpr.eu/)
 - [PostgreSQL RLS Documentation](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)

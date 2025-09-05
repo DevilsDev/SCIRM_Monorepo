@@ -54,6 +54,10 @@ markdown_extensions:
   - attr_list
   - md_in_html
 
+extra_javascript:
+  - assets/js/mermaid.min.js
+  - assets/js/mermaid-init.js
+
 nav:
   - Home: index.md
   - Introduction:

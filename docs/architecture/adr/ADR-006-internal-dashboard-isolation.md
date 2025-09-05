@@ -329,8 +329,8 @@ graph LR
 
 ## References
 
-- [SCIRM Security Policies](../../security/)
-- [Compliance Documentation](../../compliance/)
+- [SCIRM Security Policies](../../security/security-overview.md)
+- [Compliance Documentation](../../compliance/documentation-policy.md)
 - [GitHub Branch Protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches)
 - [Firebase Hosting Security](https://firebase.google.com/docs/hosting/security)
-- [SSO Integration Guide](../../security/sso-integration.md)
+- [Security Overview](../../security/security-overview.md)

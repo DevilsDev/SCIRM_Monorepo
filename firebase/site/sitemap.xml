@@ -2,194 +2,246 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://scirm-dd5c3.web.app/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/_README-site/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/adr/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/agent-sequences/</loc>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/agents/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/data-flows/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/database/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/dataflow/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/er-diagram/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/architecture/performance/</loc>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/system-architecture/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/system-overview/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-001-multi-agent-swarm-architecture/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-002-rag-implementation-strategy/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-003-agent-communication-protocol/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-003-secure-github-pages-publishing/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-004-data-governance-framework/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-005-branch-protection-strategy/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-006-internal-dashboard-isolation/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-TEMPLATE/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/architecture/adr/ADR-XXX-related-decision/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/assets/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/changelog/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/changelog/release-notes/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/changelog/releases/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/compliance/documentation-policy/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/compliance/evidence-model/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/contributing/commit-signing/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/contributing/docs-style/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/contributing/git-workflow/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/development/branching/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/development/contributing/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/development/doc-style/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/development/issue-usage/</loc>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/development/releases/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/examples/architecture-examples/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/examples/flow-examples/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/examples/gantt-examples/</loc>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/examples/sequence-examples/</loc>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/governance/firebase-key-rotation/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/governance/verification-checklist/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/intro/getting-started/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/intro/overview/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/observability/metrics/</loc>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/operations/runbooks/deployment-runbook/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/product/anti-patterns/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/product/pdd/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/product/prd/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/roadmap/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/roadmap/roadmap/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/security/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/security/Firebase-Deploy-Branch-Governance/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
+    </url>
+    <url>
+         <loc>https://scirm-dd5c3.web.app/security/cag-policies/</loc>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/security/compliance/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/security/overview/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/security/security-overview/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/support/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/support/contact/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/support/faq/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
     <url>
          <loc>https://scirm-dd5c3.web.app/support/troubleshooting/</loc>
-         <lastmod>2025-08-23</lastmod>
+         <lastmod>2025-09-05</lastmod>
     </url>
 </urlset>

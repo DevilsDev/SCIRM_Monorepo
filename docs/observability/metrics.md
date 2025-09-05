@@ -162,7 +162,7 @@ groups:
           severity: critical
         annotations:
           summary: "High error rate detected"
-          description: "Error rate is {{ $value | humanizePercentage }}"
+          description: "Error rate is {{ value }}%"
           
       - alert: AgentLatencyHigh
         expr: histogram_quantile(0.95, rate(agent_duration_seconds_bucket[5m])) > 2
@@ -171,7 +171,7 @@ groups:
           severity: warning
         annotations:
           summary: "Agent latency is high"
-          description: "95th percentile latency is {{ $value }}s"
+          description: "95th percentile latency is {{ value }}s"
 ```
 
 ## Dashboard Mockup
