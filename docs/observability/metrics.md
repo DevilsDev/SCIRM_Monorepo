@@ -58,19 +58,19 @@ SCIRM's observability strategy provides comprehensive monitoring across all syst
 
 ### Tier 1 Services (Critical)
 
-```mermaid
-graph LR
-    A[API Gateway] --> B[99.9% Availability]
-    A --> C[500ms P95 Latency]
-    A --> D[0.1% Error Rate]
-    
-    E[Agent Orchestrator] --> F[99.5% Success Rate]
-    E --> G[2s P95 Latency]
-    E --> H[0.5% Error Rate]
-    
-    I[Database OLTP] --> J[99.95% Availability]
-    I --> K[50ms P95 Latency]
-    I --> L[0.05% Error Rate]
+```plantuml
+@startuml
+left to right direction
+rectangle "API Gateway" as A
+A  -->  C[500ms P95 Latency]
+A  -->  D[0.1% Error Rate]
+rectangle "Agent Orchestrator" as E
+E  -->  G[2s P95 Latency]
+E  -->  H[0.5% Error Rate]
+rectangle "Database OLTP" as I
+I  -->  K[50ms P95 Latency]
+I  -->  L[0.05% Error Rate]
+@enduml
 ```
 
 ### Tier 2 Services (Important)
@@ -103,21 +103,20 @@ Error Budget = (1 - 0.999) × 30 days = 0.001 × 43,200 minutes = 43.2 minutes
 
 ### Burn Rate Alerts
 
-```mermaid
-graph TD
-    A[Error Budget Monitoring] --> B{Burn Rate}
-    
-    B -->|1x Normal| C[No Alert]
-    B -->|2x Normal| D[Low Priority Alert]
-    B -->|5x Normal| E[Medium Priority Alert]
-    B -->|10x Normal| F[High Priority Alert]
-    B -->|20x Normal| G[Critical Alert]
-    
-    C --> H[Continue Monitoring]
-    D --> I[Review in 24h]
-    E --> J[Review in 4h]
-    F --> K[Review in 1h]
-    G --> L[Immediate Response]
+```plantuml
+@startuml
+rectangle "Error Budget Monitoring" as A
+B  --> |1x Normal| C[No Alert]
+B  --> |2x Normal| D[Low Priority Alert]
+B  --> |5x Normal| E[Medium Priority Alert]
+B  --> |10x Normal| F[High Priority Alert]
+B  --> |20x Normal| G[Critical Alert]
+C  -->  H[Continue Monitoring]
+D  -->  I[Review in 24h]
+E  -->  J[Review in 4h]
+F  -->  K[Review in 1h]
+G  -->  L[Immediate Response]
+@enduml
 ```
 
 ## Alerting Rules
@@ -218,34 +217,30 @@ groups:
 
 ### Incident Response Flow
 
-```mermaid
-flowchart TD
-    A[Alert Triggered] --> B[On-call Engineer Notified]
-    B --> C{Acknowledge in 5min?}
-    C -->|No| D[Escalate to Manager]
-    C -->|Yes| E[Initial Assessment]
-    
-    E --> F{Severity Level?}
-    F -->|P0| G[War Room]
-    F -->|P1| H[Incident Channel]
-    F -->|P2/P3| I[Standard Process]
-    
-    G --> J[Immediate Response Team]
-    H --> K[Primary Responder]
-    I --> L[Assigned Engineer]
-    
-    J --> M[Incident Commander]
-    K --> M
-    L --> M
-    
-    M --> N[Diagnosis & Mitigation]
-    N --> O{Issue Resolved?}
-    O -->|No| P[Continue Investigation]
-    O -->|Yes| Q[Post-Incident Review]
-    
-    P --> N
-    Q --> R[Update Runbooks]
-    R --> S[Incident Closed]
+```plantuml
+@startuml
+rectangle "Alert Triggered" as A
+B  -->  C{Acknowledge in 5min?}
+C  --> |No| D[Escalate to Manager]
+C  --> |Yes| E[Initial Assessment]
+E  -->  F{Severity Level?}
+F  --> |P0| G[War Room]
+F  --> |P1| H[Incident Channel]
+F  --> |P2/P3| I[Standard Process]
+G  -->  J[Immediate Response Team]
+H  -->  K[Primary Responder]
+I  -->  L[Assigned Engineer]
+J  -->  M[Incident Commander]
+K  -->  M
+L  -->  M
+M  -->  N[Diagnosis & Mitigation]
+N  -->  O{Issue Resolved?}
+O  --> |No| P[Continue Investigation]
+O  --> |Yes| Q[Post-Incident Review]
+P  -->  N
+Q  -->  R[Update Runbooks]
+R  -->  S[Incident Closed]
+@enduml
 ```
 
 ### Runbook Templates

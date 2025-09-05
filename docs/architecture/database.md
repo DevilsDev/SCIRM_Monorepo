@@ -411,128 +411,69 @@ $$ LANGUAGE plpgsql;
 
 ## Entity Relationship Diagram
 
-```mermaid
-erDiagram
-    org ||--o{ user_account : has
-    org ||--o{ supplier : owns
-    supplier ||--o{ purchase_order : receives
-    purchase_order ||--o{ po_line : contains
-    supplier ||--o{ risk_event : impacts
-    org ||--o{ rag_collection : manages
-    rag_collection ||--o{ rag_document : groups
-    rag_document ||--o{ rag_chunk : splits
-    rag_chunk ||--|| rag_embedding : has
-    org ||--o{ agent_run : executes
-    agent_run ||--o{ agent_step : contains
-    org ||--o{ cag_policy : enforces
-    cag_policy ||--o{ cag_violation : triggers
-    
-    org {
-        uuid org_id PK
-        varchar org_name
-        varchar org_type
-        timestamptz created_at
-        boolean is_active
-    }
-    
-    supplier {
-        uuid supplier_id PK
-        uuid org_id FK
-        varchar supplier_code
-        varchar supplier_name
-        varchar supplier_type
-        decimal risk_score
-    }
-    
-    purchase_order {
-        uuid po_id PK
-        uuid org_id FK
-        uuid supplier_id FK
-        varchar po_number
-        varchar po_status
-        date order_date
-        decimal total_amount
-    }
-    
-    risk_event {
-        uuid risk_event_id PK
-        uuid org_id FK
-        varchar event_type
-        varchar severity
-        uuid affected_supplier_id FK
-        date impact_start_date
-        varchar event_status
-    }
-    
-    rag_collection {
-        uuid collection_id PK
-        uuid org_id FK
-        varchar collection_name
-        varchar collection_type
-        varchar embedding_model
-        integer vector_dimensions
-    }
-    
-    agent_run {
-        uuid run_id PK
-        uuid org_id FK
-        varchar agent_type
-        varchar run_status
-        text input_prompt
-        decimal confidence_score
-        decimal cost_usd
-    }
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Erdiagram (Conversion Required)
+
+> **NOTE**: Complex diagram conversion required.
+> Original Mermaid syntax needs manual PlantUML conversion.
+
+rectangle "TODO: Convert to PlantUML" as TODO
+@enduml
 ```
 
 ## Data Flow Architecture
 
-```mermaid
-flowchart LR
-    A[External Data Sources] --> B[Data Ingestion Layer]
-    B --> C[OLTP Database<br/>Postgres/AlloyDB]
-    C -->|CDC Pipeline| D[Analytics Warehouse<br/>BigQuery]
-    C -->|Document Processing| E[RAG Vector Store<br/>pgvector]
-    E -->|Semantic Search| F[AI Agent Swarm]
-    F -->|Telemetry| G[CAG Policy Engine]
-    F -->|Results| H[Dashboards & APIs]
-    G -->|Violations| I[Audit & Compliance]
-    D -->|BI Queries| H
-    
-    subgraph "Data Sources"
-        A1[ERP Systems]
-        A2[IoT Sensors]
-        A3[Supplier APIs]
-        A4[Weather/News]
-        A1 --> A
-        A2 --> A
-        A3 --> A
-        A4 --> A
-    end
-    
-    subgraph "Processing Layer"
-        B1[ETL Pipelines]
-        B2[Data Validation]
-        B3[Deduplication]
-        B --> B1
-        B1 --> B2
-        B2 --> B3
-        B3 --> C
-    end
-    
-    subgraph "AI Layer"
-        F1[Coordinator Agent]
-        F2[Researcher Agent]
-        F3[Executor Agent]
-        F --> F1
-        F1 --> F2
-        F2 --> F3
-    end
-    
-    style C fill:#ff6b6b
-    style E fill:#48dbfb
-    style D fill:#feca57
-    style F fill:#ff9ff3
-    style G fill:#54a0ff
+```plantuml
+@startuml
+left to right direction
+rectangle "External Data Sources" as A
+B  -->  C[OLTP Database<br/>Postgres/AlloyDB]
+C  --> |CDC Pipeline| D[Analytics Warehouse<br/>BigQuery]
+C  --> |Document Processing| E[RAG Vector Store<br/>pgvector]
+E  --> |Semantic Search| F[AI Agent Swarm]
+F  --> |Telemetry| G[CAG Policy Engine]
+F  --> |Results| H[Dashboards & APIs]
+G  --> |Violations| I[Audit & Compliance]
+D  --> |BI Queries| H
+package "Data Sources" {
+rectangle "ERP Systems" as A1
+rectangle "IoT Sensors" as A2
+rectangle "Supplier APIs" as A3
+rectangle "Weather/News" as A4
+A1  -->  A
+A2  -->  A
+A3  -->  A
+A4  -->  A
+}
+package "Processing Layer" {
+rectangle "ETL Pipelines" as B1
+rectangle "Data Validation" as B2
+rectangle "Deduplication" as B3
+B  -->  B1
+B1  -->  B2
+B2  -->  B3
+B3  -->  C
+}
+package "AI Layer" {
+rectangle "Coordinator Agent" as F1
+rectangle "Researcher Agent" as F2
+rectangle "Executor Agent" as F3
+F  -->  F1
+F1  -->  F2
+F2  -->  F3
+}
+note right of C : Color #ff6b6b
+note right of E : Color #48dbfb
+note right of D : Color #feca57
+note right of F : Color #ff9ff3
+note right of G : Color #54a0ff
+@enduml
 ```
 
 ---

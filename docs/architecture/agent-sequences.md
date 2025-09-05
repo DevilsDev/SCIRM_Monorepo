@@ -16,193 +16,139 @@ This document provides detailed sequence diagrams for SCIRM's multi-agent orches
 
 ## Golden Path: Successful Risk Assessment
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Coordinator
-    participant P as Planner
-    participant R as Researcher
-    participant E as Executor
-    participant V as Reviewer
-    participant DB as Database
-    participant RAG as RAG Store
-    participant CAG as CAG Engine
-    
-    U->>C: "Assess risk for Supplier ABC shipment delay"
-    
-    Note over C: Initialize agent run
-    C->>DB: Create agent_run record
-    C->>P: Plan risk assessment workflow
-    
-    Note over P: Analyze query context
-    P->>DB: Query supplier history
-    P->>CAG: Check planning policies
-    P->>C: Return execution plan
-    
-    Note over C: Coordinate research phase
-    C->>R: Research supplier risk factors
-    R->>RAG: Vector search: "supplier ABC delays"
-    RAG-->>R: Relevant documents + citations
-    R->>DB: Log research telemetry
-    R->>C: Return risk intelligence
-    
-    Note over C: Generate recommendations
-    C->>E: Execute risk mitigation plan
-    E->>DB: Query alternative suppliers
-    E->>CAG: Check vendor compliance policies
-    E->>C: Return recommendations
-    
-    Note over C: Quality validation
-    C->>V: Review output quality
-    V->>CAG: Check confidence thresholds
-    V->>CAG: Validate PII protection
-    V->>DB: Log review metrics
-    V->>C: Approve output
-    
-    Note over C: Finalize response
-    C->>DB: Update agent_run status
-    C->>U: "Risk: HIGH. Recommend Supplier XYZ. Confidence: 0.85"
-    
-    Note over U,CAG: Total execution time: ~450ms
+```plantuml
+@startuml
+participant "U" as U
+participant "C" as C
+participant "P" as P
+participant "R" as R
+participant "E" as E
+participant "V" as V
+participant "DB" as DB
+participant "RAG" as RAG
+participant "CAG" as CAG
+U -> C: "Assess risk for Supplier ABC shipment delay"
+C -> DB: Create agent_run record
+C -> P: Plan risk assessment workflow
+P -> DB: Query supplier history
+P -> CAG: Check planning policies
+P -> C: Return execution plan
+C -> R: Research supplier risk factors
+R -> RAG: Vector search: "supplier ABC delays"
+RAG --> R: Relevant documents + citations
+R -> DB: Log research telemetry
+R -> C: Return risk intelligence
+C -> E: Execute risk mitigation plan
+E -> DB: Query alternative suppliers
+E -> CAG: Check vendor compliance policies
+E -> C: Return recommendations
+C -> V: Review output quality
+V -> CAG: Check confidence thresholds
+V -> CAG: Validate PII protection
+V -> DB: Log review metrics
+V -> C: Approve output
+C -> DB: Update agent_run status
+C -> U: "Risk: HIGH. Recommend Supplier XYZ. Confidence: 0.85"
+@enduml
 ```
 
 ## Failure Scenario 1: RAG Search Timeout
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Coordinator
-    participant P as Planner
-    participant R as Researcher
-    participant E as Executor
-    participant V as Reviewer
-    participant DB as Database
-    participant RAG as RAG Store
-    participant CAG as CAG Engine
-    
-    U->>C: "Assess risk for critical pharmaceutical shipment"
-    
-    C->>DB: Create agent_run record
-    C->>P: Plan risk assessment workflow
-    P->>C: Return execution plan
-    
-    C->>R: Research pharmaceutical regulations
-    R->>RAG: Vector search with 5s timeout
-    
-    Note over RAG: Database overloaded
-    RAG--xR: Timeout after 5 seconds
-    
-    Note over R: Fallback to cached results
-    R->>DB: Query cached search results
-    R->>C: Return limited intelligence + warning
-    
-    Note over C: Proceed with degraded data
-    C->>E: Execute with fallback data
-    E->>CAG: Check confidence policies
-    CAG-->>E: Confidence below threshold (0.4)
-    
-    C->>V: Review low-confidence output
-    V->>CAG: Flag for human review
-    V->>C: Require manual validation
-    
-    C->>DB: Log degraded performance
-    C->>U: "Partial assessment available. Human review required. Confidence: 0.4"
-    
-    Note over U,CAG: Graceful degradation in 6.2s
+```plantuml
+@startuml
+participant "U" as U
+participant "C" as C
+participant "P" as P
+participant "R" as R
+participant "E" as E
+participant "V" as V
+participant "DB" as DB
+participant "RAG" as RAG
+participant "CAG" as CAG
+U -> C: "Assess risk for critical pharmaceutical shipment"
+C -> DB: Create agent_run record
+C -> P: Plan risk assessment workflow
+P -> C: Return execution plan
+C -> R: Research pharmaceutical regulations
+R -> RAG: Vector search with 5s timeout
+R -> DB: Query cached search results
+R -> C: Return limited intelligence + warning
+C -> E: Execute with fallback data
+E -> CAG: Check confidence policies
+CAG --> E: Confidence below threshold (0.4)
+C -> V: Review low-confidence output
+V -> CAG: Flag for human review
+V -> C: Require manual validation
+C -> DB: Log degraded performance
+C -> U: "Partial assessment available. Human review required. Confidence: 0.4"
+@enduml
 ```
 
 ## Failure Scenario 2: CAG Policy Violation
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Coordinator
-    participant P as Planner
-    participant R as Researcher
-    participant E as Executor
-    participant V as Reviewer
-    participant DB as Database
-    participant RAG as RAG Store
-    participant CAG as CAG Engine
-    participant SEC as Security Team
-    
-    U->>C: "Find suppliers in restricted country X"
-    
-    C->>DB: Create agent_run record
-    C->>P: Plan supplier search workflow
-    P->>CAG: Check planning policies
-    
-    Note over CAG: Detect restricted country policy
-    CAG->>DB: Log policy violation
-    CAG->>SEC: Alert security team
-    CAG--xP: Block request - Policy violation
-    
-    P->>C: Return policy violation error
-    
-    Note over C: Handle policy violation
-    C->>V: Review violation details
-    V->>DB: Log compliance event
-    V->>C: Confirm violation handling
-    
-    C->>DB: Update agent_run with violation
-    C->>U: "Request blocked: Violates vendor compliance policy"
-    
-    Note over SEC: Immediate security alert
-    SEC->>DB: Review violation details
-    SEC->>SEC: Investigate potential threat
-    
-    Note over U,CAG: Security-first blocking in 150ms
+```plantuml
+@startuml
+participant "U" as U
+participant "C" as C
+participant "P" as P
+participant "R" as R
+participant "E" as E
+participant "V" as V
+participant "DB" as DB
+participant "RAG" as RAG
+participant "CAG" as CAG
+participant "SEC" as SEC
+U -> C: "Find suppliers in restricted country X"
+C -> DB: Create agent_run record
+C -> P: Plan supplier search workflow
+P -> CAG: Check planning policies
+CAG -> DB: Log policy violation
+CAG -> SEC: Alert security team
+P -> C: Return policy violation error
+C -> V: Review violation details
+V -> DB: Log compliance event
+V -> C: Confirm violation handling
+C -> DB: Update agent_run with violation
+C -> U: "Request blocked: Violates vendor compliance policy"
+SEC -> DB: Review violation details
+SEC -> SEC: Investigate potential threat
+@enduml
 ```
 
 ## Failure Scenario 3: Database Connection Failure
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Coordinator
-    participant P as Planner
-    participant R as Researcher
-    participant E as Executor
-    participant V as Reviewer
-    participant DB as Database
-    participant RAG as RAG Store
-    participant CAG as CAG Engine
-    participant CACHE as Redis Cache
-    
-    U->>C: "Get supplier risk scores for dashboard"
-    
-    C->>DB: Create agent_run record
-    
-    Note over DB: Database connection lost
-    DB--xC: Connection timeout
-    
-    Note over C: Circuit breaker activated
-    C->>CACHE: Check cached data
-    CACHE-->>C: Stale supplier data (2h old)
-    
-    C->>P: Plan with cached context
-    P->>CACHE: Use cached policies
-    P->>C: Return limited plan
-    
-    C->>R: Research with cache only
-    R->>CACHE: Query cached embeddings
-    R->>C: Return cached results + staleness warning
-    
-    C->>E: Execute with stale data
-    E->>CACHE: Generate recommendations
-    E->>C: Return results with data age warning
-    
-    C->>V: Review cache-based output
-    V->>CACHE: Log review to cache
-    V->>C: Approve with staleness flag
-    
-    C->>CACHE: Store response in cache
-    C->>U: "Risk scores available (data 2h old). Database reconnecting..."
-    
-    Note over C: Background DB reconnection
-    C->>DB: Retry connection (async)
-    
-    Note over U,CAG: Resilient operation with 800ms delay
+```plantuml
+@startuml
+participant "U" as U
+participant "C" as C
+participant "P" as P
+participant "R" as R
+participant "E" as E
+participant "V" as V
+participant "DB" as DB
+participant "RAG" as RAG
+participant "CAG" as CAG
+participant "CACHE" as CACHE
+U -> C: "Get supplier risk scores for dashboard"
+C -> DB: Create agent_run record
+C -> CACHE: Check cached data
+CACHE --> C: Stale supplier data (2h old)
+C -> P: Plan with cached context
+P -> CACHE: Use cached policies
+P -> C: Return limited plan
+C -> R: Research with cache only
+R -> CACHE: Query cached embeddings
+R -> C: Return cached results + staleness warning
+C -> E: Execute with stale data
+E -> CACHE: Generate recommendations
+E -> C: Return results with data age warning
+C -> V: Review cache-based output
+V -> CACHE: Log review to cache
+V -> C: Approve with staleness flag
+C -> CACHE: Store response in cache
+C -> U: "Risk scores available (data 2h old). Database reconnecting..."
+C -> DB: Retry connection (async)
+@enduml
 ```
 
 ## Performance Characteristics
@@ -219,35 +165,30 @@ sequenceDiagram
 
 ### Error Recovery Strategies
 
-```mermaid
-graph TD
-    A[Agent Error] --> B{Error Type}
-    
-    B -->|Timeout| C[Circuit Breaker]
-    B -->|Policy Violation| D[Security Block]
-    B -->|Resource Limit| E[Throttling]
-    B -->|Data Corruption| F[Fallback Data]
-    
-    C --> G[Use Cache]
-    C --> H[Reduce Scope]
-    
-    D --> I[Log Violation]
-    D --> J[Alert Security]
-    
-    E --> K[Queue Request]
-    E --> L[Scale Resources]
-    
-    F --> M[Validate Backup]
-    F --> N[Manual Review]
-    
-    G --> O[Degraded Response]
-    H --> O
-    I --> P[Blocked Response]
-    J --> P
-    K --> Q[Delayed Response]
-    L --> Q
-    M --> R[Backup Response]
-    N --> R
+```plantuml
+@startuml
+rectangle "Agent Error" as A
+B  --> |Timeout| C[Circuit Breaker]
+B  --> |Policy Violation| D[Security Block]
+B  --> |Resource Limit| E[Throttling]
+B  --> |Data Corruption| F[Fallback Data]
+C  -->  G[Use Cache]
+C  -->  H[Reduce Scope]
+D  -->  I[Log Violation]
+D  -->  J[Alert Security]
+E  -->  K[Queue Request]
+E  -->  L[Scale Resources]
+F  -->  M[Validate Backup]
+F  -->  N[Manual Review]
+G  -->  O[Degraded Response]
+H  -->  O
+I  -->  P[Blocked Response]
+J  -->  P
+K  -->  Q[Delayed Response]
+L  -->  Q
+M  -->  R[Backup Response]
+N  -->  R
+@enduml
 ```
 
 ## Agent Communication Patterns

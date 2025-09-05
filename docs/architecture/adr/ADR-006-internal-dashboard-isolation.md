@@ -93,55 +93,48 @@ Challenges:
 
 ### Isolation Architecture
 
-```mermaid
-graph TB
-    subgraph "SCIRM Repository"
-        A1[main branch]
-        A2[firebase-hosting]
-        A3[internal-dashboards]
-    end
-    
-    subgraph "Public Deployment"
-        B1[GitHub Pages]
-        B2[Firebase Hosting]
-        B3[Public CDN]
-    end
-    
-    subgraph "Internal Deployment"
-        C1[Internal Web Server]
-        C2[VPN-Protected Access]
-        C3[SSO Authentication]
-    end
-    
-    subgraph "Content Types"
-        D1[📖 Public Docs]
-        D2[📊 API References]
-        D3[🔒 Compliance Artifacts]
-        D4[📈 Internal Dashboards]
-        D5[🛡️ Security Policies]
-    end
-    
-    A1 --> A2
-    A1 --> A3
-    
-    A2 --> B1
-    A2 --> B2
-    A2 --> B3
-    
-    A3 --> C1
-    A3 --> C2
-    A3 --> C3
-    
-    D1 --> A2
-    D2 --> A2
-    D3 --> A3
-    D4 --> A3
-    D5 --> A3
-    
-    style A2 fill:#e8f5e8
-    style A3 fill:#ffe8e8
-    style B1 fill:#e8f5e8
-    style C1 fill:#ffe8e8
+```plantuml
+@startuml
+package "SCIRM Repository" {
+rectangle "main branch" as A1
+rectangle "firebase-hosting" as A2
+rectangle "internal-dashboards" as A3
+}
+package "Public Deployment" {
+rectangle "GitHub Pages" as B1
+rectangle "Firebase Hosting" as B2
+rectangle "Public CDN" as B3
+}
+package "Internal Deployment" {
+rectangle "Internal Web Server" as C1
+rectangle "VPN-Protected Access" as C2
+rectangle "SSO Authentication" as C3
+}
+package "Content Types" {
+rectangle "📖 Public Docs" as D1
+rectangle "📊 API References" as D2
+rectangle "🔒 Compliance Artifacts" as D3
+rectangle "📈 Internal Dashboards" as D4
+rectangle "🛡️ Security Policies" as D5
+}
+A1  -->  A2
+A1  -->  A3
+A2  -->  B1
+A2  -->  B2
+A2  -->  B3
+A3  -->  C1
+A3  -->  C2
+A3  -->  C3
+D1  -->  A2
+D2  -->  A2
+D3  -->  A3
+D4  -->  A3
+D5  -->  A3
+note right of A2 : Color #e8f5e8
+note right of A3 : Color #ffe8e8
+note right of B1 : Color #e8f5e8
+note right of C1 : Color #ffe8e8
+@enduml
 ```
 
 ## Implementation Details
@@ -156,66 +149,51 @@ graph TB
 
 ### Content Classification
 
-```mermaid
-flowchart TD
-    A[Content Creation] --> B{Content Classification}
-    
-    B -->|Public| C[Public Documentation]
-    B -->|Internal| D[Internal Content]
-    
-    C --> E[docs/]
-    C --> F[api/]
-    C --> G[guides/]
-    
-    D --> H[compliance/]
-    D --> I[dashboards/]
-    D --> J[security/]
-    D --> K[audit/]
-    
-    E --> L[firebase-hosting branch]
-    F --> L
-    G --> L
-    
-    H --> M[internal-dashboards branch]
-    I --> M
-    J --> M
-    K --> M
-    
-    L --> N[Public Deployment]
-    M --> O[Internal Deployment]
-    
-    style C fill:#e8f5e8
-    style D fill:#ffe8e8
-    style N fill:#e8f5e8
-    style O fill:#ffe8e8
+```plantuml
+@startuml
+rectangle "Content Creation" as A
+B  --> |Public| C[Public Documentation]
+B  --> |Internal| D[Internal Content]
+C  -->  E[docs/]
+C  -->  F[api/]
+C  -->  G[guides/]
+D  -->  H[compliance/]
+D  -->  I[dashboards/]
+D  -->  J[security/]
+D  -->  K[audit/]
+E  -->  L[firebase-hosting branch]
+F  -->  L
+G  -->  L
+H  -->  M[internal-dashboards branch]
+I  -->  M
+J  -->  M
+K  -->  M
+L  -->  N[Public Deployment]
+M  -->  O[Internal Deployment]
+note right of C : Color #e8f5e8
+note right of D : Color #ffe8e8
+note right of N : Color #e8f5e8
+note right of O : Color #ffe8e8
+@enduml
 ```
 
 ### Deployment Pipeline
 
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant Main as main branch
-    participant Pub as firebase-hosting
-    participant Int as internal-dashboards
-    participant PubDeploy as Public Sites
-    participant IntDeploy as Internal Sites
-    
-    Dev->>Main: Push changes
-    Main->>Main: Run tests & validation
-    
-    alt Public content changed
-        Main->>Pub: Auto-merge public content
-        Pub->>PubDeploy: Deploy to Firebase/GitHub Pages
-    end
-    
-    alt Internal content changed
-        Main->>Int: Auto-merge internal content
-        Int->>IntDeploy: Deploy to internal server
-    end
-    
-    Note over PubDeploy: Content sanitizer removes<br/>internal references
-    Note over IntDeploy: Full content with<br/>internal dashboards
+```plantuml
+@startuml
+participant "Dev" as Dev
+participant "Main" as Main
+participant "Pub" as Pub
+participant "Int" as Int
+participant "PubDeploy" as PubDeploy
+participant "IntDeploy" as IntDeploy
+Dev -> Main: Push changes
+Main -> Main: Run tests & validation
+Main -> Pub: Auto-merge public content
+Pub -> PubDeploy: Deploy to Firebase/GitHub Pages
+Main -> Int: Auto-merge internal content
+Int -> IntDeploy: Deploy to internal server
+@enduml
 ```
 
 ## Security Controls
@@ -236,22 +214,21 @@ sequenceDiagram
 
 ### Audit Trail
 
-```mermaid
-graph LR
-    A[Content Change] --> B[Git Commit]
-    B --> C[Branch Detection]
-    C --> D[Audit Log Entry]
-    D --> E[Compliance Database]
-    
-    F[Deployment] --> G[Deploy Log]
-    G --> H[Access Tracking]
-    H --> E
-    
-    I[User Access] --> J[Authentication Log]
-    J --> K[Authorization Check]
-    K --> E
-    
-    style E fill:#fff3cd
+```plantuml
+@startuml
+left to right direction
+rectangle "Content Change" as A
+B  -->  C[Branch Detection]
+C  -->  D[Audit Log Entry]
+D  -->  E[Compliance Database]
+rectangle "Deployment" as F
+G  -->  H[Access Tracking]
+H  -->  E
+rectangle "User Access" as I
+J  -->  K[Authorization Check]
+K  -->  E
+note right of E : Color #fff3cd
+@enduml
 ```
 
 ## Positive Consequences

@@ -94,73 +94,49 @@ Specific challenges:
 
 ### Branch Strategy Architecture
 
-```mermaid
-gitGraph
-    commit id: "Initial"
-    branch develop
-    checkout develop
-    commit id: "Feature 1"
-    commit id: "Feature 2"
-    
-    branch feature/docs-enhancement
-    checkout feature/docs-enhancement
-    commit id: "Add visuals"
-    commit id: "Update content"
-    
-    checkout develop
-    merge feature/docs-enhancement
-    commit id: "Merge feature"
-    
-    checkout main
-    merge develop
-    commit id: "Release v1.1"
-    
-    branch firebase-hosting
-    checkout firebase-hosting
-    commit id: "Deploy docs"
-    
-    branch internal-dashboards
-    checkout internal-dashboards
-    commit id: "Internal only"
-    
-    checkout main
-    branch hotfix/security-fix
-    commit id: "Security patch"
-    
-    checkout main
-    merge hotfix/security-fix
-    commit id: "Hotfix merged"
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Unknown Diagram Type (Conversion Required)
+
+> **NOTE**: Unknown Mermaid diagram type.
+> Manual conversion to PlantUML required.
+
+rectangle "TODO: Convert to PlantUML" as TODO
+@enduml
 ```
 
 ### Protection Rules by Branch
 
-```mermaid
-graph TB
-    subgraph "Branch Protection Rules"
-        A1[main branch]
-        A2[firebase-hosting]
-        A3[internal-dashboards]
-        A4[develop]
-        A5[feature/* branches]
-    end
-    
-    subgraph "Protection Levels"
-        B1["🔴 Maximum Protection<br/>• Require PR reviews (2+)<br/>• Require status checks<br/>• Restrict pushes<br/>• Require signed commits"]
-        B2["🟡 High Protection<br/>• Require PR reviews (1+)<br/>• Require status checks<br/>• Allow admin override"]
-        B3["🟢 Standard Protection<br/>• Require status checks<br/>• Allow force push with lease"]
-    end
-    
-    A1 --> B1
-    A2 --> B1
-    A3 --> B1
-    A4 --> B2
-    A5 --> B3
-    
-    style A1 fill:#ff9999
-    style A2 fill:#ff9999
-    style A3 fill:#ff9999
-    style A4 fill:#ffcc99
-    style A5 fill:#99ff99
+```plantuml
+@startuml
+package "Branch Protection Rules" {
+rectangle "main branch" as A1
+rectangle "firebase-hosting" as A2
+rectangle "internal-dashboards" as A3
+rectangle "develop" as A4
+rectangle "feature/* branches" as A5
+}
+package "Protection Levels" {
+rectangle ""🔴 Maximum Protection\n• Require PR reviews (2+)\n• Require status checks\n• Restrict pushes\n• Require signed commits"" as B1
+rectangle ""🟡 High Protection\n• Require PR reviews (1+)\n• Require status checks\n• Allow admin override"" as B2
+rectangle ""🟢 Standard Protection\n• Require status checks\n• Allow force push with lease"" as B3
+}
+A1  -->  B1
+A2  -->  B1
+A3  -->  B1
+A4  -->  B2
+A5  -->  B3
+note right of A1 : Color #ff9999
+note right of A2 : Color #ff9999
+note right of A3 : Color #ff9999
+note right of A4 : Color #ffcc99
+note right of A5 : Color #99ff99
+@enduml
 ```
 
 ## Implementation Details
@@ -178,27 +154,26 @@ graph TB
 
 ### Required Status Checks
 
-```mermaid
-flowchart LR
-    A[Pull Request] --> B[Automated Checks]
-    B --> C[Build Success]
-    B --> D[Tests Pass]
-    B --> E[Security Scan]
-    B --> F[Docs Build]
-    B --> G[Visual Validation]
-    
-    C --> H[Manual Review]
-    D --> H
-    E --> H
-    F --> H
-    G --> H
-    
-    H --> I[Merge Approval]
-    I --> J[Deploy]
-    
-    style B fill:#e1f5fe
-    style H fill:#fff3e0
-    style I fill:#e8f5e8
+```plantuml
+@startuml
+left to right direction
+rectangle "Pull Request" as A
+B  -->  C[Build Success]
+B  -->  D[Tests Pass]
+B  -->  E[Security Scan]
+B  -->  F[Docs Build]
+B  -->  G[Visual Validation]
+C  -->  H[Manual Review]
+D  -->  H
+E  -->  H
+F  -->  H
+G  -->  H
+H  -->  I[Merge Approval]
+I  -->  J[Deploy]
+note right of B : Color #e1f5fe
+note right of H : Color #fff3e0
+note right of I : Color #e8f5e8
+@enduml
 ```
 
 ### Deployment Flow

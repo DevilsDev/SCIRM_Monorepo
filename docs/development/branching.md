@@ -94,71 +94,56 @@ docs/architecture-update
 
 ### Feature Development Flow
 
-```mermaid
-gitgraph
-    commit id: "Initial"
-    branch develop
-    checkout develop
-    commit id: "Dev setup"
-    
-    branch feature/new-agent
-    checkout feature/new-agent
-    commit id: "Add agent stub"
-    commit id: "Implement logic"
-    commit id: "Add tests"
-    
-    checkout develop
-    merge feature/new-agent
-    commit id: "Feature merged"
-    
-    checkout main
-    merge develop
-    commit id: "Release v1.1.0"
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Unknown Diagram Type (Conversion Required)
+
+> **NOTE**: Unknown Mermaid diagram type.
+> Manual conversion to PlantUML required.
+
+rectangle "TODO: Convert to PlantUML" as TODO
+@enduml
 ```
 
 ### Release Flow
 
-```mermaid
-gitgraph
-    commit id: "v1.0.0"
-    branch develop
-    checkout develop
-    commit id: "Feature A"
-    commit id: "Feature B"
-    
-    branch release/v1.1.0
-    checkout release/v1.1.0
-    commit id: "Version bump"
-    commit id: "Release notes"
-    
-    checkout main
-    merge release/v1.1.0
-    commit id: "v1.1.0" tag: "v1.1.0"
-    
-    checkout develop
-    merge release/v1.1.0
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Unknown Diagram Type (Conversion Required)
+
+> **NOTE**: Unknown Mermaid diagram type.
+> Manual conversion to PlantUML required.
+
+rectangle "TODO: Convert to PlantUML" as TODO
+@enduml
 ```
 
 ### Hotfix Flow
 
-```mermaid
-gitgraph
-    commit id: "v1.0.0"
-    branch develop
-    checkout develop
-    commit id: "New features"
-    
-    checkout main
-    branch hotfix/critical-fix
-    checkout hotfix/critical-fix
-    commit id: "Fix critical bug"
-    
-    checkout main
-    merge hotfix/critical-fix
-    commit id: "v1.0.1" tag: "v1.0.1"
-    
-    checkout develop
-    merge hotfix/critical-fix
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Unknown Diagram Type (Conversion Required)
+
+> **NOTE**: Unknown Mermaid diagram type.
+> Manual conversion to PlantUML required.
+
+rectangle "TODO: Convert to PlantUML" as TODO
+@enduml
 ```
 
 ## Branch Protection Rules

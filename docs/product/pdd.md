@@ -11,158 +11,141 @@ SCIRM implements a cloud-native, microservices-based architecture using a multi-
 
 ### High-Level Architecture
 
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        A[React Dashboard]
-        B[Mobile Apps]
-        C[Admin Console]
-    end
-    
-    subgraph "API Gateway Layer"
-        D[FastAPI Gateway]
-        E[Authentication Service]
-        F[Rate Limiting]
-        G[Load Balancer]
-    end
-    
-    subgraph "Multi-Agent Swarm"
-        H[Coordinator Agent]
-        I[Planner Agent CAG]
-        J[Researcher Agent RAG]
-        K[Executor Agent]
-        L[Reviewer Agent]
-    end
-    
-    subgraph "Data & Knowledge Layer"
-        M[Vector Database]
-        N[Graph Database]
-        O[Time Series DB]
-        P[Cache Layer]
-        Q[Message Queue]
-    end
-    
-    subgraph "External Integrations"
-        R[ERP Systems]
-        S[Weather APIs]
-        T[News Feeds]
-        U[Regulatory DBs]
-    end
-    
-    A --> D
-    B --> D
-    C --> D
-    D --> E
-    D --> F
-    D --> G
-    G --> H
-    H --> I
-    I --> J
-    J --> K
-    K --> L
-    L --> H
-    
-    H --> M
-    I --> N
-    J --> O
-    K --> P
-    L --> Q
-    
-    J --> R
-    J --> S
-    J --> T
-    J --> U
-    
-    style H fill:#ff6b6b
-    style I fill:#4ecdc4
-    style J fill:#45b7d1
-    style K fill:#96ceb4
-    style L fill:#feca57
+```plantuml
+@startuml
+package "Frontend Layer" {
+rectangle "React Dashboard" as A
+rectangle "Mobile Apps" as B
+rectangle "Admin Console" as C
+}
+package "API Gateway Layer" {
+rectangle "FastAPI Gateway" as D
+rectangle "Authentication Service" as E
+rectangle "Rate Limiting" as F
+rectangle "Load Balancer" as G
+}
+package "Multi-Agent Swarm" {
+rectangle "Coordinator Agent" as H
+rectangle "Planner Agent CAG" as I
+rectangle "Researcher Agent RAG" as J
+rectangle "Executor Agent" as K
+rectangle "Reviewer Agent" as L
+}
+package "Data & Knowledge Layer" {
+rectangle "Vector Database" as M
+rectangle "Graph Database" as N
+rectangle "Time Series DB" as O
+rectangle "Cache Layer" as P
+rectangle "Message Queue" as Q
+}
+package "External Integrations" {
+rectangle "ERP Systems" as R
+rectangle "Weather APIs" as S
+rectangle "News Feeds" as T
+rectangle "Regulatory DBs" as U
+}
+A  -->  D
+B  -->  D
+C  -->  D
+D  -->  E
+D  -->  F
+D  -->  G
+G  -->  H
+H  -->  I
+I  -->  J
+J  -->  K
+K  -->  L
+L  -->  H
+H  -->  M
+I  -->  N
+J  -->  O
+K  -->  P
+L  -->  Q
+J  -->  R
+J  -->  S
+J  -->  T
+J  -->  U
+note right of H : Color #ff6b6b
+note right of I : Color #4ecdc4
+note right of J : Color #45b7d1
+note right of K : Color #96ceb4
+note right of L : Color #feca57
+@enduml
 ```
 
 ## C4 Container Diagram
 
-```mermaid
-graph TB
-    subgraph "SCIRM System Boundary"
-        subgraph "Web Application"
-            WA[React Dashboard<br/>JavaScript/TypeScript]
-            MA[Mobile App<br/>React Native]
-        end
-        
-        subgraph "API Layer"
-            AG[API Gateway<br/>FastAPI/Python]
-            AS[Auth Service<br/>OAuth2/JWT]
-        end
-        
-        subgraph "Agent Services"
-            CS[Coordinator Service<br/>LangGraph/Python]
-            PS[Planner Service<br/>LangChain/Python]
-            RS[Researcher Service<br/>RAG/Python]
-            ES[Executor Service<br/>ML/Python]
-            QS[Quality Service<br/>Validation/Python]
-        end
-        
-        subgraph "Data Services"
-            VDB[Vector Database<br/>Pinecone/Weaviate]
-            GDB[Graph Database<br/>Neo4j]
-            TSDB[Time Series DB<br/>InfluxDB]
-            RDB[Relational DB<br/>PostgreSQL]
-            CACHE[Cache<br/>Redis]
-        end
-        
-        subgraph "Infrastructure"
-            MQ[Message Queue<br/>RabbitMQ/Kafka]
-            MON[Monitoring<br/>Prometheus/Grafana]
-            LOG[Logging<br/>ELK Stack]
-        end
-    end
-    
-    subgraph "External Systems"
-        ERP[ERP Systems<br/>SAP/Oracle]
-        WEATHER[Weather APIs<br/>OpenWeather]
-        NEWS[News Feeds<br/>Reuters/Bloomberg]
-        REG[Regulatory DBs<br/>FDA/EMA]
-    end
-    
-    WA --> AG
-    MA --> AG
-    AG --> AS
-    AG --> CS
-    CS --> PS
-    PS --> RS
-    RS --> ES
-    ES --> QS
-    QS --> CS
-    
-    CS --> VDB
-    PS --> GDB
-    RS --> TSDB
-    ES --> RDB
-    QS --> CACHE
-    
-    CS --> MQ
-    PS --> MQ
-    RS --> MQ
-    ES --> MQ
-    QS --> MQ
-    
-    RS --> ERP
-    RS --> WEATHER
-    RS --> NEWS
-    RS --> REG
-    
-    CS --> MON
-    PS --> MON
-    RS --> MON
-    ES --> MON
-    QS --> MON
-    
-    CS --> LOG
-    PS --> LOG
-    RS --> LOG
-    ES --> LOG
-    QS --> LOG
+```plantuml
+@startuml
+package "SCIRM System Boundary" {
+package "Web Application" {
+rectangle "React Dashboard\nJavaScript/TypeScript" as WA
+rectangle "Mobile App\nReact Native" as MA
+}
+package "API Layer" {
+rectangle "API Gateway\nFastAPI/Python" as AG
+rectangle "Auth Service\nOAuth2/JWT" as AS
+}
+package "Agent Services" {
+rectangle "Coordinator Service\nLangGraph/Python" as CS
+rectangle "Planner Service\nLangChain/Python" as PS
+rectangle "Researcher Service\nRAG/Python" as RS
+rectangle "Executor Service\nML/Python" as ES
+rectangle "Quality Service\nValidation/Python" as QS
+}
+package "Data Services" {
+rectangle "Vector Database\nPinecone/Weaviate" as VDB
+rectangle "Graph Database\nNeo4j" as GDB
+rectangle "Time Series DB\nInfluxDB" as TSDB
+rectangle "Relational DB\nPostgreSQL" as RDB
+rectangle "Cache\nRedis" as CACHE
+}
+package "Infrastructure" {
+rectangle "Message Queue\nRabbitMQ/Kafka" as MQ
+rectangle "Monitoring\nPrometheus/Grafana" as MON
+rectangle "Logging\nELK Stack" as LOG
+}
+}
+package "External Systems" {
+rectangle "ERP Systems\nSAP/Oracle" as ERP
+rectangle "Weather APIs\nOpenWeather" as WEATHER
+rectangle "News Feeds\nReuters/Bloomberg" as NEWS
+rectangle "Regulatory DBs\nFDA/EMA" as REG
+}
+WA  -->  AG
+MA  -->  AG
+AG  -->  AS
+AG  -->  CS
+CS  -->  PS
+PS  -->  RS
+RS  -->  ES
+ES  -->  QS
+QS  -->  CS
+CS  -->  VDB
+PS  -->  GDB
+RS  -->  TSDB
+ES  -->  RDB
+QS  -->  CACHE
+CS  -->  MQ
+PS  -->  MQ
+RS  -->  MQ
+ES  -->  MQ
+QS  -->  MQ
+RS  -->  ERP
+RS  -->  WEATHER
+RS  -->  NEWS
+RS  -->  REG
+CS  -->  MON
+PS  -->  MON
+RS  -->  MON
+ES  -->  MON
+QS  -->  MON
+CS  -->  LOG
+PS  -->  LOG
+RS  -->  LOG
+ES  -->  LOG
+QS  -->  LOG
+@enduml
 ```
 
 ## Multi-Agent Architecture
@@ -262,206 +245,182 @@ graph TB
 
 ### Data Processing Pipeline
 
-```mermaid
-graph LR
-    subgraph "Data Ingestion"
-        A[Raw Data Sources]
-        B[API Connectors]
-        C[Webhook Listeners]
-        D[Batch Processors]
-    end
-    
-    subgraph "Data Validation"
-        E[Schema Validation]
-        F[Data Quality Checks]
-        G[Completeness Validation]
-        H[Format Standardization]
-    end
-    
-    subgraph "Data Transformation"
-        I[Data Normalization]
-        J[Entity Resolution]
-        K[Data Enrichment]
-        L[Semantic Chunking]
-    end
-    
-    subgraph "Vector Processing"
-        M[Embedding Generation]
-        N[Vector Indexing]
-        O[Metadata Tagging]
-        P[Version Control]
-    end
-    
-    subgraph "Storage Layer"
-        Q[Vector Database]
-        R[Graph Database]
-        S[Time Series DB]
-        T[Document Store]
-    end
-    
-    A --> B
-    A --> C
-    A --> D
-    B --> E
-    C --> E
-    D --> E
-    E --> F
-    F --> G
-    G --> H
-    H --> I
-    I --> J
-    J --> K
-    K --> L
-    L --> M
-    M --> N
-    N --> O
-    O --> P
-    P --> Q
-    P --> R
-    P --> S
-    P --> T
-    
-    style A fill:#ff9999
-    style Q fill:#99ff99
-    style R fill:#99ff99
-    style S fill:#99ff99
-    style T fill:#99ff99
+```plantuml
+@startuml
+left to right direction
+package "Data Ingestion" {
+rectangle "Raw Data Sources" as A
+rectangle "API Connectors" as B
+rectangle "Webhook Listeners" as C
+rectangle "Batch Processors" as D
+}
+package "Data Validation" {
+rectangle "Schema Validation" as E
+rectangle "Data Quality Checks" as F
+rectangle "Completeness Validation" as G
+rectangle "Format Standardization" as H
+}
+package "Data Transformation" {
+rectangle "Data Normalization" as I
+rectangle "Entity Resolution" as J
+rectangle "Data Enrichment" as K
+rectangle "Semantic Chunking" as L
+}
+package "Vector Processing" {
+rectangle "Embedding Generation" as M
+rectangle "Vector Indexing" as N
+rectangle "Metadata Tagging" as O
+rectangle "Version Control" as P
+}
+package "Storage Layer" {
+rectangle "Vector Database" as Q
+rectangle "Graph Database" as R
+rectangle "Time Series DB" as S
+rectangle "Document Store" as T
+}
+A  -->  B
+A  -->  C
+A  -->  D
+B  -->  E
+C  -->  E
+D  -->  E
+E  -->  F
+F  -->  G
+G  -->  H
+H  -->  I
+I  -->  J
+J  -->  K
+K  -->  L
+L  -->  M
+M  -->  N
+N  -->  O
+O  -->  P
+P  -->  Q
+P  -->  R
+P  -->  S
+P  -->  T
+note right of A : Color #ff9999
+note right of Q : Color #99ff99
+note right of R : Color #99ff99
+note right of S : Color #99ff99
+note right of T : Color #99ff99
+@enduml
 ```
 
 ## Data Flow Architecture
 
-```mermaid
-graph TD
-    subgraph "External Data Sources"
-        ERP[ERP Systems<br/>SAP, Oracle, Dynamics]
-        IOT[IoT Sensors<br/>Temperature, Location]
-        WEATHER[Weather APIs<br/>Climate Data]
-        NEWS[News Feeds<br/>Market Intelligence]
-        REG[Regulatory DBs<br/>FDA, EMA Updates]
-    end
-    
-    subgraph "Data Ingestion Layer"
-        CONN[Data Connectors]
-        QUEUE[Message Queue]
-        STREAM[Stream Processor]
-    end
-    
-    subgraph "Processing Engine"
-        VALIDATE[Data Validator]
-        TRANSFORM[Data Transformer]
-        ENRICH[Data Enricher]
-        EMBED[Vector Embedder]
-    end
-    
-    subgraph "AI Agent Swarm"
-        COORD[Coordinator]
-        PLAN[Planner CAG]
-        RESEARCH[Researcher RAG]
-        EXEC[Executor]
-        REVIEW[Reviewer]
-    end
-    
-    subgraph "Storage Systems"
-        VECTOR[Vector DB<br/>Embeddings]
-        GRAPH[Graph DB<br/>Relationships]
-        TSDB[Time Series<br/>Metrics]
-        CACHE[Redis Cache<br/>Fast Access]
-    end
-    
-    subgraph "Output Layer"
-        API[REST APIs]
-        WS[WebSocket Events]
-        DASH[Dashboard]
-        ALERTS[Alert System]
-    end
-    
-    ERP --> CONN
-    IOT --> CONN
-    WEATHER --> CONN
-    NEWS --> CONN
-    REG --> CONN
-    
-    CONN --> QUEUE
-    QUEUE --> STREAM
-    STREAM --> VALIDATE
-    VALIDATE --> TRANSFORM
-    TRANSFORM --> ENRICH
-    ENRICH --> EMBED
-    
-    EMBED --> VECTOR
-    ENRICH --> GRAPH
-    STREAM --> TSDB
-    TRANSFORM --> CACHE
-    
-    COORD --> PLAN
-    PLAN --> RESEARCH
-    RESEARCH --> EXEC
-    EXEC --> REVIEW
-    REVIEW --> COORD
-    
-    RESEARCH --> VECTOR
-    RESEARCH --> GRAPH
-    RESEARCH --> TSDB
-    RESEARCH --> CACHE
-    
-    EXEC --> API
-    EXEC --> WS
-    EXEC --> DASH
-    EXEC --> ALERTS
-    
-    style COORD fill:#ff6b6b
-    style PLAN fill:#4ecdc4
-    style RESEARCH fill:#45b7d1
-    style EXEC fill:#96ceb4
-    style REVIEW fill:#feca57
+```plantuml
+@startuml
+package "External Data Sources" {
+rectangle "ERP Systems\nSAP, Oracle, Dynamics" as ERP
+rectangle "IoT Sensors\nTemperature, Location" as IOT
+rectangle "Weather APIs\nClimate Data" as WEATHER
+rectangle "News Feeds\nMarket Intelligence" as NEWS
+rectangle "Regulatory DBs\nFDA, EMA Updates" as REG
+}
+package "Data Ingestion Layer" {
+rectangle "Data Connectors" as CONN
+rectangle "Message Queue" as QUEUE
+rectangle "Stream Processor" as STREAM
+}
+package "Processing Engine" {
+rectangle "Data Validator" as VALIDATE
+rectangle "Data Transformer" as TRANSFORM
+rectangle "Data Enricher" as ENRICH
+rectangle "Vector Embedder" as EMBED
+}
+package "AI Agent Swarm" {
+rectangle "Coordinator" as COORD
+rectangle "Planner CAG" as PLAN
+rectangle "Researcher RAG" as RESEARCH
+rectangle "Executor" as EXEC
+rectangle "Reviewer" as REVIEW
+}
+package "Storage Systems" {
+rectangle "Vector DB\nEmbeddings" as VECTOR
+rectangle "Graph DB\nRelationships" as GRAPH
+rectangle "Time Series\nMetrics" as TSDB
+rectangle "Redis Cache\nFast Access" as CACHE
+}
+package "Output Layer" {
+rectangle "REST APIs" as API
+rectangle "WebSocket Events" as WS
+rectangle "Dashboard" as DASH
+rectangle "Alert System" as ALERTS
+}
+ERP  -->  CONN
+IOT  -->  CONN
+WEATHER  -->  CONN
+NEWS  -->  CONN
+REG  -->  CONN
+CONN  -->  QUEUE
+QUEUE  -->  STREAM
+STREAM  -->  VALIDATE
+VALIDATE  -->  TRANSFORM
+TRANSFORM  -->  ENRICH
+ENRICH  -->  EMBED
+EMBED  -->  VECTOR
+ENRICH  -->  GRAPH
+STREAM  -->  TSDB
+TRANSFORM  -->  CACHE
+COORD  -->  PLAN
+PLAN  -->  RESEARCH
+RESEARCH  -->  EXEC
+EXEC  -->  REVIEW
+REVIEW  -->  COORD
+RESEARCH  -->  VECTOR
+RESEARCH  -->  GRAPH
+RESEARCH  -->  TSDB
+RESEARCH  -->  CACHE
+EXEC  -->  API
+EXEC  -->  WS
+EXEC  -->  DASH
+EXEC  -->  ALERTS
+note right of COORD : Color #ff6b6b
+note right of PLAN : Color #4ecdc4
+note right of RESEARCH : Color #45b7d1
+note right of EXEC : Color #96ceb4
+note right of REVIEW : Color #feca57
+@enduml
 ```
 
 ## Sequence Diagram: Risk Assessment Flow
 
-```mermaid
-sequenceDiagram
-    participant U as User Dashboard
-    participant AG as API Gateway
-    participant C as Coordinator Agent
-    participant P as Planner Agent
-    participant R as Researcher Agent
-    participant E as Executor Agent
-    participant Q as Quality Reviewer
-    participant VDB as Vector DB
-    participant GDB as Graph DB
-    
-    U->>AG: POST /api/v1/risk/assess
-    AG->>C: Route risk assessment request
-    
-    C->>P: Initialize assessment context
-    P->>P: Analyze request parameters
-    P->>C: Return execution plan
-    
-    C->>R: Execute data retrieval
-    R->>VDB: Query relevant embeddings
-    VDB-->>R: Return similar vectors
-    R->>GDB: Query supply chain graph
-    GDB-->>R: Return relationship data
-    R->>C: Return enriched context
-    
-    C->>E: Generate risk assessment
-    E->>E: Calculate risk scores
-    E->>E: Generate recommendations
-    E->>C: Return assessment results
-    
-    C->>Q: Validate assessment quality
-    Q->>Q: Check compliance rules
-    Q->>Q: Validate confidence scores
-    Q->>C: Approve/reject results
-    
-    alt Assessment Approved
-        C->>AG: Return risk assessment
-        AG->>U: HTTP 200 + risk data
-    else Assessment Rejected
-        C->>P: Request reassessment
-        P->>R: Gather additional data
-        Note over R,E: Retry assessment process
-    end
+```plantuml
+@startuml
+participant "U" as U
+participant "AG" as AG
+participant "C" as C
+participant "P" as P
+participant "R" as R
+participant "E" as E
+participant "Q" as Q
+participant "VDB" as VDB
+participant "GDB" as GDB
+U -> AG: POST /api/v1/risk/assess
+AG -> C: Route risk assessment request
+C -> P: Initialize assessment context
+P -> P: Analyze request parameters
+P -> C: Return execution plan
+C -> R: Execute data retrieval
+R -> VDB: Query relevant embeddings
+VDB --> R: Return similar vectors
+R -> GDB: Query supply chain graph
+GDB --> R: Return relationship data
+R -> C: Return enriched context
+C -> E: Generate risk assessment
+E -> E: Calculate risk scores
+E -> E: Generate recommendations
+E -> C: Return assessment results
+C -> Q: Validate assessment quality
+Q -> Q: Check compliance rules
+Q -> Q: Validate confidence scores
+Q -> C: Approve/reject results
+C -> AG: Return risk assessment
+AG -> U: HTTP 200 + risk data
+C -> P: Request reassessment
+P -> R: Gather additional data
+@enduml
 ```
 
 ### Vector Embeddings Strategy
@@ -614,233 +573,128 @@ Build → Deploy to Staging → E2E Tests → Deploy to Production
 
 ## Entity Relationship Diagram
 
-```mermaid
-erDiagram
-    ORGANIZATION {
-        uuid id PK
-        string name
-        string industry
-        string tier
-        timestamp created_at
-        timestamp updated_at
-    }
-    
-    SUPPLIER {
-        uuid id PK
-        uuid organization_id FK
-        string name
-        string type
-        string status
-        decimal risk_score
-        json contact_info
-        timestamp last_assessed
-    }
-    
-    SUPPLY_CHAIN_NODE {
-        uuid id PK
-        uuid supplier_id FK
-        string node_type
-        string location
-        json coordinates
-        string capacity
-        string status
-    }
-    
-    RISK_ASSESSMENT {
-        uuid id PK
-        uuid supplier_id FK
-        uuid agent_session_id FK
-        decimal overall_score
-        json risk_factors
-        json recommendations
-        decimal confidence_score
-        timestamp assessed_at
-    }
-    
-    AGENT_SESSION {
-        uuid id PK
-        string session_type
-        json context_data
-        string status
-        timestamp started_at
-        timestamp completed_at
-        json execution_trace
-    }
-    
-    ALERT {
-        uuid id PK
-        uuid risk_assessment_id FK
-        string severity
-        string alert_type
-        string message
-        json metadata
-        boolean acknowledged
-        timestamp created_at
-    }
-    
-    DATA_SOURCE {
-        uuid id PK
-        string source_type
-        string name
-        string endpoint
-        json credentials
-        boolean active
-        timestamp last_sync
-    }
-    
-    VECTOR_EMBEDDING {
-        uuid id PK
-        uuid data_source_id FK
-        string content_hash
-        vector embedding
-        json metadata
-        string version
-        timestamp created_at
-    }
-    
-    COMPLIANCE_RECORD {
-        uuid id PK
-        uuid supplier_id FK
-        string regulation_type
-        string status
-        json evidence
-        timestamp verified_at
-        timestamp expires_at
-    }
-    
-    ORGANIZATION ||--o{ SUPPLIER : "manages"
-    SUPPLIER ||--o{ SUPPLY_CHAIN_NODE : "operates"
-    SUPPLIER ||--o{ RISK_ASSESSMENT : "assessed_by"
-    RISK_ASSESSMENT }o--|| AGENT_SESSION : "generated_by"
-    RISK_ASSESSMENT ||--o{ ALERT : "triggers"
-    DATA_SOURCE ||--o{ VECTOR_EMBEDDING : "produces"
-    SUPPLIER ||--o{ COMPLIANCE_RECORD : "maintains"
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Erdiagram (Conversion Required)
+
+> **NOTE**: Complex diagram conversion required.
+> Original Mermaid syntax needs manual PlantUML conversion.
+
+rectangle "TODO: Convert to PlantUML" as TODO
+@enduml
 ```
 
 ## Deployment Topology
 
-```mermaid
-graph TB
-    subgraph "Production Environment"
-        subgraph "Load Balancer Tier"
-            LB[Application Load Balancer]
-            WAF[Web Application Firewall]
-        end
-        
-        subgraph "Application Tier - AZ1"
-            AG1[API Gateway Pod 1]
-            CS1[Coordinator Service 1]
-            PS1[Planner Service 1]
-            RS1[Researcher Service 1]
-            ES1[Executor Service 1]
-            QS1[Quality Service 1]
-        end
-        
-        subgraph "Application Tier - AZ2"
-            AG2[API Gateway Pod 2]
-            CS2[Coordinator Service 2]
-            PS2[Planner Service 2]
-            RS2[Researcher Service 2]
-            ES2[Executor Service 2]
-            QS2[Quality Service 2]
-        end
-        
-        subgraph "Data Tier - AZ1"
-            VDB1[Vector DB Primary]
-            GDB1[Graph DB Primary]
-            TSDB1[Time Series Primary]
-            CACHE1[Redis Primary]
-        end
-        
-        subgraph "Data Tier - AZ2"
-            VDB2[Vector DB Replica]
-            GDB2[Graph DB Replica]
-            TSDB2[Time Series Replica]
-            CACHE2[Redis Replica]
-        end
-        
-        subgraph "Message Queue Cluster"
-            MQ1[RabbitMQ Node 1]
-            MQ2[RabbitMQ Node 2]
-            MQ3[RabbitMQ Node 3]
-        end
-        
-        subgraph "Monitoring & Logging"
-            PROM[Prometheus]
-            GRAF[Grafana]
-            ELK[ELK Stack]
-        end
-    end
-    
-    subgraph "External Dependencies"
-        EXT_ERP[ERP Systems]
-        EXT_WEATHER[Weather APIs]
-        EXT_NEWS[News Feeds]
-        EXT_REG[Regulatory DBs]
-    end
-    
-    WAF --> LB
-    LB --> AG1
-    LB --> AG2
-    
-    AG1 --> CS1
-    AG2 --> CS2
-    
-    CS1 --> PS1
-    CS1 --> RS1
-    CS1 --> ES1
-    CS1 --> QS1
-    
-    CS2 --> PS2
-    CS2 --> RS2
-    CS2 --> ES2
-    CS2 --> QS2
-    
-    PS1 --> VDB1
-    PS2 --> VDB1
-    RS1 --> GDB1
-    RS2 --> GDB1
-    ES1 --> TSDB1
-    ES2 --> TSDB1
-    QS1 --> CACHE1
-    QS2 --> CACHE1
-    
-    VDB1 --> VDB2
-    GDB1 --> GDB2
-    TSDB1 --> TSDB2
-    CACHE1 --> CACHE2
-    
-    CS1 --> MQ1
-    CS2 --> MQ2
-    PS1 --> MQ1
-    PS2 --> MQ2
-    
-    MQ1 --> MQ2
-    MQ2 --> MQ3
-    MQ3 --> MQ1
-    
-    RS1 --> EXT_ERP
-    RS2 --> EXT_ERP
-    RS1 --> EXT_WEATHER
-    RS2 --> EXT_WEATHER
-    RS1 --> EXT_NEWS
-    RS2 --> EXT_NEWS
-    RS1 --> EXT_REG
-    RS2 --> EXT_REG
-    
-    CS1 --> PROM
-    CS2 --> PROM
-    PROM --> GRAF
-    
-    CS1 --> ELK
-    CS2 --> ELK
-    PS1 --> ELK
-    PS2 --> ELK
-    
-    style LB fill:#ff6b6b
-    style VDB1 fill:#4ecdc4
-    style GDB1 fill:#45b7d1
-    style TSDB1 fill:#96ceb4
+```plantuml
+@startuml
+package "Production Environment" {
+package "Load Balancer Tier" {
+rectangle "Application Load Balancer" as LB
+rectangle "Web Application Firewall" as WAF
+}
+package "Application Tier - AZ1" {
+rectangle "API Gateway Pod 1" as AG1
+rectangle "Coordinator Service 1" as CS1
+rectangle "Planner Service 1" as PS1
+rectangle "Researcher Service 1" as RS1
+rectangle "Executor Service 1" as ES1
+rectangle "Quality Service 1" as QS1
+}
+package "Application Tier - AZ2" {
+rectangle "API Gateway Pod 2" as AG2
+rectangle "Coordinator Service 2" as CS2
+rectangle "Planner Service 2" as PS2
+rectangle "Researcher Service 2" as RS2
+rectangle "Executor Service 2" as ES2
+rectangle "Quality Service 2" as QS2
+}
+package "Data Tier - AZ1" {
+rectangle "Vector DB Primary" as VDB1
+rectangle "Graph DB Primary" as GDB1
+rectangle "Time Series Primary" as TSDB1
+rectangle "Redis Primary" as CACHE1
+}
+package "Data Tier - AZ2" {
+rectangle "Vector DB Replica" as VDB2
+rectangle "Graph DB Replica" as GDB2
+rectangle "Time Series Replica" as TSDB2
+rectangle "Redis Replica" as CACHE2
+}
+package "Message Queue Cluster" {
+rectangle "RabbitMQ Node 1" as MQ1
+rectangle "RabbitMQ Node 2" as MQ2
+rectangle "RabbitMQ Node 3" as MQ3
+}
+package "Monitoring & Logging" {
+rectangle "Prometheus" as PROM
+rectangle "Grafana" as GRAF
+rectangle "ELK Stack" as ELK
+}
+}
+package "External Dependencies" {
+rectangle "ERP Systems" as EXT_ERP
+rectangle "Weather APIs" as EXT_WEATHER
+rectangle "News Feeds" as EXT_NEWS
+rectangle "Regulatory DBs" as EXT_REG
+}
+WAF  -->  LB
+LB  -->  AG1
+LB  -->  AG2
+AG1  -->  CS1
+AG2  -->  CS2
+CS1  -->  PS1
+CS1  -->  RS1
+CS1  -->  ES1
+CS1  -->  QS1
+CS2  -->  PS2
+CS2  -->  RS2
+CS2  -->  ES2
+CS2  -->  QS2
+PS1  -->  VDB1
+PS2  -->  VDB1
+RS1  -->  GDB1
+RS2  -->  GDB1
+ES1  -->  TSDB1
+ES2  -->  TSDB1
+QS1  -->  CACHE1
+QS2  -->  CACHE1
+VDB1  -->  VDB2
+GDB1  -->  GDB2
+TSDB1  -->  TSDB2
+CACHE1  -->  CACHE2
+CS1  -->  MQ1
+CS2  -->  MQ2
+PS1  -->  MQ1
+PS2  -->  MQ2
+MQ1  -->  MQ2
+MQ2  -->  MQ3
+MQ3  -->  MQ1
+RS1  -->  EXT_ERP
+RS2  -->  EXT_ERP
+RS1  -->  EXT_WEATHER
+RS2  -->  EXT_WEATHER
+RS1  -->  EXT_NEWS
+RS2  -->  EXT_NEWS
+RS1  -->  EXT_REG
+RS2  -->  EXT_REG
+CS1  -->  PROM
+CS2  -->  PROM
+PROM  -->  GRAF
+CS1  -->  ELK
+CS2  -->  ELK
+PS1  -->  ELK
+PS2  -->  ELK
+note right of LB : Color #ff6b6b
+note right of VDB1 : Color #4ecdc4
+note right of GDB1 : Color #45b7d1
+note right of TSDB1 : Color #96ceb4
+@enduml
 ```
 
 ## Implementation Roadmap

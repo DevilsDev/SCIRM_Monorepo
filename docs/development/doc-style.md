@@ -71,29 +71,31 @@ All documentation files must include:
 - Change Management
 - Changelog
 
-## Mermaid Diagram Standards
+## PlantUML Diagram Standards
 
 ### General Guidelines
-- Use consistent color schemes across all diagrams
+- Use PlantUML via ```plantuml fences for all diagrams
+- Rendered at build time as SVG (no client-side JavaScript)
+- Use consistent color schemes and styling
 - Include descriptive titles for all diagrams
 - Keep diagrams readable with appropriate spacing
-- Use subgraphs to group related components
-- Apply consistent styling with `style` declarations
+- Use packages to group related components
 
 ### Color Palette
-```mermaid
-graph LR
-    A[Critical/High Priority] 
-    B[Medium Priority]
-    C[Low Priority/Success]
-    D[In Progress]
-    E[External Systems]
-    
-    style A fill:#ff6b6b
-    style B fill:#feca57
-    style C fill:#48dbfb
-    style D fill:#ff9ff3
-    style E fill:#54a0ff
+```plantuml
+@startuml
+left to right direction
+rectangle "Critical/High Priority" as A
+rectangle "Medium Priority" as B
+rectangle "Low Priority/Success" as C
+rectangle "In Progress" as D
+rectangle "External Systems" as E
+note right of A : Color #ff6b6b
+note right of B : Color #feca57
+note right of C : Color #48dbfb
+note right of D : Color #ff9ff3
+note right of E : Color #54a0ff
+@enduml
 ```
 
 ### Architecture Diagrams
@@ -104,20 +106,18 @@ graph LR
 - Group related components in subgraphs
 
 **Example:**
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        A[React Dashboard<br/>JavaScript/TypeScript]
-    end
-    
-    subgraph "Backend Services"
-        B[API Gateway<br/>FastAPI/Python]
-    end
-    
-    A --> B
-    
-    style A fill:#48dbfb
-    style B fill:#ff6b6b
+```plantuml
+@startuml
+package "Frontend Layer" {
+rectangle "React Dashboard\nJavaScript/TypeScript" as A
+}
+package "Backend Services" {
+rectangle "API Gateway\nFastAPI/Python" as B
+}
+A  -->  B
+note right of A : Color #48dbfb
+note right of B : Color #ff6b6b
+@enduml
 ```
 
 ### Data Flow Diagrams

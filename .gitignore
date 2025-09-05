@@ -144,6 +144,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# PlantUML cache directory
+.plantuml-cache/
+
 # Windows system files
 NUL
 CON

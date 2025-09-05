@@ -82,80 +82,61 @@ SCIRM has achieved production readiness with core AI-powered supply chain risk m
 
 ## Development Timeline (Gantt Chart)
 
-```mermaid
-gantt
-    title SCIRM Development Roadmap 2024-2026
-    dateFormat YYYY-MM-DD
-    axisFormat %Y-%m
-    
-    section Phase 1: Foundation
-    Multi-Agent Architecture     :done, foundation1, 2024-10-01, 2024-12-15
-    Frontend Dashboard          :done, foundation2, 2024-11-01, 2025-01-15
-    Backend Services           :done, foundation3, 2024-10-15, 2025-01-31
-    Kubernetes Deployment      :done, foundation4, 2024-12-01, 2025-02-15
-    Security Framework         :done, foundation5, 2024-12-15, 2025-02-28
-    
-    section Phase 2: Enhancement
-    Advanced Analytics         :active, enhance1, 2025-03-01, 2025-05-15
-    Risk Visualization         :active, enhance2, 2025-03-15, 2025-06-01
-    Performance Optimization   :enhance3, 2025-04-01, 2025-06-15
-    Compliance Reporting       :enhance4, 2025-04-15, 2025-06-30
-    ML Model Improvements      :enhance5, 2025-05-01, 2025-06-30
-    
-    section Phase 3: Expansion
-    Multi-Industry Support     :expand1, 2025-07-01, 2025-09-15
-    Simulation Capabilities    :expand2, 2025-07-15, 2025-09-30
-    ERP Integrations          :expand3, 2025-08-01, 2025-09-30
-    Mobile Application        :expand4, 2025-08-15, 2025-09-30
-    AI Model Fine-tuning      :expand5, 2025-09-01, 2025-09-30
-    
-    section Phase 4: Scale
-    Multi-Tenant Architecture  :scale1, 2025-10-01, 2026-01-15
-    Global Deployment         :scale2, 2025-11-01, 2026-02-28
-    Advanced ML Pipelines     :scale3, 2025-12-01, 2026-03-15
-    Predictive Analytics      :scale4, 2026-01-01, 2026-03-31
-    Enterprise SSO            :scale5, 2026-02-01, 2026-03-31
+
+> **TODO**: This diagram requires manual conversion from Mermaid to PlantUML.
+> See the PlantUML documentation for proper syntax.
+
+```plantuml
+@startuml
+!theme plain
+title Gantt Chart (Converted from Mermaid)
+
+> **NOTE**: Complex Gantt chart conversion required.
+> Original Mermaid Gantt syntax needs manual PlantUML activity diagram conversion.
+> See PlantUML activity diagram documentation for proper syntax.
+
+start
+:TODO: Convert Gantt tasks to activity diagram;
+stop
+@enduml
 ```
 
 ## Risk Assessment Heatmap
 
-```mermaid
-graph TB
-    subgraph "Risk Impact vs Probability Matrix"
-        subgraph "High Impact"
-            A1[AI Model Accuracy<br/>🔴 Critical]
-            A2[Data Integration<br/>🟡 Medium]
-            A3[Scalability<br/>🟡 Medium]
-        end
-        
-        subgraph "Medium Impact"
-            B1[User Adoption<br/>🟡 Medium]
-            B2[Vendor Dependencies<br/>🟢 Low]
-            B3[Regulatory Changes<br/>🟡 Medium]
-        end
-        
-        subgraph "Low Impact"
-            C1[UI/UX Issues<br/>🟢 Low]
-            C2[Documentation<br/>🟢 Low]
-            C3[Training Needs<br/>🟢 Low]
-        end
-    end
-    
-    subgraph "Risk Mitigation Status"
-        D1[🔴 Critical: Immediate Action Required]
-        D2[🟡 Medium: Monitoring & Mitigation Plans Active]
-        D3[🟢 Low: Standard Monitoring]
-    end
-    
-    style A1 fill:#ff4444
-    style A2 fill:#ffaa44
-    style A3 fill:#ffaa44
-    style B1 fill:#ffaa44
-    style B2 fill:#44ff44
-    style B3 fill:#ffaa44
-    style C1 fill:#44ff44
-    style C2 fill:#44ff44
-    style C3 fill:#44ff44
+```plantuml
+@startuml
+package "Risk Impact vs Probability Matrix" {
+package "High Impact" {
+rectangle "AI Model Accuracy\n🔴 Critical" as A1
+rectangle "Data Integration\n🟡 Medium" as A2
+rectangle "Scalability\n🟡 Medium" as A3
+}
+package "Medium Impact" {
+rectangle "User Adoption\n🟡 Medium" as B1
+rectangle "Vendor Dependencies\n🟢 Low" as B2
+rectangle "Regulatory Changes\n🟡 Medium" as B3
+}
+package "Low Impact" {
+rectangle "UI/UX Issues\n🟢 Low" as C1
+rectangle "Documentation\n🟢 Low" as C2
+rectangle "Training Needs\n🟢 Low" as C3
+}
+}
+package "Risk Mitigation Status" {
+rectangle "🔴 Critical: Immediate Action Required" as D1
+rectangle "🟡 Medium: Monitoring & Mitigation Plans Active" as D2
+rectangle "🟢 Low: Standard Monitoring" as D3
+}
+note right of A1 : Color #ff4444
+note right of A2 : Color #ffaa44
+note right of A3 : Color #ffaa44
+note right of B1 : Color #ffaa44
+note right of B2 : Color #44ff44
+note right of B3 : Color #ffaa44
+note right of C1 : Color #44ff44
+note right of C2 : Color #44ff44
+note right of C3 : Color #44ff44
+@enduml
 ```
 
 ## Detailed Risk Analysis

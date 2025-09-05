@@ -37,8 +37,8 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences:
       custom_fences:
-        - name: mermaid
-          class: mermaid
+        - name: plantuml
+          class: plantuml
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
@@ -53,10 +53,6 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - attr_list
   - md_in_html
-
-extra_javascript:
-  - assets/js/mermaid.min.js
-  - assets/js/mermaid-init.js
 
 nav:
   - Home: index.md

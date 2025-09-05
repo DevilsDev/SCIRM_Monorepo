@@ -17,23 +17,21 @@ SCIRM's performance architecture ensures sub-500ms response times for supply cha
 
 ## Performance Testing Strategy
 
-```mermaid
-graph TD
-    A[Performance Testing] --> B[Load Testing]
-    A --> C[Chaos Testing]
-    A --> D[Soak Testing]
-    
-    B --> B1[Normal Load<br/>500 TPS]
-    B --> B2[Peak Load<br/>1,000 TPS]
-    B --> B3[Stress Load<br/>1,500 TPS]
-    
-    C --> C1[Service Failures]
-    C --> C2[Network Partitions]
-    C --> C3[Database Outages]
-    
-    D --> D1[24h Sustained Load]
-    D --> D2[Memory Leak Detection]
-    D --> D3[Resource Degradation]
+```plantuml
+@startuml
+rectangle "Performance Testing" as A
+A  -->  C[Chaos Testing]
+A  -->  D[Soak Testing]
+B  -->  B1[Normal Load<br/>500 TPS]
+B  -->  B2[Peak Load<br/>1,000 TPS]
+B  -->  B3[Stress Load<br/>1,500 TPS]
+C  -->  C1[Service Failures]
+C  -->  C2[Network Partitions]
+C  -->  C3[Database Outages]
+D  -->  D1[24h Sustained Load]
+D  -->  D2[Memory Leak Detection]
+D  -->  D3[Resource Degradation]
+@enduml
 ```
 
 ### Load Testing Scenarios
@@ -48,30 +46,26 @@ graph TD
 
 ### Chaos Engineering
 
-```mermaid
-sequenceDiagram
-    participant LB as Load Balancer
-    participant API as API Gateway
-    participant AGT as Agent Service
-    participant DB as Database
-    participant RAG as RAG Service
-    
-    Note over LB,RAG: Normal Operation
-    LB->>API: Request
-    API->>AGT: Process Query
-    AGT->>RAG: Search Knowledge
-    RAG->>DB: Vector Query
-    DB-->>RAG: Results
-    RAG-->>AGT: Ranked Results
-    AGT-->>API: Response
-    API-->>LB: JSON Response
-    
-    Note over AGT: Chaos: Agent Service Failure
-    LB->>API: Request
-    API->>AGT: Process Query
-    AGT--xAPI: Service Down
-    API->>API: Circuit Breaker
-    API-->>LB: Cached/Fallback Response
+```plantuml
+@startuml
+participant "LB" as LB
+participant "API" as API
+participant "AGT" as AGT
+participant "DB" as DB
+participant "RAG" as RAG
+LB -> API: Request
+API -> AGT: Process Query
+AGT -> RAG: Search Knowledge
+RAG -> DB: Vector Query
+DB --> RAG: Results
+RAG --> AGT: Ranked Results
+AGT --> API: Response
+API --> LB: JSON Response
+LB -> API: Request
+API -> AGT: Process Query
+API -> API: Circuit Breaker
+API --> LB: Cached/Fallback Response
+@enduml
 ```
 
 ## Error Budgets & SLOs
@@ -88,21 +82,20 @@ sequenceDiagram
 
 ### Error Budget Policy
 
-```mermaid
-graph LR
-    A[Error Budget] --> B{Budget Status}
-    B -->|> 50%| C[Normal Development]
-    B -->|10-50%| D[Reliability Focus]
-    B -->|< 10%| E[Feature Freeze]
-    
-    C --> C1[New Features OK]
-    C --> C2[Regular Deployments]
-    
-    D --> D1[Reliability Tasks Priority]
-    D --> D2[Reduced Deployment Frequency]
-    
-    E --> E1[Only Critical Fixes]
-    E --> E2[Incident Response Mode]
+```plantuml
+@startuml
+left to right direction
+rectangle "Error Budget" as A
+B  --> |> 50%| C[Normal Development]
+B  --> |10-50%| D[Reliability Focus]
+B  --> |< 10%| E[Feature Freeze]
+C  -->  C1[New Features OK]
+C  -->  C2[Regular Deployments]
+D  -->  D1[Reliability Tasks Priority]
+D  -->  D2[Reduced Deployment Frequency]
+E  -->  E1[Only Critical Fixes]
+E  -->  E2[Incident Response Mode]
+@enduml
 ```
 
 ## Performance Monitoring
@@ -153,21 +146,19 @@ graph LR
 
 ### Agent Orchestration
 
-```mermaid
-graph TD
-    A[Request] --> B[Load Balancer]
-    B --> C[Agent Pool]
-    C --> D[Parallel Execution]
-    
-    D --> E[Planner Agent]
-    D --> F[Researcher Agent]
-    D --> G[Executor Agent]
-    
-    E --> H[Result Aggregation]
-    F --> H
-    G --> H
-    
-    H --> I[Response < 500ms]
+```plantuml
+@startuml
+rectangle "Request" as A
+B  -->  C[Agent Pool]
+C  -->  D[Parallel Execution]
+D  -->  E[Planner Agent]
+D  -->  F[Researcher Agent]
+D  -->  G[Executor Agent]
+E  -->  H[Result Aggregation]
+F  -->  H
+G  -->  H
+H  -->  I[Response < 500ms]
+@enduml
 ```
 
 ### Caching Strategy
@@ -183,23 +174,22 @@ graph TD
 
 ### Resource Scaling Triggers
 
-```mermaid
-graph LR
-    A[Metrics] --> B{CPU > 70%}
-    A --> C{Memory > 80%}
-    A --> D{Response Time > 400ms}
-    
-    B -->|Yes| E[Scale Out +1 Pod]
-    C -->|Yes| F[Scale Up Memory]
-    D -->|Yes| G[Scale Out +2 Pods]
-    
-    E --> H[Monitor 5min]
-    F --> H
-    G --> H
-    
-    H --> I{Metrics Improved?}
-    I -->|No| J[Escalate to SRE]
-    I -->|Yes| K[Continue Monitoring]
+```plantuml
+@startuml
+left to right direction
+rectangle "Metrics" as A
+A  -->  C{Memory > 80%}
+A  -->  D{Response Time > 400ms}
+B  --> |Yes| E[Scale Out +1 Pod]
+C  --> |Yes| F[Scale Up Memory]
+D  --> |Yes| G[Scale Out +2 Pods]
+E  -->  H[Monitor 5min]
+F  -->  H
+G  -->  H
+H  -->  I{Metrics Improved?}
+I  --> |No| J[Escalate to SRE]
+I  --> |Yes| K[Continue Monitoring]
+@enduml
 ```
 
 ### Growth Projections

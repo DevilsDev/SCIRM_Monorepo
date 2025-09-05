@@ -4,61 +4,54 @@
 
 SCIRM implements a cloud-native, microservices-based architecture designed for scalability, reliability, and real-time performance.
 
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        UI[React Dashboard]
-        Mobile[Mobile Apps]
-    end
-    
-    subgraph "API Gateway Layer"
-        Gateway[FastAPI Gateway]
-        Auth[Authentication]
-        Rate[Rate Limiting]
-    end
-    
-    subgraph "Multi-Agent Swarm"
-        Coord[Coordinator Agent]
-        Plan[Planner Agent]
-        Research[Researcher Agent]
-        Exec[Executor Agent]
-        Review[Quality Reviewer]
-    end
-    
-    subgraph "Data Layer"
-        Vector[Vector Database]
-        Graph[Graph Database]
-        TimeSeries[Time Series DB]
-        Cache[Redis Cache]
-    end
-    
-    subgraph "External Systems"
-        ERP[ERP Systems]
-        IoT[IoT Sensors]
-        Weather[Weather APIs]
-        Logistics[Logistics APIs]
-    end
-    
-    UI --> Gateway
-    Mobile --> Gateway
-    Gateway --> Auth
-    Gateway --> Rate
-    Gateway --> Coord
-    
-    Coord --> Plan
-    Plan --> Research
-    Research --> Exec
-    Exec --> Review
-    
-    Research --> Vector
-    Research --> Graph
-    Research --> TimeSeries
-    Research --> Cache
-    
-    Research --> ERP
-    Research --> IoT
-    Research --> Weather
-    Research --> Logistics
+```plantuml
+@startuml
+package "Frontend Layer" {
+rectangle "React Dashboard" as UI
+rectangle "Mobile Apps" as Mobile
+}
+package "API Gateway Layer" {
+rectangle "FastAPI Gateway" as Gateway
+rectangle "Authentication" as Auth
+rectangle "Rate Limiting" as Rate
+}
+package "Multi-Agent Swarm" {
+rectangle "Coordinator Agent" as Coord
+rectangle "Planner Agent" as Plan
+rectangle "Researcher Agent" as Research
+rectangle "Executor Agent" as Exec
+rectangle "Quality Reviewer" as Review
+}
+package "Data Layer" {
+rectangle "Vector Database" as Vector
+rectangle "Graph Database" as Graph
+rectangle "Time Series DB" as TimeSeries
+rectangle "Redis Cache" as Cache
+}
+package "External Systems" {
+rectangle "ERP Systems" as ERP
+rectangle "IoT Sensors" as IoT
+rectangle "Weather APIs" as Weather
+rectangle "Logistics APIs" as Logistics
+}
+UI  -->  Gateway
+Mobile  -->  Gateway
+Gateway  -->  Auth
+Gateway  -->  Rate
+Gateway  -->  Coord
+Coord  -->  Plan
+Plan  -->  Research
+Research  -->  Exec
+Exec  -->  Review
+Research  -->  Vector
+Research  -->  Graph
+Research  -->  TimeSeries
+Research  -->  Cache
+Research  -->  ERP
+Research  -->  IoT
+Research  -->  Weather
+Research  -->  Logistics
+@enduml
 ```
 
 ## Core Components

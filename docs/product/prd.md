@@ -240,104 +240,89 @@ Supply chain disruptions cost global enterprises over $184 billion annually, wit
 
 ## Value Stream Mapping
 
-```mermaid
-graph LR
-    A[Supply Chain Event] --> B[Data Ingestion]
-    B --> C[AI Agent Swarm]
-    C --> D[Risk Assessment]
-    D --> E[Predictive Analysis]
-    E --> F[Recommendation Engine]
-    F --> G[User Dashboard]
-    G --> H[Action Execution]
-    H --> I[Outcome Tracking]
-    I --> J[Model Learning]
-    J --> C
-    
-    subgraph "Data Sources"
-        K[ERP Systems]
-        L[IoT Sensors]
-        M[Weather APIs]
-        N[News Feeds]
-        O[Regulatory DBs]
-    end
-    
-    K --> B
-    L --> B
-    M --> B
-    N --> B
-    O --> B
-    
-    subgraph "AI Agents"
-        P[Coordinator]
-        Q[Planner]
-        R[Researcher]
-        S[Executor]
-        T[Reviewer]
-    end
-    
-    C --> P
-    P --> Q
-    Q --> R
-    R --> S
-    S --> T
-    T --> D
-    
-    style A fill:#ff9999
-    style G fill:#99ff99
-    style C fill:#9999ff
+```plantuml
+@startuml
+left to right direction
+rectangle "Supply Chain Event" as A
+B  -->  C[AI Agent Swarm]
+C  -->  D[Risk Assessment]
+D  -->  E[Predictive Analysis]
+E  -->  F[Recommendation Engine]
+F  -->  G[User Dashboard]
+G  -->  H[Action Execution]
+H  -->  I[Outcome Tracking]
+I  -->  J[Model Learning]
+J  -->  C
+package "Data Sources" {
+rectangle "ERP Systems" as K
+rectangle "IoT Sensors" as L
+rectangle "Weather APIs" as M
+rectangle "News Feeds" as N
+rectangle "Regulatory DBs" as O
+}
+K  -->  B
+L  -->  B
+M  -->  B
+N  -->  B
+O  -->  B
+package "AI Agents" {
+rectangle "Coordinator" as P
+rectangle "Planner" as Q
+rectangle "Researcher" as R
+rectangle "Executor" as S
+rectangle "Reviewer" as T
+}
+C  -->  P
+P  -->  Q
+Q  -->  R
+R  -->  S
+S  -->  T
+T  -->  D
+note right of A : Color #ff9999
+note right of G : Color #99ff99
+note right of C : Color #9999ff
+@enduml
 ```
 
 ## Key Performance Indicators (KPI) Tree
 
-```mermaid
-graph TD
-    A[SCIRM Success] --> B[Business Impact]
-    A --> C[Technical Performance]
-    A --> D[User Experience]
-    
-    B --> E[Cost Reduction<br/>Target: 40%]
-    B --> F[Disruption Prevention<br/>Target: 60%]
-    B --> G[Compliance Score<br/>Target: 100%]
-    
-    C --> H[System Availability<br/>Target: 99.9%]
-    C --> I[Response Time<br/>Target: <500ms]
-    C --> J[Prediction Accuracy<br/>Target: 85%+]
-    
-    D --> K[User Satisfaction<br/>Target: 95%+]
-    D --> L[Platform Adoption<br/>Target: 90%+]
-    D --> M[Time to Value<br/>Target: <2 weeks]
-    
-    E --> N[Disruption Cost Savings<br/>$50M annually]
-    E --> O[Operational Efficiency<br/>75% faster response]
-    
-    F --> P[Early Warning Accuracy<br/>7-day forecast]
-    F --> Q[False Positive Rate<br/><5%]
-    
-    G --> R[Audit Pass Rate<br/>100%]
-    G --> S[Regulatory Violations<br/>Zero tolerance]
-    
-    H --> T[Uptime SLA<br/>8.76 hrs max downtime]
-    H --> U[Disaster Recovery<br/>RTO: 4 hours]
-    
-    I --> V[API Response Time<br/>95th percentile]
-    I --> W[Dashboard Load Time<br/><3 seconds]
-    
-    J --> X[Risk Score Accuracy<br/>Validated predictions]
-    J --> Y[Model Confidence<br/>Explainable AI]
-    
-    K --> Z[CSAT Score<br/>Quarterly surveys]
-    K --> AA[Net Promoter Score<br/>Industry benchmark]
-    
-    L --> BB[Daily Active Users<br/>Usage analytics]
-    L --> CC[Feature Adoption<br/>Core functionality]
-    
-    M --> DD[Onboarding Time<br/>First prediction]
-    M --> EE[Training Hours<br/>Basic proficiency]
-    
-    style A fill:#ff6b6b
-    style B fill:#4ecdc4
-    style C fill:#45b7d1
-    style D fill:#96ceb4
+```plantuml
+@startuml
+rectangle "SCIRM Success" as A
+A  -->  C[Technical Performance]
+A  -->  D[User Experience]
+B  -->  E[Cost Reduction<br/>Target: 40%]
+B  -->  F[Disruption Prevention<br/>Target: 60%]
+B  -->  G[Compliance Score<br/>Target: 100%]
+C  -->  H[System Availability<br/>Target: 99.9%]
+C  -->  I[Response Time<br/>Target: <500ms]
+C  -->  J[Prediction Accuracy<br/>Target: 85%+]
+D  -->  K[User Satisfaction<br/>Target: 95%+]
+D  -->  L[Platform Adoption<br/>Target: 90%+]
+D  -->  M[Time to Value<br/>Target: <2 weeks]
+E  -->  N[Disruption Cost Savings<br/>$50M annually]
+E  -->  O[Operational Efficiency<br/>75% faster response]
+F  -->  P[Early Warning Accuracy<br/>7-day forecast]
+F  -->  Q[False Positive Rate<br/><5%]
+G  -->  R[Audit Pass Rate<br/>100%]
+G  -->  S[Regulatory Violations<br/>Zero tolerance]
+H  -->  T[Uptime SLA<br/>8.76 hrs max downtime]
+H  -->  U[Disaster Recovery<br/>RTO: 4 hours]
+I  -->  V[API Response Time<br/>95th percentile]
+I  -->  W[Dashboard Load Time<br/><3 seconds]
+J  -->  X[Risk Score Accuracy<br/>Validated predictions]
+J  -->  Y[Model Confidence<br/>Explainable AI]
+K  -->  Z[CSAT Score<br/>Quarterly surveys]
+K  -->  AA[Net Promoter Score<br/>Industry benchmark]
+L  -->  BB[Daily Active Users<br/>Usage analytics]
+L  -->  CC[Feature Adoption<br/>Core functionality]
+M  -->  DD[Onboarding Time<br/>First prediction]
+M  -->  EE[Training Hours<br/>Basic proficiency]
+note right of A : Color #ff6b6b
+note right of B : Color #4ecdc4
+note right of C : Color #45b7d1
+note right of D : Color #96ceb4
+@enduml
 ```
 
 ## Acceptance Criteria

@@ -44,16 +44,17 @@ This document describes how data flows through the SCIRM platform, from ingestio
 
 ## Agent Data Flow
 
-```mermaid
-graph TD
-    A[Data Sources] --> B[Ingestion Layer]
-    B --> C[Vector Database]
-    C --> D[Researcher Agent]
-    D --> E[Planner Agent]
-    E --> F[Executor Agent]
-    F --> G[Reviewer Agent]
-    G --> H[Recommendations]
-    H --> I[User Interface]
+```plantuml
+@startuml
+rectangle "Data Sources" as A
+B  -->  C[Vector Database]
+C  -->  D[Researcher Agent]
+D  -->  E[Planner Agent]
+E  -->  F[Executor Agent]
+F  -->  G[Reviewer Agent]
+G  -->  H[Recommendations]
+H  -->  I[User Interface]
+@enduml
 ```
 
 ## Data Governance

@@ -4,41 +4,38 @@ SCIRM's intelligence comes from a coordinated swarm of specialized AI agents, ea
 
 ## Agent Swarm Overview
 
-```mermaid
-graph LR
-    subgraph "Agent Swarm"
-        C[Coordinator Agent]
-        P[Planner Agent]
-        R[Researcher Agent]
-        E[Executor Agent]
-        Q[Quality Reviewer]
-    end
-    
-    subgraph "External Systems"
-        ERP[ERP Systems]
-        IoT[IoT Sensors]
-        APIs[External APIs]
-    end
-    
-    subgraph "Knowledge Base"
-        VDB[Vector Database]
-        GDB[Graph Database]
-        Cache[Cache Layer]
-    end
-    
-    C --> P
-    P --> R
-    R --> E
-    E --> Q
-    Q --> C
-    
-    R --> ERP
-    R --> IoT
-    R --> APIs
-    
-    R --> VDB
-    R --> GDB
-    R --> Cache
+```plantuml
+@startuml
+left to right direction
+package "Agent Swarm" {
+rectangle "Coordinator Agent" as C
+rectangle "Planner Agent" as P
+rectangle "Researcher Agent" as R
+rectangle "Executor Agent" as E
+rectangle "Quality Reviewer" as Q
+}
+package "External Systems" {
+rectangle "ERP Systems" as ERP
+rectangle "IoT Sensors" as IoT
+rectangle "External APIs" as APIs
+}
+package "Knowledge Base" {
+rectangle "Vector Database" as VDB
+rectangle "Graph Database" as GDB
+rectangle "Cache Layer" as Cache
+}
+C  -->  P
+P  -->  R
+R  -->  E
+E  -->  Q
+Q  -->  C
+R  -->  ERP
+R  -->  IoT
+R  -->  APIs
+R  -->  VDB
+R  -->  GDB
+R  -->  Cache
+@enduml
 ```
 
 ## Agent Specifications

@@ -18,25 +18,24 @@ Context-Aware Guardrails (CAG) provide runtime policy enforcement for SCIRM's AI
 
 ### Policy Enforcement Flow
 
-```mermaid
-flowchart TD
-    A[Agent Request] --> B[Pre-execution Check]
-    B --> C{Policy Violation?}
-    C -->|Yes| D[Block Request]
-    C -->|No| E[Execute Agent Step]
-    E --> F[Post-execution Check]
-    F --> G{Output Violation?}
-    G -->|Yes| H[Sanitize/Block Output]
-    G -->|No| I[Return Response]
-    
-    D --> J[Log Violation]
-    H --> J
-    J --> K[Alert Security Team]
-    
-    style D fill:#ff6b6b
-    style H fill:#ff6b6b
-    style J fill:#ffa726
-    style K fill:#ef5350
+```plantuml
+@startuml
+rectangle "Agent Request" as A
+B  -->  C{Policy Violation?}
+C  --> |Yes| D[Block Request]
+C  --> |No| E[Execute Agent Step]
+E  -->  F[Post-execution Check]
+F  -->  G{Output Violation?}
+G  --> |Yes| H[Sanitize/Block Output]
+G  --> |No| I[Return Response]
+D  -->  J[Log Violation]
+H  -->  J
+J  -->  K[Alert Security Team]
+note right of D : Color #ff6b6b
+note right of H : Color #ff6b6b
+note right of J : Color #ffa726
+note right of K : Color #ef5350
+@enduml
 ```
 
 ## Core Policies
@@ -178,30 +177,26 @@ flowchart TD
 
 ### Blocked Request Flow
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant AG as Agent Gateway
-    participant CAG as CAG Engine
-    participant DB as Database
-    participant SEC as Security Team
-    
-    U->>AG: Submit Query
-    AG->>CAG: Check Policies
-    CAG->>CAG: Evaluate Rules
-    
-    alt Policy Violation Detected
-        CAG->>DB: Log Violation
-        CAG->>SEC: Send Alert (if Critical)
-        CAG->>AG: Block Request
-        AG->>U: Error: Policy Violation
-    else No Violation
-        CAG->>AG: Allow Request
-        AG->>AG: Process Query
-        AG->>CAG: Check Output
-        CAG->>AG: Sanitized Response
-        AG->>U: Return Results
-    end
+```plantuml
+@startuml
+participant "U" as U
+participant "AG" as AG
+participant "CAG" as CAG
+participant "DB" as DB
+participant "SEC" as SEC
+U -> AG: Submit Query
+AG -> CAG: Check Policies
+CAG -> CAG: Evaluate Rules
+CAG -> DB: Log Violation
+CAG -> SEC: Send Alert (if Critical)
+CAG -> AG: Block Request
+AG -> U: Error: Policy Violation
+CAG -> AG: Allow Request
+AG -> AG: Process Query
+AG -> CAG: Check Output
+CAG -> AG: Sanitized Response
+AG -> U: Return Results
+@enduml
 ```
 
 ## Implementation Details

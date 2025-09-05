@@ -95,41 +95,38 @@ We need a robust data governance framework that ensures:
 
 ### Implementation Architecture
 
-```mermaid
-graph TB
-    subgraph "Application Layer"
-        A1[Data Access Service]
-        A2[Policy Engine]
-        A3[Audit Logger]
-        A4[Classification Service]
-    end
-    
-    subgraph "Database Layer"
-        B1[Row-Level Security]
-        B2[Column Encryption]
-        B3[Audit Triggers]
-        B4[Data Masking]
-    end
-    
-    subgraph "Governance Components"
-        C1[Policy Repository]
-        C2[Data Catalog]
-        C3[Lineage Tracker]
-        C4[Compliance Monitor]
-    end
-    
-    A1 --> A2
-    A2 --> C1
-    A1 --> A3
-    A3 --> C4
-    A1 --> B1
-    A2 --> B2
-    A4 --> C2
-    C2 --> C3
-    
-    style A2 fill:#ff9999
-    style B1 fill:#99ccff
-    style C1 fill:#99ff99
+```plantuml
+@startuml
+package "Application Layer" {
+rectangle "Data Access Service" as A1
+rectangle "Policy Engine" as A2
+rectangle "Audit Logger" as A3
+rectangle "Classification Service" as A4
+}
+package "Database Layer" {
+rectangle "Row-Level Security" as B1
+rectangle "Column Encryption" as B2
+rectangle "Audit Triggers" as B3
+rectangle "Data Masking" as B4
+}
+package "Governance Components" {
+rectangle "Policy Repository" as C1
+rectangle "Data Catalog" as C2
+rectangle "Lineage Tracker" as C3
+rectangle "Compliance Monitor" as C4
+}
+A1  -->  A2
+A2  -->  C1
+A1  -->  A3
+A3  -->  C4
+A1  -->  B1
+A2  -->  B2
+A4  -->  C2
+C2  -->  C3
+note right of A2 : Color #ff9999
+note right of B1 : Color #99ccff
+note right of C1 : Color #99ff99
+@enduml
 ```
 
 ## Positive Consequences
