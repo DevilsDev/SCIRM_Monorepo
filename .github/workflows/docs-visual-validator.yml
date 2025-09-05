@@ -1,0 +1,315 @@
+name: 📊 Documentation Visual Validator
+
+on:
+  pull_request:
+    branches: [main, firebase-hosting]
+    paths:
+      - 'docs/**/*.md'
+      - 'scripts/validate_visuals.py'
+      - '.github/workflows/docs-visual-validator.yml'
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch to validate'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  validate-visuals:
+    name: 🔍 Validate Documentation Visuals
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # No additional dependencies needed for the validator script
+          
+      - name: 🔍 Run Visual Validation
+        id: validation
+        run: |
+          echo "Running visual validation..."
+          python scripts/validate_visuals.py --format json --fail-on-missing > validation_results.json 2>&1 || echo "validation_failed=true" >> $GITHUB_OUTPUT
+          
+          # Also generate human-readable output for job summary
+          python scripts/validate_visuals.py --format human > validation_summary.txt 2>&1 || true
+          
+          # Check if validation passed
+          if [ -f validation_results.json ]; then
+            echo "validation_completed=true" >> $GITHUB_OUTPUT
+            
+            # Extract summary data for outputs
+            TOTAL_FILES=$(jq -r '.summary.total_files' validation_results.json)
+            INVALID_FILES=$(jq -r '.summary.invalid_files' validation_results.json)
+            
+            echo "total_files=$TOTAL_FILES" >> $GITHUB_OUTPUT
+            echo "invalid_files=$INVALID_FILES" >> $GITHUB_OUTPUT
+            
+            if [ "$INVALID_FILES" -gt 0 ]; then
+              echo "validation_failed=true" >> $GITHUB_OUTPUT
+            else
+              echo "validation_failed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "validation_completed=false" >> $GITHUB_OUTPUT
+            echo "validation_failed=true" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: 📝 Create GitHub Checks Annotations
+        if: steps.validation.outputs.validation_completed == 'true'
+        run: |
+          echo "Creating GitHub Checks annotations..."
+          
+          # Read validation results and create annotations
+          if [ -f validation_results.json ]; then
+            python << 'EOF'
+          import json
+          import os
+          
+          # Read validation results
+          with open('validation_results.json', 'r') as f:
+              data = json.load(f)
+          
+          # Create annotations for each file with missing visuals
+          for result in data['results']:
+              if not result['is_valid']:
+                  file_path = result['file_path']
+                  missing_elements = result['missing_elements']
+                  
+                  # Create annotation message
+                  message = f"Missing visual elements: {', '.join(missing_elements)}"
+                  
+                  # Add recommendations
+                  recommendations = []
+                  if 'tables' in missing_elements:
+                      recommendations.append("Add tables to show structured data")
+                  if 'mermaid' in missing_elements:
+                      recommendations.append("Include Mermaid diagrams for architecture/flows")
+                  if 'ascii_flow' in missing_elements:
+                      recommendations.append("Use ASCII arrows (→, ←, ↑, ↓) for simple flows")
+                  if 'charts' in missing_elements:
+                      recommendations.append("Consider charts/infographics for complex data")
+                  
+                  if recommendations:
+                      message += f"\n\nRecommendations:\n• " + "\n• ".join(recommendations)
+                  
+                  message += f"\n\n📖 Style Guide: docs/development/doc-style.md"
+                  
+                  # Output annotation in GitHub Actions format
+                  print(f"::error file={file_path},line=1,title=Missing Visual Elements::{message}")
+          EOF
+          fi
+          
+      - name: 💬 Post PR Review Comments
+        if: github.event_name == 'pull_request' && steps.validation.outputs.validation_completed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            
+            // Read validation results
+            let validationData;
+            try {
+              const rawData = fs.readFileSync('validation_results.json', 'utf8');
+              validationData = JSON.parse(rawData);
+            } catch (error) {
+              console.log('Could not read validation results:', error);
+              return;
+            }
+            
+            // Get existing review comments to avoid duplicates
+            const { data: existingComments } = await github.rest.pulls.listReviewComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Filter for comments from this bot
+            const botComments = existingComments.filter(comment => 
+              comment.user.login === 'github-actions[bot]' && 
+              comment.body.includes('📊 Visual Validation')
+            );
+            
+            // Create review comments for files with missing visuals
+            const reviewComments = [];
+            
+            for (const result of validationData.results) {
+              if (!result.is_valid) {
+                const filePath = result.file_path;
+                
+                // Check if we already have a comment for this file
+                const existingComment = botComments.find(comment => 
+                  comment.path === filePath
+                );
+                
+                if (!existingComment) {
+                  const missingElements = result.missing_elements;
+                  
+                  let commentBody = `## 📊 Visual Validation Failed\n\n`;
+                  commentBody += `This documentation file is missing required visual elements:\n\n`;
+                  
+                  // List missing elements with icons
+                  const elementIcons = {
+                    'tables': '📋',
+                    'mermaid': '🔄',
+                    'ascii_flow': '➡️',
+                    'charts': '📈'
+                  };
+                  
+                  for (const element of missingElements) {
+                    const icon = elementIcons[element] || '❌';
+                    commentBody += `- ${icon} **${element.replace('_', ' ')}**\n`;
+                  }
+                  
+                  commentBody += `\n### 💡 Recommendations\n\n`;
+                  
+                  if (missingElements.includes('tables')) {
+                    commentBody += `- **Tables**: Use Markdown tables to present structured data, comparisons, or specifications\n`;
+                  }
+                  if (missingElements.includes('mermaid')) {
+                    commentBody += `- **Mermaid Diagrams**: Add flowcharts, sequence diagrams, or architecture diagrams using \`\`\`mermaid blocks\n`;
+                  }
+                  if (missingElements.includes('ascii_flow')) {
+                    commentBody += `- **ASCII Flows**: Use arrows (→, ←, ↑, ↓) or box drawing characters for simple flows\n`;
+                  }
+                  if (missingElements.includes('charts')) {
+                    commentBody += `- **Charts**: Include infographics, images, or embedded charts for complex data visualization\n`;
+                  }
+                  
+                  commentBody += `\n### 📖 Resources\n\n`;
+                  commentBody += `- [Documentation Style Guide](docs/development/doc-style.md)\n`;
+                  commentBody += `- [Mermaid Documentation](https://mermaid.js.org/)\n`;
+                  commentBody += `- [Markdown Tables Guide](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables)\n`;
+                  
+                  commentBody += `\n---\n*This comment was automatically generated by the SCIRM Visual Validator*`;
+                  
+                  reviewComments.push({
+                    path: filePath,
+                    line: 1,
+                    body: commentBody
+                  });
+                }
+              }
+            }
+            
+            // Post review comments if any
+            if (reviewComments.length > 0) {
+              console.log(`Posting ${reviewComments.length} review comments...`);
+              
+              try {
+                await github.rest.pulls.createReview({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.issue.number,
+                  event: 'REQUEST_CHANGES',
+                  body: `## 📊 Documentation Visual Validation Results\n\n❌ **${validationData.summary.invalid_files}** out of **${validationData.summary.total_files}** documentation files are missing required visual elements.\n\nPlease review the inline comments below and add the missing visual elements to improve documentation quality and compliance with SCIRM standards.\n\n### Quick Fixes\n- Add at least one table to show structured information\n- Include Mermaid diagrams for architecture, flows, or processes\n- Use ASCII arrows for simple directional flows\n- Consider charts or infographics for complex data\n\n📖 **Style Guide**: [docs/development/doc-style.md](docs/development/doc-style.md)`,
+                  comments: reviewComments
+                });
+                
+                console.log('Review posted successfully');
+              } catch (error) {
+                console.error('Error posting review:', error);
+              }
+            } else {
+              console.log('No new comments needed - all files already have comments or are valid');
+            }
+            
+      - name: 📊 Generate Job Summary
+        if: always()
+        run: |
+          echo "# 📊 Documentation Visual Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.validation.outputs.validation_completed }}" == "true" ]; then
+            if [ "${{ steps.validation.outputs.validation_failed }}" == "false" ]; then
+              echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "🎉 All **${{ steps.validation.outputs.total_files }}** documentation files contain required visual elements!" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### What was validated:" >> $GITHUB_STEP_SUMMARY
+              echo "- 📋 Tables for structured data" >> $GITHUB_STEP_SUMMARY
+              echo "- 🔄 Mermaid diagrams for architecture/flows" >> $GITHUB_STEP_SUMMARY
+              echo "- ➡️ ASCII flows and arrows" >> $GITHUB_STEP_SUMMARY
+              echo "- 📈 Charts and infographics" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "## ❌ Validation Failed" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**${{ steps.validation.outputs.invalid_files }}** out of **${{ steps.validation.outputs.total_files }}** files are missing required visual elements." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              if [ -f validation_results.json ]; then
+                echo "### Files Missing Visual Elements:" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                python << 'EOF' >> $GITHUB_STEP_SUMMARY
+          import json
+          
+          with open('validation_results.json', 'r') as f:
+              data = json.load(f)
+          
+          for result in data['results']:
+              if not result['is_valid']:
+                  print(f"- **{result['file_path']}**")
+                  print(f"  - Missing: {', '.join(result['missing_elements'])}")
+                  print("")
+          EOF
+              fi
+              
+              echo "### 💡 How to Fix:" >> $GITHUB_STEP_SUMMARY
+              echo "1. **Tables**: Add Markdown tables to show structured data" >> $GITHUB_STEP_SUMMARY
+              echo "2. **Mermaid**: Include \`\`\`mermaid diagrams for architecture/flows" >> $GITHUB_STEP_SUMMARY
+              echo "3. **ASCII Flows**: Use arrows (→, ←, ↑, ↓) for simple directional flows" >> $GITHUB_STEP_SUMMARY
+              echo "4. **Charts**: Add infographics or embedded charts for complex data" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "📖 **Style Guide**: [docs/development/doc-style.md](docs/development/doc-style.md)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "## ⚠️ Validation Error" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The visual validation script encountered an error. Please check the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Generated by SCIRM Visual Validator on $(date)*" >> $GITHUB_STEP_SUMMARY
+          
+      - name: 📤 Upload Validation Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-validation-results
+          path: |
+            validation_results.json
+            validation_summary.txt
+          retention-days: 30
+          
+      - name: 🚨 Fail Job if Validation Failed
+        if: steps.validation.outputs.validation_failed == 'true'
+        run: |
+          echo "❌ Documentation visual validation failed!"
+          echo "Files are missing required visual elements (tables, diagrams, flows, charts)."
+          echo ""
+          echo "Please review the PR comments and job summary for detailed guidance."
+          echo "📖 Style Guide: docs/development/doc-style.md"
+          exit 1
+          
+      - name: ✅ Success Message
+        if: steps.validation.outputs.validation_failed == 'false'
+        run: |
+          echo "✅ All documentation files contain required visual elements!"
+          echo "🎉 Great job maintaining high documentation quality standards."

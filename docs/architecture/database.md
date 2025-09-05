@@ -35,6 +35,15 @@ This separation ensures optimal performance for each use case while maintaining 
 
 The OLTP layer handles all transactional operations for supply chain management, user management, and real-time risk assessment.
 
+### Schema Overview
+
+| Layer | Purpose | Technology | Performance Target |
+|-------|---------|------------|-------------------|
+| OLTP | Transactional operations | Postgres/AlloyDB | < 50ms CRUD |
+| RAG/Vector | Semantic search | pgvector | < 100ms similarity |
+| CAG/Telemetry | AI governance | JSONB + indexes | < 25ms policy check |
+| Analytics | Business intelligence | BigQuery | < 5s aggregations |
+
 ### Core Entities & Tables
 
 #### Organization & User Management
@@ -145,14 +154,41 @@ CREATE TABLE rag_document (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- RAG Chunks
+CREATE TABLE rag_chunk (
+    chunk_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES rag_document(document_id),
+    chunk_text TEXT NOT NULL,
+    chunk_metadata JSONB,
+    chunk_order INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- RAG Embeddings
 CREATE TABLE rag_embedding (
     embedding_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    chunk_id UUID NOT NULL,
+    chunk_id UUID NOT NULL REFERENCES rag_chunk(chunk_id),
     embedding vector(1536) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- RAG Citations
+CREATE TABLE rag_citation (
+    citation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_run_id UUID NOT NULL,
+    chunk_id UUID NOT NULL REFERENCES rag_chunk(chunk_id),
+    relevance_score DECIMAL(5,4),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
+
+### Vector Search Performance
+
+| Index Type | Build Time | Query Time | Memory Usage | Use Case |
+|------------|------------|------------|--------------|----------|
+| HNSW | 2-3 hours | < 50ms | High | Production similarity search |
+| IVF | 30 minutes | < 100ms | Medium | Development/testing |
+| Flat | Instant | < 200ms | Low | Small datasets |
 
 ### pgvector Usage
 
@@ -183,6 +219,22 @@ CREATE TABLE agent_run (
     completed_at TIMESTAMPTZ
 );
 
+-- Agent Steps (detailed telemetry)
+CREATE TABLE agent_step (
+    step_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    run_id UUID NOT NULL REFERENCES agent_run(run_id),
+    step_type VARCHAR(50) NOT NULL,
+    step_order INTEGER NOT NULL,
+    tool_name VARCHAR(100),
+    input_data JSONB,
+    output_data JSONB,
+    execution_time_ms INTEGER,
+    token_count INTEGER,
+    step_cost_usd DECIMAL(8,6),
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
 -- CAG Policies
 CREATE TABLE cag_policy (
     policy_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -190,10 +242,44 @@ CREATE TABLE cag_policy (
     policy_name VARCHAR(255) NOT NULL,
     policy_type VARCHAR(50) NOT NULL,
     policy_rules JSONB NOT NULL,
+    severity_level VARCHAR(20) NOT NULL DEFAULT 'medium',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- CAG Violations
+CREATE TABLE cag_violation (
+    violation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    policy_id UUID NOT NULL REFERENCES cag_policy(policy_id),
+    agent_run_id UUID NOT NULL REFERENCES agent_run(run_id),
+    violation_type VARCHAR(50) NOT NULL,
+    violation_details JSONB NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    action_taken VARCHAR(50) NOT NULL,
+    detected_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Prompt Templates
+CREATE TABLE prompt_template (
+    template_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES org(org_id),
+    template_name VARCHAR(255) NOT NULL,
+    agent_type VARCHAR(50) NOT NULL,
+    template_content TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+### Telemetry Performance Targets
+
+| Metric | Target | Measurement | Alert Threshold |
+|--------|--------|-------------|-----------------|
+| Agent Run Latency | < 2s | End-to-end execution | > 5s |
+| Step Recording | < 10ms | Telemetry write time | > 50ms |
+| Policy Evaluation | < 25ms | CAG check duration | > 100ms |
+| Violation Detection | < 5ms | Policy rule matching | > 20ms |
 
 ## Analytics (BigQuery Layer)
 

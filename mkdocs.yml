@@ -70,6 +70,8 @@ nav:
       - System Overview: architecture/system-overview.md
       - AI Agents: architecture/agents.md
       - Database Design: architecture/database.md
+      - Performance: architecture/performance.md
+      - Agent Sequences: architecture/agent-sequences.md
       - Entity Relationships: architecture/er-diagram.md
       - Data Flows: architecture/dataflow.md
       - Legacy Data Flows: architecture/data-flows.md
@@ -84,6 +86,7 @@ nav:
       - "ADR-006: Dashboard Isolation": architecture/adr/ADR-006-internal-dashboard-isolation.md
   - "Security":
       - "Security Overview": security/security-overview.md
+      - "CAG Policies": security/cag-policies.md
       - "Firebase Branch Governance": security/Firebase-Deploy-Branch-Governance.md
       - "Compliance": security/compliance.md
       - "Security Details": security/overview.md
@@ -96,12 +99,15 @@ nav:
       - "Branching Strategy": development/branching.md
       - "Contributing Guide": development/contributing.md
       - "Documentation Style": development/doc-style.md
+      - "Issue Templates Guide": development/issue-usage.md
       - "Release Process": development/releases.md
   - "Examples":
       - "Architecture Diagrams": examples/architecture-examples.md
       - "Flow Charts": examples/flow-examples.md
       - "Gantt Charts": examples/gantt-examples.md
       - "Sequence Diagrams": examples/sequence-examples.md
+  - "Observability":
+      - "Metrics & SLOs": observability/metrics.md
   - "Compliance":
       - "Documentation Policy": compliance/documentation-policy.md
       - "Evidence Model": compliance/evidence-model.md
