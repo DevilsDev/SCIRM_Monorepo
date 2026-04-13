@@ -8,6 +8,7 @@ import {
 import MetricCard from '../components/MetricCard';
 import SeverityBadge from '../components/SeverityBadge';
 import SeverityChart from '../components/SeverityChart';
+import RiskHeatmap from '../components/d3/RiskHeatmap';
 import { useRisks } from '../hooks/useRisks';
 
 export default function DashboardPage() {
@@ -23,6 +24,16 @@ export default function DashboardPage() {
     { name: 'low', value: risks.filter((r) => r.severity === 'low').length },
   ];
 
+  // Build heatmap data: category × severity matrix
+  const categories = [...new Set(risks.map((r) => r.risk_category))].filter(Boolean);
+  const heatmapData = categories.flatMap((cat) =>
+    ['low', 'medium', 'high', 'critical'].map((sev) => ({
+      category: cat,
+      severity: sev,
+      value: risks.filter((r) => r.risk_category === cat && r.severity === sev).length,
+    }))
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -32,64 +43,49 @@ export default function DashboardPage() {
 
       {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Risks"
-          value={loading ? '...' : String(totalCount)}
-          icon={ShieldExclamationIcon}
-          color="blue"
-        />
-        <MetricCard
-          title="Critical Risks"
-          value={loading ? '...' : String(criticalCount)}
-          icon={ExclamationTriangleIcon}
-          color="red"
-        />
-        <MetricCard
-          title="High Risks"
-          value={loading ? '...' : String(highCount)}
-          icon={ChartBarIcon}
-          color="yellow"
-        />
-        <MetricCard
-          title="Monitored"
-          value={loading ? '...' : String(totalCount)}
-          icon={CheckCircleIcon}
-          color="green"
-        />
+        <MetricCard title="Total Risks" value={loading ? '...' : String(totalCount)} icon={ShieldExclamationIcon} color="blue" />
+        <MetricCard title="Critical Risks" value={loading ? '...' : String(criticalCount)} icon={ExclamationTriangleIcon} color="red" />
+        <MetricCard title="High Risks" value={loading ? '...' : String(highCount)} icon={ChartBarIcon} color="yellow" />
+        <MetricCard title="Monitored" value={loading ? '...' : String(totalCount)} icon={CheckCircleIcon} color="green" />
       </div>
 
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Severity Chart */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Severity Breakdown</h2>
           <SeverityChart data={severityData} />
         </div>
 
-        {/* Recent Risks */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Risks</h2>
-          {loading ? (
-            <p className="text-sm text-gray-400">Loading...</p>
-          ) : risks.length === 0 ? (
-            <p className="text-sm text-gray-400">No risks found. Run an assessment to get started.</p>
-          ) : (
-            <div className="space-y-3">
-              {risks.slice(0, 8).map((risk) => (
-                <Link
-                  key={risk.id}
-                  to={`/risks/${risk.id}`}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{risk.title}</p>
-                    <p className="text-xs text-gray-500 capitalize">{risk.risk_category}</p>
-                  </div>
-                  <SeverityBadge severity={risk.severity} />
-                </Link>
-              ))}
-            </div>
-          )}
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Heatmap</h2>
+          <RiskHeatmap data={heatmapData} height={220} />
         </div>
+      </div>
+
+      {/* Recent Risks */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Risks</h2>
+        {loading ? (
+          <p className="text-sm text-gray-400">Loading...</p>
+        ) : risks.length === 0 ? (
+          <p className="text-sm text-gray-400">No risks found. Run an assessment to get started.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {risks.slice(0, 8).map((risk) => (
+              <Link
+                key={risk.id}
+                to={`/risks/${risk.id}`}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-100"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate">{risk.title}</p>
+                  <p className="text-xs text-gray-500 capitalize">{risk.risk_category}</p>
+                </div>
+                <SeverityBadge severity={risk.severity} />
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

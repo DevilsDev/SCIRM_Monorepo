@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import AnimatedBars from '../components/d3/AnimatedBars';
+import GaugeChart from '../components/d3/GaugeChart';
 
 interface Prediction {
   id: string;
@@ -34,10 +35,10 @@ export default function PredictionsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const chartData = predictions.map((p) => ({
+  const barData = predictions.map((p) => ({
     name: p.category,
-    probability: Math.round(p.predicted_disruption_probability * 100),
-    severity: p.severity,
+    value: Math.round(p.predicted_disruption_probability * 100),
+    color: SEVERITY_COLORS[p.severity] || '#94a3b8',
   }));
 
   if (loading) return <p className="text-sm text-gray-400">Loading predictions...</p>;
@@ -58,25 +59,11 @@ export default function PredictionsPage() {
         </div>
       ) : (
         <>
-          {/* Chart */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Disruption Probability by Category</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" className="capitalize" />
-                <YAxis label={{ value: 'Probability %', angle: -90, position: 'insideLeft' }} domain={[0, 100]} />
-                <Tooltip formatter={(value: number) => `${value}%`} />
-                <Bar dataKey="probability" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={SEVERITY_COLORS[entry.severity] || '#94a3b8'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <AnimatedBars data={barData} height={predictions.length * 55 + 60} maxValue={100} />
           </div>
 
-          {/* Prediction Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {predictions.map((p) => (
               <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
@@ -84,20 +71,17 @@ export default function PredictionsPage() {
                   <h3 className="text-sm font-semibold text-gray-900 capitalize">{p.category}</h3>
                   <SeverityBadge severity={p.severity} />
                 </div>
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {Math.round(p.predicted_disruption_probability * 100)}%
-                    </p>
-                    <p className="text-xs text-gray-500">Disruption Prob.</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{p.risk_count}</p>
-                    <p className="text-xs text-gray-500">Active Risks</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{p.average_impact.toFixed(1)}</p>
-                    <p className="text-xs text-gray-500">Avg Impact</p>
+                <div className="flex items-center gap-4 mb-3">
+                  <GaugeChart value={Math.round(p.predicted_disruption_probability * 100)} label="Disruption" size={100} />
+                  <div className="flex-1 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{p.risk_count}</p>
+                      <p className="text-xs text-gray-500">Active Risks</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{p.average_impact.toFixed(1)}</p>
+                      <p className="text-xs text-gray-500">Avg Impact</p>
+                    </div>
                   </div>
                 </div>
                 <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">{p.recommendation}</p>

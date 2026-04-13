@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import EntityForm, { EntityData } from '../components/EntityForm';
+import GaugeChart from '../components/d3/GaugeChart';
 import { api, RiskAssessmentResponse } from '../services/api';
 
 function newEntity(): EntityData {
@@ -170,7 +171,7 @@ export default function NewAssessmentPage() {
       {result && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Assessment Complete</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="flex items-center justify-around">
             <div className="text-center">
               <p className="text-3xl font-bold text-gray-900">{result.risks.length}</p>
               <p className="text-xs text-gray-500">Risks Identified</p>
@@ -179,12 +180,7 @@ export default function NewAssessmentPage() {
               <p className="text-3xl font-bold text-gray-900">{result.recommendations.length}</p>
               <p className="text-xs text-gray-500">Recommendations</p>
             </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900">
-                {(result.confidence_score * 100).toFixed(0)}%
-              </p>
-              <p className="text-xs text-gray-500">Confidence</p>
-            </div>
+            <GaugeChart value={Math.round(result.confidence_score * 100)} label="Confidence" size={120} />
           </div>
 
           {/* Reasoning Trail */}
