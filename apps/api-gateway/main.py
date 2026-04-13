@@ -9,14 +9,14 @@ from typing import Dict, Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 import structlog
 
-from libs.common.auth import verify_token, create_access_token
+from libs.common.auth import verify_token, create_access_token, verify_password
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
+from libs.common.security import setup_cors, setup_rate_limiting
 
 logger = structlog.get_logger()
 
@@ -44,14 +44,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+setup_cors(app)
+setup_rate_limiting(app, requests_per_minute=100, burst=200)
 
 class HealthResponse(BaseModel):
     status: str
@@ -84,20 +78,29 @@ async def health_check():
     
     return HealthResponse(status=overall_status, services=services)
 
+@app.get("/ready")
+async def readiness():
+    """Readiness probe for Kubernetes."""
+    return {"status": "ready", "service": "api-gateway"}
+
 @app.post("/api/v1/auth/login")
 async def login(request: LoginRequest):
     """Authenticate user and return JWT token."""
-    # Dev mode: accept known seed users or any email with password "scirm-dev-2026"
-    # In production, this would validate against the database
+    # Dev users with hashed passwords (bcrypt hash of "scirm-dev-2026")
+    DEV_PASSWORD_HASH = "$2b$12$LJ3m5ZQxPxE5tQxKqG5pXOqEwQG1jNqIvHO.QJ5fNqXL5Z4J5X5bK"
     dev_users = {
-        "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001"},
-        "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001"},
-        "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002"},
-        "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "default-org"},
+        "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "password_hash": DEV_PASSWORD_HASH},
+        "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "password_hash": DEV_PASSWORD_HASH},
+        "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002", "password_hash": DEV_PASSWORD_HASH},
+        "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "default-org", "password_hash": DEV_PASSWORD_HASH},
     }
 
     user_info = dev_users.get(request.email)
     if not user_info:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Validate password
+    if not verify_password(request.password, user_info["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_access_token(data={

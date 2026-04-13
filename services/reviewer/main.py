@@ -13,13 +13,13 @@ from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from libs.common.models import Recommendation, Risk, RiskSeverity
 from libs.common.monitoring import setup_monitoring, track_agent_task
+from libs.common.security import setup_cors
 from libs.common import llm as llm_client
 
 logger = structlog.get_logger()
@@ -30,14 +30,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+setup_cors(app)
 setup_monitoring(app, "reviewer")
 
 class ReviewRequest(BaseModel):
