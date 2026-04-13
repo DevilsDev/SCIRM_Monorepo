@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "Dashboard", "risks": "Risico's", "suppliers": "Leveranciers", "supplyChain": "Toeleveringsketen", "predictions": "Voorspellingen", "alerts": "Waarschuwingen", "newAssessment": "Nieuwe Beoordeling", "recommendations": "Aanbevelingen" },
+  "dashboard": { "title": "Dashboard", "subtitle": "Overzicht ketenrisico's", "totalRisks": "Totaal Risico's", "criticalRisks": "Kritieke Risico's", "highRisks": "Hoge Risico's", "monitored": "Bewaakt", "severityBreakdown": "Ernst Verdeling", "riskHeatmap": "Risico Heatmap", "recentRisks": "Recente Risico's", "noRisks": "Geen risico's gevonden." },
+  "risks": { "title": "Risico Overzicht", "tracked": "{{count}} risico's gevolgd", "allSeverities": "Alle Ernst", "noRisks": "Geen risico's.", "probability": "Waarschijnlijkheid", "impact": "Impact", "category": "Categorie", "detected": "Gedetecteerd", "backToRisks": "Terug naar risico's" },
+  "assessment": { "title": "Nieuwe Risicobeoordeling", "subtitle": "Configureren en uitvoeren", "entities": "Entiteiten", "addEntity": "Toevoegen", "config": "Configuratie", "type": "Type", "timeHorizon": "Tijdshorizon (dagen)", "priorityFactors": "Prioriteitsfactoren", "runAssessment": "Uitvoeren", "assessing": "Beoordeling bezig...", "complete": "Beoordeling Voltooid", "risksIdentified": "Geidentificeerde Risico's", "recommendations": "Aanbevelingen", "confidence": "Vertrouwen", "reasoningTrail": "Agent Redenering", "viewAllRisks": "Alle risico's bekijken" },
+  "suppliers": { "title": "Leveranciers", "tracked": "{{count}} leveranciers", "allTiers": "Alle Niveaus", "riskScore": "Risicoscore", "riskTier": "Risiconiveau", "contact": "Contact" },
+  "alerts": { "title": "Waarschuwingen", "active": "{{count}} actieve waarschuwing(en)", "allStatuses": "Alle Statussen", "noAlerts": "Geen waarschuwingen." },
+  "predictions": { "title": "7-Daagse Verstoringsprognoses", "analyzed": "{{count}} categorieen geanalyseerd", "probability": "Verstoringskans", "noPredictions": "Geen prognoses." },
+  "auth": { "signIn": "Inloggen", "signingIn": "Inloggen...", "signOut": "Uitloggen", "email": "E-mail", "password": "Wachtwoord" },
+  "common": { "loading": "Laden...", "error": "Er is een fout opgetreden", "noData": "Geen gegevens" }
+}

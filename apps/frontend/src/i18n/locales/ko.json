@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "대시보드", "risks": "위험", "suppliers": "공급업체", "supplyChain": "공급망 지도", "predictions": "예측", "alerts": "알림", "newAssessment": "새 평가", "recommendations": "권장 사항" },
+  "dashboard": { "title": "대시보드", "subtitle": "공급망 위험 개요", "totalRisks": "총 위험", "criticalRisks": "심각한 위험", "highRisks": "높은 위험", "monitored": "모니터링", "severityBreakdown": "심각도 분포", "riskHeatmap": "위험 히트맵", "recentRisks": "최근 위험", "noRisks": "위험이 없습니다." },
+  "risks": { "title": "위험 개요", "tracked": "{{count}}개 위험 추적 중", "allSeverities": "모든 심각도", "noRisks": "위험 없음.", "probability": "확률", "impact": "영향", "category": "카테고리", "detected": "감지일", "backToRisks": "위험 목록으로" },
+  "assessment": { "title": "새 위험 평가", "subtitle": "구성 및 실행", "entities": "평가 대상", "addEntity": "추가", "config": "구성", "type": "평가 유형", "timeHorizon": "기간(일)", "priorityFactors": "우선 요소", "runAssessment": "평가 실행", "assessing": "평가 중...", "complete": "평가 완료", "risksIdentified": "식별된 위험", "recommendations": "권장 사항", "confidence": "신뢰도", "reasoningTrail": "AI 에이전트 추론", "viewAllRisks": "모든 위험 보기" },
+  "suppliers": { "title": "공급업체", "tracked": "{{count}}개 공급업체", "allTiers": "모든 등급", "riskScore": "위험 점수", "riskTier": "위험 등급", "contact": "연락처" },
+  "alerts": { "title": "알림", "active": "{{count}}개 활성 알림", "allStatuses": "모든 상태", "noAlerts": "알림 없음." },
+  "predictions": { "title": "7일 중단 예측", "analyzed": "{{count}}개 카테고리 분석", "probability": "중단 확률", "noPredictions": "예측 없음." },
+  "auth": { "signIn": "로그인", "signingIn": "로그인 중...", "signOut": "로그아웃", "email": "이메일", "password": "비밀번호" },
+  "common": { "loading": "로딩 중...", "error": "오류가 발생했습니다", "noData": "데이터 없음" }
+}

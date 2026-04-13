@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "لوحة التحكم", "risks": "المخاطر", "suppliers": "الموردون", "supplyChain": "سلسلة التوريد", "predictions": "التنبؤات", "alerts": "التنبيهات", "newAssessment": "تقييم جديد", "recommendations": "التوصيات" },
+  "dashboard": { "title": "لوحة التحكم", "subtitle": "نظرة عامة على مخاطر سلسلة التوريد", "totalRisks": "إجمالي المخاطر", "criticalRisks": "مخاطر حرجة", "highRisks": "مخاطر عالية", "monitored": "مراقب", "severityBreakdown": "توزيع الخطورة", "riskHeatmap": "خريطة حرارية", "recentRisks": "المخاطر الأخيرة", "noRisks": "لم يتم العثور على مخاطر." },
+  "risks": { "title": "نظرة عامة على المخاطر", "tracked": "{{count}} مخاطر متتبعة", "allSeverities": "جميع مستويات الخطورة", "noRisks": "لا توجد مخاطر.", "probability": "الاحتمال", "impact": "التأثير", "category": "الفئة", "detected": "تاريخ الاكتشاف", "backToRisks": "العودة للمخاطر" },
+  "assessment": { "title": "تقييم مخاطر جديد", "subtitle": "تكوين وتشغيل التقييم", "entities": "الكيانات", "addEntity": "إضافة", "config": "الإعدادات", "type": "النوع", "timeHorizon": "الأفق الزمني (أيام)", "priorityFactors": "عوامل الأولوية", "runAssessment": "تشغيل التقييم", "assessing": "جاري التقييم...", "complete": "اكتمل التقييم", "risksIdentified": "المخاطر المحددة", "recommendations": "التوصيات", "confidence": "الثقة", "reasoningTrail": "مسار استدلال الوكيل", "viewAllRisks": "عرض جميع المخاطر" },
+  "suppliers": { "title": "الموردون", "tracked": "{{count}} موردين", "allTiers": "جميع المستويات", "riskScore": "درجة المخاطر", "riskTier": "مستوى المخاطر", "contact": "جهة الاتصال" },
+  "alerts": { "title": "التنبيهات", "active": "{{count}} تنبيه نشط", "allStatuses": "جميع الحالات", "noAlerts": "لا توجد تنبيهات." },
+  "predictions": { "title": "تنبؤات الانقطاع لمدة 7 أيام", "analyzed": "{{count}} فئات تم تحليلها", "probability": "احتمال الانقطاع", "noPredictions": "لا توجد تنبؤات." },
+  "auth": { "signIn": "تسجيل الدخول", "signingIn": "جاري الدخول...", "signOut": "تسجيل الخروج", "email": "البريد الإلكتروني", "password": "كلمة المرور" },
+  "common": { "loading": "جاري التحميل...", "error": "حدث خطأ", "noData": "لا توجد بيانات" }
+}

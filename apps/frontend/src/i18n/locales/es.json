@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "Panel", "risks": "Riesgos", "suppliers": "Proveedores", "supplyChain": "Cadena de Suministro", "predictions": "Predicciones", "alerts": "Alertas", "newAssessment": "Nueva Evaluacion", "recommendations": "Recomendaciones" },
+  "dashboard": { "title": "Panel", "subtitle": "Resumen de riesgos de la cadena de suministro", "totalRisks": "Riesgos Totales", "criticalRisks": "Riesgos Criticos", "highRisks": "Riesgos Altos", "monitored": "Monitoreados", "severityBreakdown": "Desglose por Severidad", "riskHeatmap": "Mapa de Calor", "recentRisks": "Riesgos Recientes", "noRisks": "No se encontraron riesgos." },
+  "risks": { "title": "Resumen de Riesgos", "tracked": "{{count}} riesgos rastreados", "allSeverities": "Todas las Severidades", "noRisks": "No se encontraron riesgos.", "probability": "Probabilidad", "impact": "Impacto", "category": "Categoria", "detected": "Detectado", "backToRisks": "Volver a riesgos" },
+  "assessment": { "title": "Nueva Evaluacion de Riesgos", "subtitle": "Configurar y ejecutar evaluacion", "entities": "Entidades a Evaluar", "addEntity": "Agregar Entidad", "config": "Configuracion", "type": "Tipo de Evaluacion", "timeHorizon": "Horizonte (dias)", "priorityFactors": "Factores Prioritarios", "runAssessment": "Ejecutar Evaluacion", "assessing": "Evaluando riesgos...", "complete": "Evaluacion Completa", "risksIdentified": "Riesgos Identificados", "recommendations": "Recomendaciones", "confidence": "Confianza", "reasoningTrail": "Razonamiento de Agentes", "viewAllRisks": "Ver todos los riesgos" },
+  "suppliers": { "title": "Proveedores", "tracked": "{{count}} proveedores", "allTiers": "Todos los Niveles", "riskScore": "Puntaje de Riesgo", "riskTier": "Nivel de Riesgo", "contact": "Contacto" },
+  "alerts": { "title": "Alertas", "active": "{{count}} alerta(s) activa(s)", "allStatuses": "Todos los Estados", "noAlerts": "Sin alertas." },
+  "predictions": { "title": "Predicciones de Disrupcion a 7 Dias", "analyzed": "{{count}} categorias analizadas", "probability": "Probabilidad de Disrupcion", "noPredictions": "Sin predicciones disponibles." },
+  "auth": { "signIn": "Iniciar Sesion", "signingIn": "Iniciando...", "signOut": "Cerrar Sesion", "email": "Correo", "password": "Contrasena" },
+  "common": { "loading": "Cargando...", "error": "Ocurrio un error", "noData": "Sin datos" }
+}

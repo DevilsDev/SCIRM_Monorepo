@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "डैशबोर्ड", "risks": "जोखिम", "suppliers": "आपूर्तिकर्ता", "supplyChain": "आपूर्ति श्रृंखला", "predictions": "भविष्यवाणी", "alerts": "अलर्ट", "newAssessment": "नया मूल्यांकन", "recommendations": "सिफारिशें" },
+  "dashboard": { "title": "डैशबोर्ड", "subtitle": "आपूर्ति श्रृंखला जोखिम सारांश", "totalRisks": "कुल जोखिम", "criticalRisks": "गंभीर जोखिम", "highRisks": "उच्च जोखिम", "monitored": "निगरानी में", "severityBreakdown": "गंभीरता वितरण", "riskHeatmap": "जोखिम हीटमैप", "recentRisks": "हाल के जोखिम", "noRisks": "कोई जोखिम नहीं मिला।" },
+  "risks": { "title": "जोखिम सारांश", "tracked": "{{count}} जोखिम ट्रैक किए गए", "allSeverities": "सभी गंभीरताएं", "noRisks": "कोई जोखिम नहीं।", "probability": "संभावना", "impact": "प्रभाव", "category": "श्रेणी", "detected": "पता चला", "backToRisks": "जोखिमों पर वापस" },
+  "assessment": { "title": "नया जोखिम मूल्यांकन", "subtitle": "कॉन्फ़िगर करें और चलाएं", "entities": "मूल्यांकन इकाइयां", "addEntity": "जोड़ें", "config": "कॉन्फ़िगरेशन", "type": "प्रकार", "timeHorizon": "समय सीमा (दिन)", "priorityFactors": "प्राथमिकता कारक", "runAssessment": "मूल्यांकन चलाएं", "assessing": "मूल्यांकन हो रहा है...", "complete": "मूल्यांकन पूर्ण", "risksIdentified": "पहचाने गए जोखिम", "recommendations": "सिफारिशें", "confidence": "विश्वास", "reasoningTrail": "एजेंट तर्क", "viewAllRisks": "सभी जोखिम देखें" },
+  "suppliers": { "title": "आपूर्तिकर्ता", "tracked": "{{count}} आपूर्तिकर्ता", "allTiers": "सभी स्तर", "riskScore": "जोखिम स्कोर", "riskTier": "जोखिम स्तर", "contact": "संपर्क" },
+  "alerts": { "title": "अलर्ट", "active": "{{count}} सक्रिय अलर्ट", "allStatuses": "सभी स्थितियां", "noAlerts": "कोई अलर्ट नहीं।" },
+  "predictions": { "title": "7-दिवसीय व्यवधान भविष्यवाणी", "analyzed": "{{count}} श्रेणियां विश्लेषित", "probability": "व्यवधान संभावना", "noPredictions": "कोई भविष्यवाणी नहीं।" },
+  "auth": { "signIn": "साइन इन", "signingIn": "साइन इन हो रहा है...", "signOut": "साइन आउट", "email": "ईमेल", "password": "पासवर्ड" },
+  "common": { "loading": "लोड हो रहा है...", "error": "एक त्रुटि हुई", "noData": "कोई डेटा नहीं" }
+}

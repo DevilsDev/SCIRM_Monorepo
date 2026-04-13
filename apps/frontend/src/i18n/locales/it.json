@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "Cruscotto", "risks": "Rischi", "suppliers": "Fornitori", "supplyChain": "Catena di Fornitura", "predictions": "Previsioni", "alerts": "Avvisi", "newAssessment": "Nuova Valutazione", "recommendations": "Raccomandazioni" },
+  "dashboard": { "title": "Cruscotto", "subtitle": "Panoramica rischi catena di fornitura", "totalRisks": "Rischi Totali", "criticalRisks": "Rischi Critici", "highRisks": "Rischi Alti", "monitored": "Monitorati", "severityBreakdown": "Distribuzione Gravita", "riskHeatmap": "Mappa Termica", "recentRisks": "Rischi Recenti", "noRisks": "Nessun rischio trovato." },
+  "risks": { "title": "Panoramica Rischi", "tracked": "{{count}} rischi monitorati", "allSeverities": "Tutte le Gravita", "noRisks": "Nessun rischio.", "probability": "Probabilita", "impact": "Impatto", "category": "Categoria", "detected": "Rilevato", "backToRisks": "Torna ai rischi" },
+  "assessment": { "title": "Nuova Valutazione Rischi", "subtitle": "Configura ed esegui", "entities": "Entita", "addEntity": "Aggiungi", "config": "Configurazione", "type": "Tipo", "timeHorizon": "Orizzonte (giorni)", "priorityFactors": "Fattori Prioritari", "runAssessment": "Esegui", "assessing": "Valutazione in corso...", "complete": "Valutazione Completata", "risksIdentified": "Rischi Identificati", "recommendations": "Raccomandazioni", "confidence": "Fiducia", "reasoningTrail": "Ragionamento Agenti", "viewAllRisks": "Vedi tutti i rischi" },
+  "suppliers": { "title": "Fornitori", "tracked": "{{count}} fornitori", "allTiers": "Tutti i Livelli", "riskScore": "Punteggio Rischio", "riskTier": "Livello Rischio", "contact": "Contatto" },
+  "alerts": { "title": "Avvisi", "active": "{{count}} avviso/i attivo/i", "allStatuses": "Tutti gli Stati", "noAlerts": "Nessun avviso." },
+  "predictions": { "title": "Previsioni Interruzione 7 Giorni", "analyzed": "{{count}} categorie analizzate", "probability": "Probabilita Interruzione", "noPredictions": "Nessuna previsione." },
+  "auth": { "signIn": "Accedi", "signingIn": "Accesso...", "signOut": "Esci", "email": "E-mail", "password": "Password" },
+  "common": { "loading": "Caricamento...", "error": "Si e verificato un errore", "noData": "Nessun dato" }
+}

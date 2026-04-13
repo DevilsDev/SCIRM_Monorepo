@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "仪表板", "risks": "风险", "suppliers": "供应商", "supplyChain": "供应链地图", "predictions": "预测", "alerts": "警报", "newAssessment": "新评估", "recommendations": "建议" },
+  "dashboard": { "title": "仪表板", "subtitle": "供应链风险概览", "totalRisks": "总风险", "criticalRisks": "严重风险", "highRisks": "高风险", "monitored": "已监控", "severityBreakdown": "严重程度分布", "riskHeatmap": "风险热力图", "recentRisks": "最近风险", "noRisks": "未发现风险。" },
+  "risks": { "title": "风险概览", "tracked": "{{count}} 个风险已跟踪", "allSeverities": "所有严重程度", "noRisks": "无风险。", "probability": "概率", "impact": "影响", "category": "类别", "detected": "发现时间", "backToRisks": "返回风险列表" },
+  "assessment": { "title": "新风险评估", "subtitle": "配置并运行评估", "entities": "评估实体", "addEntity": "添加实体", "config": "评估配置", "type": "评估类型", "timeHorizon": "时间范围（天）", "priorityFactors": "优先因素", "runAssessment": "运行评估", "assessing": "正在评估...", "complete": "评估完成", "risksIdentified": "已识别风险", "recommendations": "建议", "confidence": "置信度", "reasoningTrail": "智能体推理轨迹", "viewAllRisks": "查看所有风险" },
+  "suppliers": { "title": "供应商", "tracked": "{{count}} 个供应商", "allTiers": "所有风险等级", "riskScore": "风险评分", "riskTier": "风险等级", "contact": "联系人" },
+  "alerts": { "title": "警报", "active": "{{count}} 个活跃警报", "allStatuses": "所有状态", "noAlerts": "暂无警报。" },
+  "predictions": { "title": "7天中断预测", "analyzed": "{{count}} 个类别已分析", "probability": "中断概率", "noPredictions": "暂无预测。" },
+  "auth": { "signIn": "登录", "signingIn": "登录中...", "signOut": "退出", "email": "邮箱", "password": "密码" },
+  "common": { "loading": "加载中...", "error": "发生错误", "noData": "暂无数据" }
+}

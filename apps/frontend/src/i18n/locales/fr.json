@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "Tableau de Bord", "risks": "Risques", "suppliers": "Fournisseurs", "supplyChain": "Chaine d'Approvisionnement", "predictions": "Predictions", "alerts": "Alertes", "newAssessment": "Nouvelle Evaluation", "recommendations": "Recommandations" },
+  "dashboard": { "title": "Tableau de Bord", "subtitle": "Apercu des risques", "totalRisks": "Risques Totaux", "criticalRisks": "Risques Critiques", "highRisks": "Risques Eleves", "monitored": "Surveilles", "severityBreakdown": "Repartition par Severite", "riskHeatmap": "Carte Thermique", "recentRisks": "Risques Recents", "noRisks": "Aucun risque trouve." },
+  "risks": { "title": "Apercu des Risques", "tracked": "{{count}} risques suivis", "allSeverities": "Toutes Severites", "noRisks": "Aucun risque.", "probability": "Probabilite", "impact": "Impact", "category": "Categorie", "detected": "Detecte", "backToRisks": "Retour aux risques" },
+  "assessment": { "title": "Nouvelle Evaluation des Risques", "subtitle": "Configurer et executer", "entities": "Entites a Evaluer", "addEntity": "Ajouter", "config": "Configuration", "type": "Type", "timeHorizon": "Horizon (jours)", "priorityFactors": "Facteurs Prioritaires", "runAssessment": "Lancer", "assessing": "Evaluation en cours...", "complete": "Evaluation Terminee", "risksIdentified": "Risques Identifies", "recommendations": "Recommandations", "confidence": "Confiance", "reasoningTrail": "Raisonnement des Agents", "viewAllRisks": "Voir tous les risques" },
+  "suppliers": { "title": "Fournisseurs", "tracked": "{{count}} fournisseurs", "allTiers": "Tous les Niveaux", "riskScore": "Score de Risque", "riskTier": "Niveau de Risque", "contact": "Contact" },
+  "alerts": { "title": "Alertes", "active": "{{count}} alerte(s) active(s)", "allStatuses": "Tous les Statuts", "noAlerts": "Aucune alerte." },
+  "predictions": { "title": "Predictions de Perturbation a 7 Jours", "analyzed": "{{count}} categories analysees", "probability": "Probabilite de Perturbation", "noPredictions": "Aucune prediction." },
+  "auth": { "signIn": "Se Connecter", "signingIn": "Connexion...", "signOut": "Deconnexion", "email": "E-mail", "password": "Mot de passe" },
+  "common": { "loading": "Chargement...", "error": "Une erreur est survenue", "noData": "Aucune donnee" }
+}

@@ -1,0 +1,85 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "risks": "Risks",
+    "suppliers": "Suppliers",
+    "supplyChain": "Supply Chain Map",
+    "predictions": "Predictions",
+    "alerts": "Alerts",
+    "newAssessment": "New Assessment",
+    "recommendations": "Recommendations"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Supply chain risk overview",
+    "totalRisks": "Total Risks",
+    "criticalRisks": "Critical Risks",
+    "highRisks": "High Risks",
+    "monitored": "Monitored",
+    "severityBreakdown": "Risk Severity Breakdown",
+    "riskHeatmap": "Risk Heatmap",
+    "recentRisks": "Recent Risks",
+    "noRisks": "No risks found. Run an assessment to get started."
+  },
+  "risks": {
+    "title": "Risk Overview",
+    "tracked": "{{count}} risks tracked",
+    "allSeverities": "All Severities",
+    "noRisks": "No risks found.",
+    "probability": "Probability",
+    "impact": "Impact",
+    "category": "Category",
+    "detected": "Detected",
+    "backToRisks": "Back to risks"
+  },
+  "assessment": {
+    "title": "New Risk Assessment",
+    "subtitle": "Configure and run a supply chain risk assessment",
+    "entities": "Entities to Assess",
+    "addEntity": "Add Entity",
+    "config": "Assessment Configuration",
+    "type": "Assessment Type",
+    "timeHorizon": "Time Horizon (days)",
+    "priorityFactors": "Priority Factors",
+    "runAssessment": "Run Assessment",
+    "assessing": "Assessing risks...",
+    "complete": "Assessment Complete",
+    "risksIdentified": "Risks Identified",
+    "recommendations": "Recommendations",
+    "confidence": "Confidence",
+    "reasoningTrail": "Agent Reasoning Trail",
+    "viewAllRisks": "View all risks"
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "tracked": "{{count}} suppliers tracked",
+    "allTiers": "All Risk Tiers",
+    "riskScore": "Risk Score",
+    "riskTier": "Risk Tier",
+    "contact": "Contact"
+  },
+  "alerts": {
+    "title": "Alerts",
+    "active": "{{count}} active alert(s)",
+    "allStatuses": "All Statuses",
+    "noAlerts": "No alerts. Run an assessment to generate risk alerts."
+  },
+  "predictions": {
+    "title": "7-Day Disruption Predictions",
+    "analyzed": "{{count}} risk categories analyzed",
+    "probability": "Disruption Probability by Category",
+    "noPredictions": "No predictions available. Run an assessment first."
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "signOut": "Sign out",
+    "email": "Email",
+    "password": "Password"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "noData": "No data available"
+  }
+}

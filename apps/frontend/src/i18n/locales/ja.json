@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "ダッシュボード", "risks": "リスク", "suppliers": "サプライヤー", "supplyChain": "サプライチェーン", "predictions": "予測", "alerts": "アラート", "newAssessment": "新規評価", "recommendations": "推奨事項" },
+  "dashboard": { "title": "ダッシュボード", "subtitle": "サプライチェーンリスク概要", "totalRisks": "総リスク", "criticalRisks": "重大リスク", "highRisks": "高リスク", "monitored": "監視中", "severityBreakdown": "重大度分布", "riskHeatmap": "リスクヒートマップ", "recentRisks": "最近のリスク", "noRisks": "リスクが見つかりません。" },
+  "risks": { "title": "リスク概要", "tracked": "{{count}} 件のリスクを追跡中", "allSeverities": "すべての重大度", "noRisks": "リスクなし。", "probability": "確率", "impact": "影響度", "category": "カテゴリ", "detected": "検出日", "backToRisks": "リスク一覧に戻る" },
+  "assessment": { "title": "新規リスク評価", "subtitle": "設定して実行", "entities": "評価対象", "addEntity": "追加", "config": "設定", "type": "評価タイプ", "timeHorizon": "期間（日）", "priorityFactors": "優先要因", "runAssessment": "評価実行", "assessing": "評価中...", "complete": "評価完了", "risksIdentified": "特定されたリスク", "recommendations": "推奨事項", "confidence": "信頼度", "reasoningTrail": "AIエージェント推論", "viewAllRisks": "すべてのリスクを表示" },
+  "suppliers": { "title": "サプライヤー", "tracked": "{{count}} 社", "allTiers": "すべてのティア", "riskScore": "リスクスコア", "riskTier": "リスクティア", "contact": "連絡先" },
+  "alerts": { "title": "アラート", "active": "{{count}} 件のアクティブアラート", "allStatuses": "すべてのステータス", "noAlerts": "アラートなし。" },
+  "predictions": { "title": "7日間の中断予測", "analyzed": "{{count}} カテゴリを分析", "probability": "中断確率", "noPredictions": "予測なし。" },
+  "auth": { "signIn": "サインイン", "signingIn": "サインイン中...", "signOut": "サインアウト", "email": "メール", "password": "パスワード" },
+  "common": { "loading": "読み込み中...", "error": "エラーが発生しました", "noData": "データなし" }
+}

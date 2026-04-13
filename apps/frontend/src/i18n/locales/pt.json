@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "Painel", "risks": "Riscos", "suppliers": "Fornecedores", "supplyChain": "Cadeia de Suprimentos", "predictions": "Previsoes", "alerts": "Alertas", "newAssessment": "Nova Avaliacao", "recommendations": "Recomendacoes" },
+  "dashboard": { "title": "Painel", "subtitle": "Visao geral de riscos", "totalRisks": "Riscos Totais", "criticalRisks": "Riscos Criticos", "highRisks": "Riscos Altos", "monitored": "Monitorados", "severityBreakdown": "Distribuicao por Severidade", "riskHeatmap": "Mapa de Calor", "recentRisks": "Riscos Recentes", "noRisks": "Nenhum risco encontrado." },
+  "risks": { "title": "Visao Geral de Riscos", "tracked": "{{count}} riscos rastreados", "allSeverities": "Todas Severidades", "noRisks": "Nenhum risco.", "probability": "Probabilidade", "impact": "Impacto", "category": "Categoria", "detected": "Detectado", "backToRisks": "Voltar aos riscos" },
+  "assessment": { "title": "Nova Avaliacao de Riscos", "subtitle": "Configurar e executar", "entities": "Entidades", "addEntity": "Adicionar", "config": "Configuracao", "type": "Tipo", "timeHorizon": "Horizonte (dias)", "priorityFactors": "Fatores Prioritarios", "runAssessment": "Executar", "assessing": "Avaliando...", "complete": "Avaliacao Completa", "risksIdentified": "Riscos Identificados", "recommendations": "Recomendacoes", "confidence": "Confianca", "reasoningTrail": "Raciocinio dos Agentes", "viewAllRisks": "Ver todos os riscos" },
+  "suppliers": { "title": "Fornecedores", "tracked": "{{count}} fornecedores", "allTiers": "Todos os Niveis", "riskScore": "Pontuacao de Risco", "riskTier": "Nivel de Risco", "contact": "Contato" },
+  "alerts": { "title": "Alertas", "active": "{{count}} alerta(s) ativo(s)", "allStatuses": "Todos os Status", "noAlerts": "Sem alertas." },
+  "predictions": { "title": "Previsoes de Interrupcao de 7 Dias", "analyzed": "{{count}} categorias analisadas", "probability": "Probabilidade de Interrupcao", "noPredictions": "Sem previsoes." },
+  "auth": { "signIn": "Entrar", "signingIn": "Entrando...", "signOut": "Sair", "email": "E-mail", "password": "Senha" },
+  "common": { "loading": "Carregando...", "error": "Ocorreu um erro", "noData": "Sem dados" }
+}

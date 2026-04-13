@@ -1,0 +1,11 @@
+{
+  "nav": { "dashboard": "Dashboard", "risks": "Risiken", "suppliers": "Lieferanten", "supplyChain": "Lieferkette", "predictions": "Prognosen", "alerts": "Warnungen", "newAssessment": "Neue Bewertung", "recommendations": "Empfehlungen" },
+  "dashboard": { "title": "Dashboard", "subtitle": "Lieferkettenrisiko-Ubersicht", "totalRisks": "Gesamtrisiken", "criticalRisks": "Kritische Risiken", "highRisks": "Hohe Risiken", "monitored": "Uberwacht", "severityBreakdown": "Schweregrad-Verteilung", "riskHeatmap": "Risiko-Heatmap", "recentRisks": "Aktuelle Risiken", "noRisks": "Keine Risiken gefunden." },
+  "risks": { "title": "Risiko-Ubersicht", "tracked": "{{count}} Risiken verfolgt", "allSeverities": "Alle Schweregrade", "noRisks": "Keine Risiken.", "probability": "Wahrscheinlichkeit", "impact": "Auswirkung", "category": "Kategorie", "detected": "Erkannt", "backToRisks": "Zuruck zu Risiken" },
+  "assessment": { "title": "Neue Risikobewertung", "subtitle": "Konfigurieren und ausfuhren", "entities": "Zu bewertende Entitaten", "addEntity": "Hinzufugen", "config": "Konfiguration", "type": "Typ", "timeHorizon": "Zeithorizont (Tage)", "priorityFactors": "Prioritatsfaktoren", "runAssessment": "Bewertung starten", "assessing": "Bewertung lauft...", "complete": "Bewertung abgeschlossen", "risksIdentified": "Identifizierte Risiken", "recommendations": "Empfehlungen", "confidence": "Vertrauen", "reasoningTrail": "Agenten-Begrundung", "viewAllRisks": "Alle Risiken anzeigen" },
+  "suppliers": { "title": "Lieferanten", "tracked": "{{count}} Lieferanten", "allTiers": "Alle Stufen", "riskScore": "Risikobewertung", "riskTier": "Risikostufe", "contact": "Kontakt" },
+  "alerts": { "title": "Warnungen", "active": "{{count}} aktive Warnung(en)", "allStatuses": "Alle Status", "noAlerts": "Keine Warnungen." },
+  "predictions": { "title": "7-Tage-Storungsprognosen", "analyzed": "{{count}} Kategorien analysiert", "probability": "Storungswahrscheinlichkeit", "noPredictions": "Keine Prognosen." },
+  "auth": { "signIn": "Anmelden", "signingIn": "Anmeldung...", "signOut": "Abmelden", "email": "E-Mail", "password": "Passwort" },
+  "common": { "loading": "Laden...", "error": "Ein Fehler ist aufgetreten", "noData": "Keine Daten" }
+}
