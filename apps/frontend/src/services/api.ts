@@ -62,6 +62,31 @@ export interface Recommendation {
   success_probability: number;
 }
 
+export interface Supplier {
+  id: string;
+  organization_id: string;
+  supplier_code: string;
+  name: string;
+  supplier_type: string;
+  country_code: string;
+  region: string;
+  risk_score: number;
+  risk_tier: string;
+  contact_name?: string;
+  contact_email?: string;
+  is_active: boolean;
+}
+
+export interface Alert {
+  id: string;
+  alert_type: string;
+  severity: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
 export interface RiskAssessmentRequest {
   entities: Array<{
     id: string;
@@ -149,6 +174,29 @@ export const api = {
 
   async getTasks(params: { limit?: number; status?: string } = {}) {
     const response = await apiClient.get('/api/v1/tasks', { params });
+    return response.data;
+  },
+
+  // Suppliers
+  async getSuppliers(params: { org_id?: string; risk_tier?: string; limit?: number } = {}) {
+    const response = await apiClient.get('/api/v1/suppliers', { params });
+    return response.data;
+  },
+
+  async getSupplier(supplierId: string) {
+    const response = await apiClient.get(`/api/v1/suppliers/${supplierId}`);
+    return response.data;
+  },
+
+  // Alerts
+  async getAlerts(params: { status?: string; severity?: string; limit?: number } = {}) {
+    const response = await apiClient.get('/api/v1/alerts', { params });
+    return response.data;
+  },
+
+  // Risk History
+  async getRiskHistory(limit: number = 100) {
+    const response = await apiClient.get('/api/v1/risks/history', { params: { limit } });
     return response.data;
   },
 

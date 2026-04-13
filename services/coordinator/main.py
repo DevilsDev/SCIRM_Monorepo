@@ -10,7 +10,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 import structlog
@@ -212,6 +212,23 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
     risks_raw = executor_result.get("risks", [])
     recommendations_raw = executor_result.get("recommendations", [])
 
+    # Generate alerts for high/critical risks
+    for risk in risks_raw:
+        sev = risk.get("severity", "medium")
+        if sev in ("high", "critical"):
+            _alerts.append({
+                "id": str(uuid.uuid4()),
+                "organization_id": request_dict.get("context", {}).get("organization_id"),
+                "risk_id": risk.get("id"),
+                "alert_type": "risk_detected",
+                "severity": sev,
+                "title": f"{sev.upper()} Risk: {risk.get('title', 'Unknown')}",
+                "description": risk.get("description", ""),
+                "status": "active",
+                "metadata": {"task_id": task_id, "risk_category": risk.get("risk_category")},
+                "created_at": datetime.utcnow().isoformat(),
+            })
+
     # ── Step 4: Reviewer (Quality Validation) ─────────────────────────
     reviewer_result = await _call_agent(
         "reviewer", REVIEWER_URL, "/review",
@@ -410,6 +427,105 @@ async def get_recommendations_for_risk(risk_id: str):
             if matching:
                 return {"risk_id": risk_id, "recommendations": matching}
     return {"risk_id": risk_id, "recommendations": []}
+
+
+# ---------------------------------------------------------------------------
+# Supplier Management (in-memory for dev, DB in production)
+# ---------------------------------------------------------------------------
+
+_suppliers = {
+    "c0000000-0000-0000-0000-000000000001": {"id": "c0000000-0000-0000-0000-000000000001", "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": "SUP-ALPHA", "name": "Supplier Alpha", "supplier_type": "api_manufacturer", "country_code": "US", "region": "North America", "risk_score": 35.0, "risk_tier": "low", "contact_name": "John Smith", "contact_email": "john@supplier-alpha.com", "is_active": True},
+    "c0000000-0000-0000-0000-000000000002": {"id": "c0000000-0000-0000-0000-000000000002", "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": "SUP-BETA", "name": "Supplier Beta", "supplier_type": "excipient_supplier", "country_code": "DE", "region": "Europe", "risk_score": 62.0, "risk_tier": "medium", "contact_name": "Hans Mueller", "contact_email": "hans@supplier-beta.de", "is_active": True},
+    "c0000000-0000-0000-0000-000000000003": {"id": "c0000000-0000-0000-0000-000000000003", "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": "SUP-GAMMA", "name": "Supplier Gamma", "supplier_type": "packaging", "country_code": "CN", "region": "Asia Pacific", "risk_score": 78.0, "risk_tier": "high", "contact_name": "Wei Zhang", "contact_email": "wei@supplier-gamma.cn", "is_active": True},
+    "c0000000-0000-0000-0000-000000000004": {"id": "c0000000-0000-0000-0000-000000000004", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-DELTA", "name": "Supplier Delta", "supplier_type": "sensor_components", "country_code": "JP", "region": "Asia Pacific", "risk_score": 28.0, "risk_tier": "low", "contact_name": "Yuki Tanaka", "contact_email": "yuki@supplier-delta.jp", "is_active": True},
+    "c0000000-0000-0000-0000-000000000005": {"id": "c0000000-0000-0000-0000-000000000005", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-EPSILON", "name": "Supplier Epsilon", "supplier_type": "biocompatible_materials", "country_code": "US", "region": "North America", "risk_score": 55.0, "risk_tier": "medium", "contact_name": "Sarah Johnson", "contact_email": "sarah@supplier-epsilon.com", "is_active": True},
+}
+
+_alerts: List[Dict[str, Any]] = []
+
+
+@app.get("/suppliers")
+async def list_suppliers(org_id: str = None, risk_tier: str = None, limit: int = 50):
+    """List suppliers with optional filters."""
+    suppliers = list(_suppliers.values())
+    if org_id:
+        suppliers = [s for s in suppliers if s.get("organization_id") == org_id]
+    if risk_tier:
+        suppliers = [s for s in suppliers if s.get("risk_tier") == risk_tier]
+    return {"suppliers": suppliers[:limit], "total": len(suppliers)}
+
+
+@app.get("/suppliers/{supplier_id}")
+async def get_supplier(supplier_id: str):
+    """Get a single supplier profile."""
+    supplier = _suppliers.get(supplier_id)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return supplier
+
+
+@app.post("/suppliers")
+async def create_supplier(supplier: Dict[str, Any]):
+    """Create a new supplier."""
+    supplier_id = str(uuid.uuid4())
+    supplier["id"] = supplier_id
+    _suppliers[supplier_id] = supplier
+    return supplier
+
+
+@app.put("/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: str, updates: Dict[str, Any]):
+    """Update supplier details."""
+    if supplier_id not in _suppliers:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    _suppliers[supplier_id].update(updates)
+    return _suppliers[supplier_id]
+
+
+# ---------------------------------------------------------------------------
+# Alerts
+# ---------------------------------------------------------------------------
+
+@app.get("/alerts")
+async def list_alerts(status_filter: str = None, severity: str = None, limit: int = 50):
+    """List alerts with optional filters."""
+    alerts = list(_alerts)
+    if status_filter:
+        alerts = [a for a in alerts if a.get("status") == status_filter]
+    if severity:
+        alerts = [a for a in alerts if a.get("severity") == severity]
+    return {"alerts": alerts[:limit], "total": len(alerts)}
+
+
+@app.post("/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(alert_id: str):
+    """Acknowledge an alert."""
+    for alert in _alerts:
+        if alert.get("id") == alert_id:
+            alert["status"] = "acknowledged"
+            alert["acknowledged_at"] = datetime.utcnow().isoformat()
+            return alert
+    raise HTTPException(status_code=404, detail="Alert not found")
+
+
+# ---------------------------------------------------------------------------
+# Risk History
+# ---------------------------------------------------------------------------
+
+@app.get("/risks/history")
+async def risk_history(limit: int = 100):
+    """Get historical risk data from all completed assessments."""
+    history = []
+    for task_id, task in _tasks.items():
+        if task.get("status") == "completed" and task.get("result"):
+            for risk in task["result"].get("risks", []):
+                history.append({
+                    **risk,
+                    "assessment_task_id": task_id,
+                    "assessment_completed_at": task.get("completed_at"),
+                })
+    history.sort(key=lambda r: r.get("detected_at", ""), reverse=True)
+    return {"history": history[:limit], "total": len(history)}
 
 
 # ---------------------------------------------------------------------------

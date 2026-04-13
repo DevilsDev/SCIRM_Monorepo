@@ -233,3 +233,85 @@ class AuditLogRow(Base):
         Index("ix_audit_resource", "resource_type", "resource_id"),
         Index("ix_audit_created", "created_at"),
     )
+
+
+# ---------- Suppliers ----------
+
+class SupplierRow(Base):
+    __tablename__ = "suppliers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    supplier_code = Column(String(100), nullable=False)
+    name = Column(String(255), nullable=False)
+    supplier_type = Column(String(50), default="general")
+    country_code = Column(String(3), nullable=True)
+    region = Column(String(100), nullable=True)
+    risk_score = Column(Float, default=50.0)
+    risk_tier = Column(String(20), default="medium")
+    contact_name = Column(String(255), nullable=True)
+    contact_email = Column(String(255), nullable=True)
+    last_assessment_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
+    metadata_ = Column("metadata", JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ---------- Agent Telemetry ----------
+
+class AgentRunRow(Base):
+    __tablename__ = "agent_runs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    assessment_id = Column(UUID(as_uuid=True), ForeignKey("risk_assessments.id"), nullable=True)
+    agent_type = Column(String(50), nullable=False)
+    status = Column(String(20), default="running")
+    input_summary = Column(Text, nullable=True)
+    output_summary = Column(Text, nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    cost_usd = Column(Float, default=0.0)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    steps = relationship("AgentStepRow", back_populates="run", cascade="all, delete-orphan")
+
+
+class AgentStepRow(Base):
+    __tablename__ = "agent_steps"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    run_id = Column(UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=False)
+    step_order = Column(Integer, nullable=False)
+    step_type = Column(String(50), nullable=False)
+    tool_name = Column(String(100), nullable=True)
+    input_data = Column(JSON, default=dict)
+    output_data = Column(JSON, default=dict)
+    execution_time_ms = Column(Integer, nullable=True)
+    token_count = Column(Integer, nullable=True)
+    step_cost_usd = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    run = relationship("AgentRunRow", back_populates="steps")
+
+
+# ---------- Alerts ----------
+
+class AlertRow(Base):
+    __tablename__ = "alerts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    risk_id = Column(UUID(as_uuid=True), nullable=True)
+    alert_type = Column(String(50), nullable=False)
+    severity = Column(String(20), nullable=False)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, default="")
+    status = Column(String(20), default="active")
+    acknowledged_by = Column(UUID(as_uuid=True), nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    metadata_ = Column("metadata", JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)

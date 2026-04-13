@@ -134,6 +134,104 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMP DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS suppliers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  supplier_code VARCHAR(100) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  supplier_type VARCHAR(50) DEFAULT 'general',
+  country_code VARCHAR(3),
+  region VARCHAR(100),
+  risk_score FLOAT DEFAULT 50.0,
+  risk_tier VARCHAR(20) DEFAULT 'medium',
+  contact_name VARCHAR(255),
+  contact_email VARCHAR(255),
+  last_assessment_at TIMESTAMP,
+  is_active BOOLEAN DEFAULT TRUE,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT now(),
+  updated_at TIMESTAMP DEFAULT now(),
+  UNIQUE(organization_id, supplier_code)
+);
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id),
+  assessment_id UUID REFERENCES risk_assessments(id),
+  agent_type VARCHAR(50) NOT NULL,
+  status VARCHAR(20) DEFAULT 'running',
+  input_summary TEXT,
+  output_summary TEXT,
+  confidence_score FLOAT,
+  cost_usd FLOAT DEFAULT 0.0,
+  error_message TEXT,
+  started_at TIMESTAMP DEFAULT now(),
+  completed_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agent_steps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id UUID NOT NULL REFERENCES agent_runs(id),
+  step_order INT NOT NULL,
+  step_type VARCHAR(50) NOT NULL,
+  tool_name VARCHAR(100),
+  input_data JSONB DEFAULT '{}',
+  output_data JSONB DEFAULT '{}',
+  execution_time_ms INT,
+  token_count INT,
+  step_cost_usd FLOAT DEFAULT 0.0,
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS rag_collections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id),
+  collection_name VARCHAR(255) NOT NULL,
+  collection_type VARCHAR(50) DEFAULT 'general',
+  embedding_model VARCHAR(100) DEFAULT 'text-embedding-3-small',
+  vector_dimensions INT DEFAULT 1536,
+  document_count INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT now(),
+  updated_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS rag_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  collection_id UUID NOT NULL REFERENCES rag_collections(id),
+  document_name VARCHAR(500) NOT NULL,
+  source_url VARCHAR(1000),
+  content_hash VARCHAR(64),
+  processing_status VARCHAR(20) DEFAULT 'pending',
+  chunk_count INT DEFAULT 0,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS rag_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID NOT NULL REFERENCES rag_documents(id),
+  chunk_text TEXT NOT NULL,
+  chunk_order INT NOT NULL,
+  chunk_metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES organizations(id),
+  risk_id UUID,
+  alert_type VARCHAR(50) NOT NULL,
+  severity VARCHAR(20) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  description TEXT DEFAULT '',
+  status VARCHAR(20) DEFAULT 'active',
+  acknowledged_by UUID,
+  acknowledged_at TIMESTAMP,
+  resolved_at TIMESTAMP,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT now()
+);
+
 -- ============================================================
 -- Seed Data: Organizations
 -- ============================================================
@@ -220,4 +318,18 @@ VALUES
     ARRAY['auditor', 'viewer'],
     NULL
   )
+ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- Seed Data: Suppliers
+-- ============================================================
+
+INSERT INTO suppliers (id, organization_id, supplier_code, name, supplier_type, country_code, region, risk_score, risk_tier, contact_name, contact_email)
+VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'SUP-ALPHA', 'Supplier Alpha', 'api_manufacturer', 'US', 'North America', 35.0, 'low', 'John Smith', 'john@supplier-alpha.com'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'SUP-BETA', 'Supplier Beta', 'excipient_supplier', 'DE', 'Europe', 62.0, 'medium', 'Hans Mueller', 'hans@supplier-beta.de'),
+  ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'SUP-GAMMA', 'Supplier Gamma', 'packaging', 'CN', 'Asia Pacific', 78.0, 'high', 'Wei Zhang', 'wei@supplier-gamma.cn'),
+  ('c0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000002', 'SUP-DELTA', 'Supplier Delta', 'sensor_components', 'JP', 'Asia Pacific', 28.0, 'low', 'Yuki Tanaka', 'yuki@supplier-delta.jp'),
+  ('c0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000002', 'SUP-EPSILON', 'Supplier Epsilon', 'biocompatible_materials', 'US', 'North America', 55.0, 'medium', 'Sarah Johnson', 'sarah@supplier-epsilon.com')
 ON CONFLICT DO NOTHING;

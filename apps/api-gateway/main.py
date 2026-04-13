@@ -130,8 +130,32 @@ async def assess_risk(
                 timeout=30.0
             )
             response.raise_for_status()
-            return RiskAssessmentResponse(**response.json())
-    
+            result = RiskAssessmentResponse(**response.json())
+
+            # Broadcast real-time events to WebSocket clients
+            await manager.broadcast({
+                "event": "risk_update",
+                "data": {
+                    "task_id": result.task_id,
+                    "risks_count": len(result.risks),
+                    "recommendations_count": len(result.recommendations),
+                    "confidence_score": result.confidence_score,
+                },
+            })
+            for risk in result.risks:
+                sev = risk.severity if hasattr(risk, 'severity') else risk.get("severity", "")
+                if sev in ("high", "critical"):
+                    await manager.broadcast({
+                        "event": "alert_triggered",
+                        "data": {
+                            "severity": sev,
+                            "title": risk.title if hasattr(risk, 'title') else risk.get("title", ""),
+                            "risk_id": risk.id if hasattr(risk, 'id') else risk.get("id", ""),
+                        },
+                    })
+
+            return result
+
     except httpx.HTTPError as e:
         logger.error("Risk assessment failed", error=str(e))
         raise HTTPException(status_code=500, detail="Risk assessment service unavailable")
@@ -208,6 +232,75 @@ async def get_recommendations(
     except httpx.HTTPError as e:
         logger.error("Failed to fetch recommendations", risk_id=risk_id, error=str(e))
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
+
+# --- Suppliers ---
+
+@app.get("/api/v1/suppliers")
+async def list_suppliers(
+    org_id: str = None, risk_tier: str = None, limit: int = 50,
+    token: str = Depends(security),
+):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {"limit": limit}
+            if org_id:
+                params["org_id"] = org_id
+            if risk_tier:
+                params["risk_tier"] = risk_tier
+            response = await client.get(f"{COORDINATOR_URL}/suppliers", params=params, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch suppliers", error=str(e))
+        raise HTTPException(status_code=500, detail="Supplier service unavailable")
+
+@app.get("/api/v1/suppliers/{supplier_id}")
+async def get_supplier(supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/suppliers/{supplier_id}", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+# --- Alerts ---
+
+@app.get("/api/v1/alerts")
+async def list_alerts(
+    status: str = None, severity: str = None, limit: int = 50,
+    token: str = Depends(security),
+):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {"limit": limit}
+            if status:
+                params["status_filter"] = status
+            if severity:
+                params["severity"] = severity
+            response = await client.get(f"{COORDINATOR_URL}/alerts", params=params, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch alerts", error=str(e))
+        raise HTTPException(status_code=500, detail="Alert service unavailable")
+
+# --- Risk History ---
+
+@app.get("/api/v1/risks/history")
+async def risk_history(limit: int = 100, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/risks/history", params={"limit": limit}, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch risk history", error=str(e))
+        raise HTTPException(status_code=500, detail="Risk history unavailable")
 
 # WebSocket for real-time updates
 class ConnectionManager:
