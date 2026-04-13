@@ -165,6 +165,28 @@ async def get_risks(
         logger.error("Failed to fetch risks", error=str(e))
         raise HTTPException(status_code=500, detail="Risk service unavailable")
 
+@app.get("/api/v1/risks/{risk_id}")
+async def get_risk(
+    risk_id: str,
+    token: str = Depends(security)
+):
+    """Get a single risk by ID."""
+    user = await verify_token(token.credentials)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{COORDINATOR_URL}/risks/{risk_id}",
+                headers={"Authorization": f"Bearer {token.credentials}"},
+                timeout=10.0
+            )
+            response.raise_for_status()
+            return response.json()
+
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch risk", risk_id=risk_id, error=str(e))
+        raise HTTPException(status_code=404, detail="Risk not found")
+
 @app.get("/api/v1/recommendations/{risk_id}")
 async def get_recommendations(
     risk_id: str,
@@ -172,11 +194,11 @@ async def get_recommendations(
 ):
     """Get mitigation recommendations for a specific risk."""
     user = await verify_token(token.credentials)
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{EXECUTOR_URL}/recommendations/{risk_id}",
+                f"{COORDINATOR_URL}/recommendations/{risk_id}",
                 headers={"Authorization": f"Bearer {token.credentials}"},
                 timeout=10.0
             )

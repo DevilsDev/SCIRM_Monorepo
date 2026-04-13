@@ -387,6 +387,31 @@ async def list_risks(limit: int = 50, offset: int = 0, severity: str = None):
     }
 
 
+@app.get("/risks/{risk_id}")
+async def get_risk(risk_id: str):
+    """Get a single risk by ID."""
+    for task in _tasks.values():
+        if task.get("status") == "completed" and task.get("result"):
+            for risk in task["result"].get("risks", []):
+                if risk.get("id") == risk_id:
+                    return risk
+    raise HTTPException(status_code=404, detail="Risk not found")
+
+
+@app.get("/recommendations/{risk_id}")
+async def get_recommendations_for_risk(risk_id: str):
+    """Get recommendations associated with a specific risk."""
+    for task in _tasks.values():
+        if task.get("status") == "completed" and task.get("result"):
+            matching = [
+                r for r in task["result"].get("recommendations", [])
+                if r.get("risk_id") == risk_id
+            ]
+            if matching:
+                return {"risk_id": risk_id, "recommendations": matching}
+    return {"risk_id": risk_id, "recommendations": []}
+
+
 # ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
