@@ -10,6 +10,8 @@ import NewAssessmentPage from './pages/NewAssessmentPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import SuppliersPage from './pages/SuppliersPage';
 import AlertsPage from './pages/AlertsPage';
+import SupplyChainMapPage from './pages/SupplyChainMapPage';
+import PredictionsPage from './pages/PredictionsPage';
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
             <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/supply-chain" element={<SupplyChainMapPage />} />
+            <Route path="/predictions" element={<PredictionsPage />} />
           </Route>
         </Route>
       </Routes>

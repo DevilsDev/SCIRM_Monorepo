@@ -529,6 +529,179 @@ async def risk_history(limit: int = 100):
 
 
 # ---------------------------------------------------------------------------
+# Predictive Alerts (7-day forecasting based on risk trends)
+# ---------------------------------------------------------------------------
+
+@app.get("/predictions")
+async def get_predictions():
+    """Generate 7-day disruption predictions based on current risk landscape."""
+    all_risks = []
+    for task in _tasks.values():
+        if task.get("status") == "completed" and task.get("result"):
+            all_risks.extend(task["result"].get("risks", []))
+
+    if not all_risks:
+        return {"predictions": [], "horizon_days": 7, "model": "rule-based"}
+
+    # Group risks by category and compute trend scores
+    category_scores: Dict[str, list] = {}
+    for risk in all_risks:
+        cat = risk.get("risk_category", "general")
+        prob = risk.get("probability", 0.5)
+        impact = risk.get("impact_score", 5.0)
+        category_scores.setdefault(cat, []).append(prob * impact)
+
+    predictions = []
+    for category, scores in category_scores.items():
+        avg_score = sum(scores) / len(scores)
+        risk_count = len(scores)
+        # Simple prediction: higher avg score + more occurrences = higher disruption probability
+        disruption_prob = min(avg_score / 10.0 * (1 + risk_count * 0.1), 0.95)
+        severity = (
+            "critical" if disruption_prob > 0.8
+            else "high" if disruption_prob > 0.6
+            else "medium" if disruption_prob > 0.3
+            else "low"
+        )
+        predictions.append({
+            "id": str(uuid.uuid4()),
+            "category": category,
+            "predicted_disruption_probability": round(disruption_prob, 3),
+            "severity": severity,
+            "risk_count": risk_count,
+            "average_impact": round(avg_score, 2),
+            "horizon_days": 7,
+            "recommendation": f"Monitor {category} risks closely — {risk_count} active risk(s) detected with avg impact {avg_score:.1f}",
+        })
+
+    predictions.sort(key=lambda p: p["predicted_disruption_probability"], reverse=True)
+    return {"predictions": predictions, "horizon_days": 7, "model": "rule-based", "total": len(predictions)}
+
+
+# ---------------------------------------------------------------------------
+# Supply Chain Map (node graph for visualization)
+# ---------------------------------------------------------------------------
+
+@app.get("/supply-chain/map")
+async def supply_chain_map(org_id: str = None):
+    """Get supply chain topology as nodes and edges for visualization."""
+    # Build nodes from suppliers + org
+    nodes = []
+    edges = []
+
+    # Organization nodes
+    orgs_used = set()
+    for s in _suppliers.values():
+        if org_id and s.get("organization_id") != org_id:
+            continue
+        org_oid = s.get("organization_id", "unknown")
+        if org_oid not in orgs_used:
+            nodes.append({
+                "id": org_oid,
+                "type": "organization",
+                "label": f"Org {org_oid[:8]}",
+                "risk_score": 0,
+            })
+            orgs_used.add(org_oid)
+
+        nodes.append({
+            "id": s["id"],
+            "type": "supplier",
+            "label": s["name"],
+            "supplier_type": s.get("supplier_type", "general"),
+            "country_code": s.get("country_code", ""),
+            "region": s.get("region", ""),
+            "risk_score": s.get("risk_score", 50),
+            "risk_tier": s.get("risk_tier", "medium"),
+        })
+        edges.append({
+            "source": s["id"],
+            "target": org_oid,
+            "relationship": "supplies",
+        })
+
+    # Add risk nodes from recent assessments
+    for task in _tasks.values():
+        if task.get("status") == "completed" and task.get("result"):
+            for risk in task["result"].get("risks", []):
+                nodes.append({
+                    "id": risk.get("id", str(uuid.uuid4())),
+                    "type": "risk",
+                    "label": risk.get("title", "Unknown Risk"),
+                    "severity": risk.get("severity", "medium"),
+                    "risk_category": risk.get("risk_category", ""),
+                })
+                # Link risks to affected entities
+                for entity_id in risk.get("affected_entities", []):
+                    edges.append({
+                        "source": risk.get("id"),
+                        "target": entity_id,
+                        "relationship": "affects",
+                    })
+
+    return {"nodes": nodes, "edges": edges, "total_nodes": len(nodes), "total_edges": len(edges)}
+
+
+# ---------------------------------------------------------------------------
+# Scenario Simulation
+# ---------------------------------------------------------------------------
+
+@app.post("/scenarios/simulate")
+async def simulate_scenario(scenario: Dict[str, Any]):
+    """
+    Simulate a supply chain disruption scenario.
+    Takes a hypothetical event and predicts impact using the agent pipeline.
+    """
+    scenario_type = scenario.get("type", "supplier_disruption")
+    affected_suppliers = scenario.get("affected_suppliers", [])
+    severity_override = scenario.get("severity", "high")
+    duration_days = scenario.get("duration_days", 30)
+
+    # Find affected suppliers
+    impacted = []
+    for sid in affected_suppliers:
+        supplier = _suppliers.get(sid)
+        if supplier:
+            impacted.append(supplier)
+
+    if not impacted and not scenario.get("description"):
+        raise HTTPException(status_code=400, detail="Provide affected_suppliers or a description")
+
+    # Calculate simulated impact
+    total_risk_score = sum(s.get("risk_score", 50) for s in impacted)
+    avg_risk = total_risk_score / len(impacted) if impacted else 50
+    impact_multiplier = {"low": 0.5, "medium": 1.0, "high": 1.5, "critical": 2.0}.get(severity_override, 1.0)
+    duration_factor = min(duration_days / 30, 3.0)
+
+    estimated_financial_impact = avg_risk * impact_multiplier * duration_factor * 10000
+    recovery_time_days = int(duration_days * (1 + avg_risk / 100))
+
+    recommendations = []
+    for supplier in impacted:
+        recommendations.append({
+            "action": f"Activate backup supplier for {supplier['name']}",
+            "priority": "high" if supplier.get("risk_score", 50) > 60 else "medium",
+            "estimated_cost": supplier.get("risk_score", 50) * 1000,
+            "timeline_days": min(int(duration_days * 0.3), 14),
+        })
+
+    return {
+        "scenario_id": str(uuid.uuid4()),
+        "scenario_type": scenario_type,
+        "severity": severity_override,
+        "affected_suppliers": [s["name"] for s in impacted],
+        "impact_analysis": {
+            "estimated_financial_impact": round(estimated_financial_impact, 2),
+            "supply_disruption_probability": round(min(avg_risk / 100 * impact_multiplier, 0.95), 3),
+            "estimated_recovery_days": recovery_time_days,
+            "affected_supply_chains": len(impacted),
+        },
+        "recommendations": recommendations,
+        "simulation_confidence": round(0.6 + len(impacted) * 0.05, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 

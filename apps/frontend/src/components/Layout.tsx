@@ -6,6 +6,8 @@ import {
   LightBulbIcon,
   TruckIcon,
   BellAlertIcon,
+  MapIcon,
+  ChartBarSquareIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +16,8 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: HomeIcon },
   { to: '/risks', label: 'Risks', icon: ShieldExclamationIcon },
   { to: '/suppliers', label: 'Suppliers', icon: TruckIcon },
+  { to: '/supply-chain', label: 'Supply Chain Map', icon: MapIcon },
+  { to: '/predictions', label: 'Predictions', icon: ChartBarSquareIcon },
   { to: '/alerts', label: 'Alerts', icon: BellAlertIcon },
   { to: '/assessments/new', label: 'New Assessment', icon: PlusCircleIcon },
   { to: '/recommendations', label: 'Recommendations', icon: LightBulbIcon },

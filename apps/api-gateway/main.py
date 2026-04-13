@@ -302,6 +302,54 @@ async def risk_history(limit: int = 100, token: str = Depends(security)):
         logger.error("Failed to fetch risk history", error=str(e))
         raise HTTPException(status_code=500, detail="Risk history unavailable")
 
+# --- Predictions ---
+
+@app.get("/api/v1/predictions")
+async def get_predictions(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/predictions", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch predictions", error=str(e))
+        raise HTTPException(status_code=500, detail="Prediction service unavailable")
+
+# --- Supply Chain Map ---
+
+@app.get("/api/v1/supply-chain/map")
+async def supply_chain_map(org_id: str = None, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {}
+            if org_id:
+                params["org_id"] = org_id
+            response = await client.get(f"{COORDINATOR_URL}/supply-chain/map", params=params, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch supply chain map", error=str(e))
+        raise HTTPException(status_code=500, detail="Supply chain map unavailable")
+
+# --- Scenario Simulation ---
+
+@app.post("/api/v1/scenarios/simulate")
+async def simulate_scenario(scenario: Dict[str, Any], token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{COORDINATOR_URL}/scenarios/simulate",
+                json=scenario, timeout=30.0,
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Scenario simulation failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Scenario simulation failed")
+
 # WebSocket for real-time updates
 class ConnectionManager:
     def __init__(self):

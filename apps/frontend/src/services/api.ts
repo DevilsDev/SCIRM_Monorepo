@@ -200,6 +200,24 @@ export const api = {
     return response.data;
   },
 
+  // Predictions
+  async getPredictions() {
+    const response = await apiClient.get('/api/v1/predictions');
+    return response.data;
+  },
+
+  // Supply Chain Map
+  async getSupplyChainMap(orgId?: string) {
+    const response = await apiClient.get('/api/v1/supply-chain/map', { params: orgId ? { org_id: orgId } : {} });
+    return response.data;
+  },
+
+  // Scenario Simulation
+  async simulateScenario(scenario: { type: string; affected_suppliers: string[]; severity: string; duration_days: number; description?: string }) {
+    const response = await apiClient.post('/api/v1/scenarios/simulate', scenario);
+    return response.data;
+  },
+
   // Organizations
   async getOrganizations() {
     const response = await apiClient.get('/api/v1/organizations');
