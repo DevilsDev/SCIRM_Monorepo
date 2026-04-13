@@ -1,3 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* WCAG 2.1 AA: Enhanced focus indicators */
+@layer base {
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-600;
+  }
+
+  /* Skip navigation link — hidden until focused */
+  .skip-nav {
+    @apply absolute -top-10 left-0 bg-blue-600 text-white px-4 py-2 z-50 transition-all;
+  }
+  .skip-nav:focus {
+    @apply top-0;
+  }
+
+  /* Ensure minimum touch target size (44x44px per WCAG) */
+  button, a, input, select, textarea {
+    min-height: 2.75rem;
+  }
+
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

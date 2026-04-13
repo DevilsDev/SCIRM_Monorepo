@@ -1,0 +1,119 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "scirm-overview",
+    "title": "SCIRM Platform Overview",
+    "tags": ["scirm", "overview"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (all services)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(scirm_requests_total[5m])) by (service)",
+            "legendFormat": "{{service}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Response Latency P95",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(scirm_request_duration_seconds_bucket[5m])) by (le, service))",
+            "legendFormat": "{{service}} P95"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(scirm_requests_total{status_code=~\"5..\"}[5m])) by (service) / sum(rate(scirm_requests_total[5m])) by (service) * 100",
+            "legendFormat": "{{service}} error %"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Agent Task Success Rate",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "sum(scirm_agent_tasks_total{status=\"success\"}) / sum(scirm_agent_tasks_total) * 100"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                { "color": "red", "value": 0 },
+                { "color": "yellow", "value": 80 },
+                { "color": "green", "value": 95 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Agent Processing Time",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(scirm_agent_processing_seconds_bucket[5m])) by (le, agent))",
+            "legendFormat": "{{agent}} P95"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Active Connections",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "sum(scirm_active_connections)"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Total Requests (24h)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 8, "y": 24 },
+        "targets": [
+          {
+            "expr": "sum(increase(scirm_requests_total[24h]))"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Total Agent Tasks (24h)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 16, "y": 24 },
+        "targets": [
+          {
+            "expr": "sum(increase(scirm_agent_tasks_total[24h]))"
+          }
+        ]
+      }
+    ]
+  }
+}

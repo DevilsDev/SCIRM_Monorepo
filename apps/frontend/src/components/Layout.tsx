@@ -28,8 +28,10 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen">
+      <a href="#main-content" className="skip-nav">Skip to main content</a>
+
       {/* Sidebar */}
-      <aside className="w-64 bg-gray-900 text-white flex flex-col">
+      <aside className="w-64 bg-gray-900 text-white flex flex-col" role="navigation" aria-label="Main navigation">
         <div className="p-6">
           <h1 className="text-xl font-bold tracking-wide">SCIRM</h1>
           <p className="text-xs text-gray-400 mt-1">Supply Chain Risk Management</p>
@@ -67,7 +69,7 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-gray-50 p-6">
+      <main id="main-content" className="flex-1 overflow-auto bg-gray-50 p-6" role="main" aria-label="Page content">
         <Outlet />
       </main>
     </div>
