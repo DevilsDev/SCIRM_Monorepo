@@ -23,6 +23,7 @@ from libs.common.auth import (
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
+from libs.integrations.manager import erp_manager
 
 logger = structlog.get_logger()
 
@@ -451,6 +452,31 @@ async def simulate_scenario(scenario: Dict[str, Any], token: str = Depends(secur
     except httpx.HTTPError as e:
         logger.error("Scenario simulation failed", error=str(e))
         raise HTTPException(status_code=500, detail="Scenario simulation failed")
+
+# --- ERP Integration ---
+
+@app.get("/api/v1/erp/status")
+async def erp_status(token: str = Depends(security)):
+    """Check connection status of all ERP adapters."""
+    user = await verify_token(token.credentials)
+    return erp_manager.health_check()
+
+@app.post("/api/v1/erp/sync")
+async def erp_sync(body: Dict[str, Any], token: str = Depends(security)):
+    """Sync data from all connected ERP systems."""
+    user = await verify_token(token.credentials)
+    org_id = body.get("organization_id", "a0000000-0000-0000-0000-000000000001")
+    await erp_manager.connect_all()
+    results = await erp_manager.sync_all(org_id)
+    return {"status": "completed", "results": results}
+
+@app.get("/api/v1/erp/suppliers")
+async def erp_suppliers(org_id: str = "a0000000-0000-0000-0000-000000000001", token: str = Depends(security)):
+    """Fetch suppliers from all connected ERP systems."""
+    user = await verify_token(token.credentials)
+    await erp_manager.connect_all()
+    suppliers = await erp_manager.sync_suppliers(org_id)
+    return {"suppliers": suppliers, "total": len(suppliers)}
 
 # WebSocket for real-time updates
 class ConnectionManager:

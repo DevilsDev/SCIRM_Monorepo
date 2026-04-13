@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import asyncio
+
 import httpx
 import structlog
 from fastapi import FastAPI, HTTPException, status
@@ -36,6 +38,8 @@ RESEARCHER_URL = os.getenv("RESEARCHER_SERVICE_URL", "http://localhost:8003")
 EXECUTOR_URL = os.getenv("EXECUTOR_SERVICE_URL", "http://localhost:8004")
 REVIEWER_URL = os.getenv("REVIEWER_SERVICE_URL", "http://localhost:8005")
 AGENT_TIMEOUT = float(os.getenv("AGENT_TIMEOUT_SECONDS", "30"))
+AUTO_REFRESH_INTERVAL = int(os.getenv("AUTO_REFRESH_INTERVAL_MINUTES", "15"))
+AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "true").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 logger = structlog.get_logger()
@@ -59,7 +63,17 @@ async def lifespan(app: FastAPI):
         limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
     )
     logger.info("Coordinator agent started", planner=PLANNER_URL, executor=EXECUTOR_URL, reviewer=REVIEWER_URL)
+
+    # Start background auto-refresh task
+    refresh_task = None
+    if AUTO_REFRESH_ENABLED:
+        refresh_task = asyncio.create_task(_auto_refresh_loop())
+        logger.info("Auto-refresh enabled", interval_minutes=AUTO_REFRESH_INTERVAL)
+
     yield
+
+    if refresh_task:
+        refresh_task.cancel()
     await _http_client.aclose()
     logger.info("Coordinator agent stopped")
 
@@ -82,6 +96,64 @@ setup_monitoring(app, service_name="coordinator")
 # ---------------------------------------------------------------------------
 # Helper: call a downstream agent
 # ---------------------------------------------------------------------------
+
+async def _auto_refresh_loop():
+    """Background task: re-assess all known entities every N minutes."""
+    await asyncio.sleep(10)  # Wait for services to be ready
+    while True:
+        try:
+            await asyncio.sleep(AUTO_REFRESH_INTERVAL * 60)
+            logger.info("Auto-refresh: starting scheduled re-assessment")
+
+            # Collect unique entities from previous assessments
+            all_entities = []
+            seen_ids = set()
+            for task in _tasks.values():
+                if task.get("status") == "completed" and task.get("request"):
+                    for entity in task["request"].get("entities", []):
+                        eid = entity.get("id", "")
+                        if eid and eid not in seen_ids:
+                            all_entities.append(entity)
+                            seen_ids.add(eid)
+
+            if not all_entities:
+                logger.info("Auto-refresh: no entities to re-assess, skipping")
+                continue
+
+            # Run a fresh assessment with all known entities
+            request = RiskAssessmentRequest(
+                entities=[
+                    {"id": e.get("id", ""), "name": e.get("name", ""), "type": e.get("type", ""), "location": e.get("location")}
+                    for e in all_entities[:20]  # Cap at 20 entities per refresh
+                ],
+                assessment_type="refresh",
+                context={"organization_id": "a0000000-0000-0000-0000-000000000001"},
+            )
+
+            task_id = f"refresh-{uuid.uuid4().hex[:8]}"
+            _tasks[task_id] = {
+                "status": "processing",
+                "started_at": datetime.utcnow().isoformat(),
+                "request": request.model_dump(mode="json"),
+            }
+
+            result = await _run_pipeline(task_id, request)
+            _tasks[task_id]["status"] = "completed"
+            _tasks[task_id]["completed_at"] = datetime.utcnow().isoformat()
+            _tasks[task_id]["result"] = result.model_dump(mode="json")
+
+            logger.info(
+                "Auto-refresh: completed",
+                task_id=task_id,
+                risks=len(result.risks),
+                recommendations=len(result.recommendations),
+            )
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Auto-refresh failed", error=str(exc))
+            await asyncio.sleep(60)  # Wait 1 min before retrying on error
+
 
 async def _call_agent(
     service_name: str,
