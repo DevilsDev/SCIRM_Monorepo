@@ -2,11 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY ../../requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir \
+    fastapi uvicorn pydantic structlog \
+    prometheus-client openai anthropic weaviate-client
 
 COPY . /app/
-COPY ../../libs /app/libs/
 
 EXPOSE 8000
 

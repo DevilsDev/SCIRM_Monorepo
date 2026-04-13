@@ -2,9 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install dependencies — in dev mode, requirements.txt is mounted via volume
+# For standalone builds, copy requirements first
 RUN pip install --no-cache-dir \
     fastapi uvicorn httpx pydantic structlog \
-    prometheus-client
+    prometheus-client PyJWT passlib[bcrypt] cryptography
 
 COPY . /app/
 
