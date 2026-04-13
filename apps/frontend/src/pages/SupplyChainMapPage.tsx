@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import ForceGraph from '../components/d3/ForceGraph';
+import SupplyChainFlow from '../components/d3/SupplyChainFlow';
 
 interface MapNode {
   id: string;
@@ -46,7 +46,7 @@ export default function SupplyChainMapPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Supply Chain Map</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Interactive network — drag nodes, scroll to zoom
+          Tiered flow — suppliers → organization → risks. Link thickness = risk magnitude.
         </p>
       </div>
 
@@ -66,13 +66,17 @@ export default function SupplyChainMapPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <ForceGraph nodes={nodes} edges={edges} height={520} />
+        <SupplyChainFlow nodes={nodes} edges={edges} height={520} />
       </div>
 
       <div className="flex gap-6 text-xs text-gray-500">
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500" /> Organization</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500" /> Supplier</div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /> Risk</div>
+        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-blue-500" /> Supplier</div>
+        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-purple-500" /> Organization</div>
+        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /> Risk</div>
+        <div className="ml-4 flex items-center gap-2"><div className="w-6 h-1 bg-green-400 rounded" /> Low Risk</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1 bg-yellow-400 rounded" /> Medium</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1 bg-orange-400 rounded" /> High</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-2 bg-red-400 rounded" /> Critical (thicker = higher risk)</div>
       </div>
     </div>
   );
