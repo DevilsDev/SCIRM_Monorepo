@@ -83,6 +83,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -106,6 +110,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -129,6 +137,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -152,6 +164,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
