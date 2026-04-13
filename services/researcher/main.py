@@ -14,12 +14,12 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from libs.common.monitoring import setup_monitoring, track_agent_task
+from libs.common.security import setup_cors
 from libs.common import llm as llm_client
 
 logger = structlog.get_logger()
@@ -392,14 +392,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+setup_cors(app)
 setup_monitoring(app, service_name="researcher")
 
 

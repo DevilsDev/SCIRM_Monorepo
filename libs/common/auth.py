@@ -14,7 +14,16 @@ from passlib.context import CryptContext
 from .models import User
 
 # Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+_default_secret = os.getenv("JWT_SECRET_KEY", "")
+if not _default_secret:
+    import warnings
+    warnings.warn(
+        "JWT_SECRET_KEY is not set — using an insecure default. "
+        "Set JWT_SECRET_KEY in your environment for production.",
+        stacklevel=2,
+    )
+    _default_secret = "INSECURE-DEV-ONLY-CHANGE-ME"
+SECRET_KEY = _default_secret
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
 

@@ -15,7 +15,6 @@ from typing import Any, Dict, Optional
 import httpx
 import structlog
 from fastapi import FastAPI, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
 
 # Allow imports from project root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -26,6 +25,7 @@ from libs.common.models import (
     RiskAssessmentResponse,
 )
 from libs.common.monitoring import setup_monitoring, track_agent_task
+from libs.common.security import setup_cors
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -75,14 +75,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+setup_cors(app)
 setup_monitoring(app, service_name="coordinator")
 
 

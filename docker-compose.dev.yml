@@ -195,6 +195,9 @@ services:
       - RESEARCHER_SERVICE_URL=http://researcher:8000
       - EXECUTOR_SERVICE_URL=http://executor:8000
       - REVIEWER_SERVICE_URL=http://reviewer:8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-scirm-dev-secret-change-in-production}
+      - ENVIRONMENT=development
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
