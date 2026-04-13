@@ -92,7 +92,7 @@ async def assess_risk(
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{COORDINATOR_URL}/assess-risk",
-                json=request.dict(),
+                json=request.model_dump(mode="json"),
                 headers={"Authorization": f"Bearer {token.credentials}"},
                 timeout=30.0
             )
