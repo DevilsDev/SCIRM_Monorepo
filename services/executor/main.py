@@ -41,6 +41,7 @@ class RecommendationRequest(BaseModel):
 
 class RecommendationResponse(BaseModel):
     """Response with generated recommendations."""
+    risks: List[Risk] = []
     recommendations: List[Recommendation]
     risk_mitigation_strategy: str
     priority_matrix: Dict[str, List[str]]
@@ -195,6 +196,7 @@ class ExecutorAgent:
         reasoning = self._build_reasoning(identified_risks, prioritized_recommendations, context)
         
         return RecommendationResponse(
+            risks=identified_risks,
             recommendations=prioritized_recommendations,
             risk_mitigation_strategy=strategy,
             priority_matrix=priority_matrix,

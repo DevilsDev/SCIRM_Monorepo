@@ -107,10 +107,11 @@ class PlannerAgent:
                 compliance_requirements=[],
             )
 
-        # Analyze entities
+        # Analyze entities (convert to dicts for uniform access)
         contextual_insights: List[ContextualInsight] = []
         for entity in request.entities:
-            insights = await self._analyze_entity_context(entity, organization)
+            entity_dict = entity.model_dump() if hasattr(entity, 'model_dump') else (entity if isinstance(entity, dict) else {})
+            insights = await self._analyze_entity_context(entity_dict, organization)
             contextual_insights.extend(insights)
 
         # Determine priorities (LLM-enhanced when available)

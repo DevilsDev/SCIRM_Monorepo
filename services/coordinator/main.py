@@ -208,10 +208,8 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
         "data_sources": ["planner_context", "research_data"],
     })
 
-    # Extract risks from executor metadata (it identifies risks while generating recommendations)
-    risks_raw = executor_result.get("metadata", {}).get("risks_identified", [])
-    if isinstance(risks_raw, int):
-        risks_raw = []
+    # Extract risks and recommendations from executor response
+    risks_raw = executor_result.get("risks", [])
     recommendations_raw = executor_result.get("recommendations", [])
 
     # ── Step 4: Reviewer (Quality Validation) ─────────────────────────
@@ -243,8 +241,8 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
     return RiskAssessmentResponse(
         task_id=task_id,
         status=AssessmentStatus.COMPLETED,
-        risks=[],  # risks come from executor/researcher — will be populated when those agents return Risk objects
-        recommendations=[],  # same — serialized Recommendation objects will flow through here
+        risks=risks_raw,
+        recommendations=recommendations_raw,
         confidence_score=round(overall_confidence, 3),
         reasoning_trail=reasoning_trail,
         metadata={
