@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -93,6 +93,12 @@ export interface RiskAssessmentResponse {
 }
 
 export const api = {
+  // Authentication
+  async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
+    const response = await apiClient.post('/api/v1/auth/login', { email, password });
+    return response.data;
+  },
+
   // Health check
   async getHealth() {
     const response = await apiClient.get('/health');
@@ -159,7 +165,7 @@ export const api = {
 
   // Real-time updates via WebSocket
   createWebSocket(onMessage: (data: any) => void, onError?: (error: Event) => void) {
-    const wsUrl = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8000/ws';
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
     const ws = new WebSocket(wsUrl);
     
     ws.onmessage = (event) => {
