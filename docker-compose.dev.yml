@@ -56,6 +56,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - PLANNER_SERVICE_URL=http://planner:8000
+      - RESEARCHER_SERVICE_URL=http://researcher:8000
+      - EXECUTOR_SERVICE_URL=http://executor:8000
+      - REVIEWER_SERVICE_URL=http://reviewer:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -170,11 +174,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
-      - COORDINATOR_URL=http://coordinator:8000
-      - PLANNER_URL=http://planner:8000
-      - RESEARCHER_URL=http://researcher:8000
-      - EXECUTOR_URL=http://executor:8000
-      - REVIEWER_URL=http://reviewer:8000
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - PLANNER_SERVICE_URL=http://planner:8000
+      - RESEARCHER_SERVICE_URL=http://researcher:8000
+      - EXECUTOR_SERVICE_URL=http://executor:8000
+      - REVIEWER_SERVICE_URL=http://reviewer:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
