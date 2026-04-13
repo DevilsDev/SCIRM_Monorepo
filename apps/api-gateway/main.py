@@ -14,7 +14,7 @@ from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 import structlog
 
-from libs.common.auth import verify_token
+from libs.common.auth import verify_token, create_access_token
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 
@@ -57,6 +57,10 @@ class HealthResponse(BaseModel):
     status: str
     services: Dict[str, str]
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint."""
@@ -79,6 +83,32 @@ async def health_check():
     overall_status = "healthy" if all(status == "healthy" for status in services.values()) else "degraded"
     
     return HealthResponse(status=overall_status, services=services)
+
+@app.post("/api/v1/auth/login")
+async def login(request: LoginRequest):
+    """Authenticate user and return JWT token."""
+    # Dev mode: accept known seed users or any email with password "scirm-dev-2026"
+    # In production, this would validate against the database
+    dev_users = {
+        "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001"},
+        "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001"},
+        "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002"},
+        "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "default-org"},
+    }
+
+    user_info = dev_users.get(request.email)
+    if not user_info:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token(data={
+        "sub": user_info["id"],
+        "email": request.email,
+        "name": user_info["name"],
+        "roles": user_info["roles"],
+        "org_id": user_info["org_id"],
+    })
+
+    return {"access_token": token, "token_type": "bearer"}
 
 @app.post("/api/v1/risk-assessment", response_model=RiskAssessmentResponse)
 async def assess_risk(
