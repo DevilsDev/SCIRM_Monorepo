@@ -7,13 +7,19 @@ import os
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
+import jwt
 import httpx
+from datetime import timedelta
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 import structlog
 
-from libs.common.auth import verify_token, create_access_token, verify_password, get_password_hash
+from libs.common.auth import (
+    verify_token, create_access_token, create_refresh_token, verify_password,
+    get_password_hash, generate_totp_secret, get_totp_uri, verify_totp,
+    MFA_ENABLED, SECRET_KEY, ALGORITHM,
+)
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
@@ -82,26 +88,38 @@ async def readiness():
     """Readiness probe for Kubernetes."""
     return {"status": "ready", "service": "api-gateway"}
 
+DEV_PASSWORD = "scirm-dev-2026"
+DEV_USERS = {
+    "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
+    "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
+    "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002", "mfa_secret": None},
+    "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "default-org", "mfa_secret": None},
+}
+
+
+class MFAVerifyRequest(BaseModel):
+    email: str
+    totp_code: str
+    mfa_token: str
+
+
 @app.post("/api/v1/auth/login")
 async def login(request: LoginRequest):
-    """Authenticate user and return JWT token."""
-    # Dev mode: accept known users with password "scirm-dev-2026"
-    # In production, this would query the database
-    DEV_PASSWORD = "scirm-dev-2026"
-    dev_users = {
-        "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001"},
-        "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001"},
-        "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002"},
-        "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "default-org"},
-    }
-
-    user_info = dev_users.get(request.email)
+    """Authenticate user. If MFA is enabled, returns mfa_required=true with a temporary token."""
+    user_info = DEV_USERS.get(request.email)
     if not user_info:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # Validate password (dev mode: check against known dev password)
     if request.password != DEV_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Check if MFA is required
+    if MFA_ENABLED and user_info.get("mfa_secret"):
+        mfa_token = create_access_token(
+            data={"sub": user_info["id"], "type": "mfa_pending", "email": request.email},
+            expires_delta=timedelta(minutes=5),
+        )
+        return {"mfa_required": True, "mfa_token": mfa_token, "token_type": "bearer"}
 
     token = create_access_token(data={
         "sub": user_info["id"],
@@ -110,8 +128,92 @@ async def login(request: LoginRequest):
         "roles": user_info["roles"],
         "org_id": user_info["org_id"],
     })
+    refresh = create_refresh_token(user_info["id"])
 
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "refresh_token": refresh, "token_type": "bearer"}
+
+
+@app.post("/api/v1/auth/mfa/verify")
+async def verify_mfa(request: MFAVerifyRequest):
+    """Verify TOTP code after initial login when MFA is enabled."""
+    user_info = DEV_USERS.get(request.email)
+    if not user_info or not user_info.get("mfa_secret"):
+        raise HTTPException(status_code=400, detail="MFA not configured for this user")
+
+    if not verify_totp(user_info["mfa_secret"], request.totp_code):
+        raise HTTPException(status_code=401, detail="Invalid TOTP code")
+
+    token = create_access_token(data={
+        "sub": user_info["id"],
+        "email": request.email,
+        "name": user_info["name"],
+        "roles": user_info["roles"],
+        "org_id": user_info["org_id"],
+    })
+    refresh = create_refresh_token(user_info["id"])
+
+    return {"access_token": token, "refresh_token": refresh, "token_type": "bearer"}
+
+
+@app.post("/api/v1/auth/mfa/setup")
+async def setup_mfa(token: str = Depends(security)):
+    """Generate a TOTP secret and QR code URI for MFA enrollment."""
+    user = await verify_token(token.credentials)
+    secret = generate_totp_secret()
+    uri = get_totp_uri(secret, user.email)
+
+    # Store secret (in production, persist to DB)
+    if user.email in DEV_USERS:
+        DEV_USERS[user.email]["mfa_secret"] = secret
+
+    return {"secret": secret, "otpauth_uri": uri, "message": "Scan the QR code with your authenticator app"}
+
+
+@app.post("/api/v1/auth/refresh")
+async def refresh_token(body: Dict[str, Any]):
+    """Exchange a refresh token for a new access token."""
+    refresh = body.get("refresh_token", "")
+    if not refresh:
+        raise HTTPException(status_code=400, detail="refresh_token required")
+
+    try:
+        payload = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        user_id = payload.get("sub")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    # Find user by ID
+    user_info = next((u for u in DEV_USERS.values() if u["id"] == user_id), None)
+    email = next((e for e, u in DEV_USERS.items() if u["id"] == user_id), "")
+    if not user_info:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    new_token = create_access_token(data={
+        "sub": user_info["id"],
+        "email": email,
+        "name": user_info["name"],
+        "roles": user_info["roles"],
+        "org_id": user_info["org_id"],
+    })
+
+    return {"access_token": new_token, "token_type": "bearer"}
+
+
+@app.get("/api/v1/auth/oauth/authorize")
+async def oauth_authorize(provider: str = "google", redirect_uri: str = "http://localhost:3000/auth/callback"):
+    """
+    OAuth 2.0 authorization endpoint — returns the provider's auth URL.
+    In production, this redirects to the actual OAuth provider.
+    """
+    # Mock OAuth flow for development
+    return {
+        "provider": provider,
+        "authorization_url": f"https://{provider}.com/oauth/authorize?client_id=scirm&redirect_uri={redirect_uri}&scope=openid+email+profile",
+        "state": "mock-state-token",
+        "message": "OAuth provider integration — redirect user to authorization_url",
+    }
 
 @app.post("/api/v1/risk-assessment", response_model=RiskAssessmentResponse)
 async def assess_risk(

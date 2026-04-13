@@ -58,7 +58,10 @@ class UserRow(Base):
     hashed_password = Column(String(255), nullable=False)
     roles = Column(ARRAY(String), default=lambda: ["user"])
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    mfa_secret = Column(String(64), nullable=True)
+    mfa_enabled = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    last_login_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
