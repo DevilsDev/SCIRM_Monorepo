@@ -125,10 +125,23 @@ export default function Layout() {
 
         {/* User */}
         <div className="p-3 border-t border-gray-800">
-          <p className="text-xs text-gray-300 truncate">{user?.email}</p>
-          <div className="flex items-center gap-3 mt-1">
-            <NavLink to="/settings" className="text-[10px] text-gray-500 hover:text-white transition-colors">Settings</NavLink>
-            <button onClick={logout} className="text-[10px] text-gray-500 hover:text-white transition-colors">Sign out</button>
+          <p className="text-xs text-gray-300 truncate mb-2">{user?.email}</p>
+          <div className="flex items-center gap-2">
+            <NavLink
+              to="/settings"
+              className="flex-1 text-center text-xs py-1.5 px-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              style={{ minHeight: 'unset' }}
+            >
+              Settings
+            </NavLink>
+            <span className="text-gray-700">|</span>
+            <button
+              onClick={logout}
+              className="flex-1 text-center text-xs py-1.5 px-2 rounded-md text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
+              style={{ minHeight: 'unset' }}
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </aside>
