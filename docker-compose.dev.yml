@@ -60,6 +60,7 @@ services:
       - RESEARCHER_SERVICE_URL=http://researcher:8000
       - EXECUTOR_SERVICE_URL=http://executor:8000
       - REVIEWER_SERVICE_URL=http://reviewer:8000
+      - DISCOVERY_SERVICE_URL=http://discovery:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
