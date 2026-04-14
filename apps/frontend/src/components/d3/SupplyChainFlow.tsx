@@ -12,6 +12,7 @@ interface FlowNode {
   supplier_type?: string;
   region?: string;
   country_code?: string;
+  risk_category?: string;
 }
 
 interface FlowEdge {
@@ -27,10 +28,11 @@ const TIER_COLORS: Record<string, string> = {
   critical: '#ef4444',
 };
 
-const TYPE_CONFIG: Record<string, { color: string; icon: string; tier: number }> = {
-  supplier: { color: '#3b82f6', icon: 'S', tier: 0 },
-  organization: { color: '#8b5cf6', icon: 'O', tier: 1 },
-  risk: { color: '#ef4444', icon: '!', tier: 2 },
+const SEVERITY_COLORS: Record<string, string> = {
+  low: '#22c55e',
+  medium: '#eab308',
+  high: '#f97316',
+  critical: '#ef4444',
 };
 
 interface SupplyChainFlowProps {
@@ -47,7 +49,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
 
     const container = containerRef.current;
     const width = container.clientWidth;
-    const margin = { top: 40, right: 40, bottom: 40, left: 40 };
+    const margin = { top: 50, right: 40, bottom: 40, left: 40 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
 
@@ -61,205 +63,191 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Separate nodes by tier
+    // Separate and deduplicate nodes
     const suppliers = nodes.filter((n) => n.type === 'supplier');
-    const orgs = nodes.filter((n) => n.type === 'organization');
-    const risks = nodes.filter((n) => n.type === 'risk');
+    const orgs = [...new Map(nodes.filter((n) => n.type === 'organization').map((n) => [n.id, n])).values()];
+    const riskNodes = nodes.filter((n) => n.type === 'risk');
 
-    // Tier X positions
-    const tierX = [innerW * 0.08, innerW * 0.48, innerW * 0.88];
+    // Aggregate risks by category instead of showing each one
+    const riskCategories: Record<string, { count: number; severities: string[] }> = {};
+    riskNodes.forEach((r) => {
+      const cat = r.risk_category || r.label.replace(' Risk', '').toLowerCase() || 'general';
+      if (!riskCategories[cat]) riskCategories[cat] = { count: 0, severities: [] };
+      riskCategories[cat].count++;
+      if (r.severity) riskCategories[cat].severities.push(r.severity);
+    });
 
-    // Position nodes within each tier
-    const positionTier = (tierNodes: FlowNode[], tierIdx: number) => {
-      const spacing = innerH / (tierNodes.length + 1);
-      return tierNodes.map((node, i) => ({
-        ...node,
-        x: tierX[tierIdx],
-        y: spacing * (i + 1),
-      }));
-    };
+    const aggregatedRisks = Object.entries(riskCategories).map(([cat, data]) => {
+      const worstSeverity = data.severities.includes('critical') ? 'critical'
+        : data.severities.includes('high') ? 'high'
+        : data.severities.includes('medium') ? 'medium' : 'low';
+      return { id: `risk-${cat}`, label: cat, count: data.count, severity: worstSeverity };
+    });
 
-    const posSuppliers = positionTier(suppliers, 0);
-    const posOrgs = positionTier(orgs, 1);
-    const posRisks = positionTier(risks, 2);
-    const allPositioned = [...posSuppliers, ...posOrgs, ...posRisks];
-    const posMap = new Map(allPositioned.map((n) => [n.id, n]));
+    // Tier X positions (3 columns)
+    const tierX = [innerW * 0.12, innerW * 0.50, innerW * 0.88];
+
+    // Position suppliers
+    const supplierSpacing = innerH / (suppliers.length + 1);
+    const posSuppliers = suppliers.map((s, i) => ({ ...s, x: tierX[0], y: supplierSpacing * (i + 1) }));
+
+    // Position orgs (center)
+    const orgSpacing = innerH / (orgs.length + 1);
+    const posOrgs = orgs.map((o, i) => ({ ...o, x: tierX[1], y: orgSpacing * (i + 1) }));
+
+    // Position aggregated risks
+    const riskSpacing = innerH / (aggregatedRisks.length + 1);
+    const posRisks = aggregatedRisks.map((r, i) => ({ ...r, x: tierX[2], y: riskSpacing * (i + 1) }));
 
     // Tooltip
     const tooltip = d3.select('body').append('div')
       .attr('class', 'fixed pointer-events-none bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl opacity-0 transition-opacity z-50 max-w-xs');
 
     // Tier labels
-    const tierLabels = [
+    [
       { label: 'SUPPLIERS', x: tierX[0], color: '#3b82f6' },
       { label: 'ORGANIZATION', x: tierX[1], color: '#8b5cf6' },
-      { label: 'RISKS', x: tierX[2], color: '#ef4444' },
-    ];
-    tierLabels.forEach(({ label, x, color }) => {
-      g.append('text')
-        .attr('x', x)
-        .attr('y', -14)
-        .attr('text-anchor', 'middle')
-        .attr('class', 'text-[11px] font-bold tracking-wider')
-        .attr('fill', color)
-        .attr('opacity', 0.6)
-        .text(label);
+      { label: 'RISK CATEGORIES', x: tierX[2], color: '#ef4444' },
+    ].forEach(({ label, x, color }) => {
+      g.append('text').attr('x', x).attr('y', -20).attr('text-anchor', 'middle')
+        .attr('fill', color).attr('font-size', '11px').attr('font-weight', 'bold')
+        .attr('letter-spacing', '1px').text(label);
     });
 
-    // Draw links as curved paths with gradient
+    // Draw links: suppliers → org
     const defs = svg.append('defs');
+    posSuppliers.forEach((supplier, i) => {
+      const target = posOrgs[0] || posOrgs[posOrgs.length - 1];
+      if (!target) return;
 
-    edges.forEach((edge, i) => {
-      const source = posMap.get(edge.source);
-      const target = posMap.get(edge.target);
-      if (!source || !target) return;
+      const gradId = `flow-s-${i}`;
+      const sColor = supplier.risk_tier ? TIER_COLORS[supplier.risk_tier] : '#3b82f6';
+      const gradient = defs.append('linearGradient').attr('id', gradId).attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '0%');
+      gradient.append('stop').attr('offset', '0%').attr('stop-color', sColor).attr('stop-opacity', 0.6);
+      gradient.append('stop').attr('offset', '100%').attr('stop-color', '#8b5cf6').attr('stop-opacity', 0.4);
 
-      // Gradient for each link
-      const gradId = `flow-grad-${i}`;
-      const sourceColor = source.risk_tier ? TIER_COLORS[source.risk_tier] || '#94a3b8' : TYPE_CONFIG[source.type]?.color || '#94a3b8';
-      const targetColor = target.severity ? TIER_COLORS[target.severity] || '#94a3b8' : TYPE_CONFIG[target.type]?.color || '#94a3b8';
+      const strokeW = Math.max(2, Math.min((supplier.risk_score || 50) / 8, 10));
+      const midX = (supplier.x + target.x) / 2;
 
-      const gradient = defs.append('linearGradient')
-        .attr('id', gradId)
-        .attr('x1', '0%').attr('y1', '0%')
-        .attr('x2', '100%').attr('y2', '0%');
-      gradient.append('stop').attr('offset', '0%').attr('stop-color', sourceColor).attr('stop-opacity', 0.5);
-      gradient.append('stop').attr('offset', '100%').attr('stop-color', targetColor).attr('stop-opacity', 0.5);
-
-      // Link thickness based on risk score
-      const riskScore = source.risk_score || 50;
-      const strokeWidth = Math.max(2, Math.min(riskScore / 10, 12));
-
-      // Curved path
-      const sx = (source as any).x;
-      const sy = (source as any).y;
-      const tx = (target as any).x;
-      const ty = (target as any).y;
-      const midX = (sx + tx) / 2;
-
-      const path = g.append('path')
-        .attr('d', `M${sx},${sy} C${midX},${sy} ${midX},${ty} ${tx},${ty}`)
-        .attr('fill', 'none')
-        .attr('stroke', `url(#${gradId})`)
-        .attr('stroke-width', strokeWidth)
+      g.append('path')
+        .attr('d', `M${supplier.x},${supplier.y} C${midX},${supplier.y} ${midX},${target.y} ${target.x},${target.y}`)
+        .attr('fill', 'none').attr('stroke', `url(#${gradId})`).attr('stroke-width', strokeW)
         .attr('opacity', 0)
-        .style('cursor', 'pointer');
+        .on('mouseover', function (event) {
+          d3.select(this).attr('opacity', 0.9).attr('stroke-width', strokeW + 2);
+          tooltip.style('opacity', '1').html(`<strong>${supplier.label}</strong> → <strong>${target.label}</strong><br/>Risk: ${supplier.risk_score || '?'}/100`)
+            .style('left', `${event.pageX + 12}px`).style('top', `${event.pageY - 30}px`);
+        })
+        .on('mousemove', (event) => tooltip.style('left', `${event.pageX + 12}px`).style('top', `${event.pageY - 30}px`))
+        .on('mouseout', function () { d3.select(this).attr('opacity', 1).attr('stroke-width', strokeW); tooltip.style('opacity', '0'); })
+        .transition().duration(600).delay(i * 80).attr('opacity', 1);
+    });
 
-      // Animated entry
-      path.transition()
-        .duration(800)
-        .delay(i * 50)
-        .attr('opacity', 1);
+    // Draw links: org → risk categories
+    posRisks.forEach((risk, i) => {
+      const source = posOrgs[0];
+      if (!source) return;
 
-      // Hover
-      path.on('mouseover', function (event) {
-        d3.select(this).attr('opacity', 0.9).attr('stroke-width', strokeWidth + 3);
+      const gradId = `flow-r-${i}`;
+      const rColor = SEVERITY_COLORS[risk.severity] || '#ef4444';
+      const gradient = defs.append('linearGradient').attr('id', gradId).attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '0%');
+      gradient.append('stop').attr('offset', '0%').attr('stop-color', '#8b5cf6').attr('stop-opacity', 0.4);
+      gradient.append('stop').attr('offset', '100%').attr('stop-color', rColor).attr('stop-opacity', 0.6);
+
+      const strokeW = Math.max(2, Math.min(risk.count * 2, 10));
+      const midX = (source.x + risk.x) / 2;
+
+      g.append('path')
+        .attr('d', `M${source.x},${source.y} C${midX},${source.y} ${midX},${risk.y} ${risk.x},${risk.y}`)
+        .attr('fill', 'none').attr('stroke', `url(#${gradId})`).attr('stroke-width', strokeW)
+        .attr('opacity', 0)
+        .transition().duration(600).delay(posSuppliers.length * 80 + i * 80).attr('opacity', 1);
+    });
+
+    // Draw supplier nodes
+    posSuppliers.forEach((node, i) => {
+      const nodeColor = node.risk_tier ? TIER_COLORS[node.risk_tier] : '#3b82f6';
+      const nodeG = g.append('g').attr('transform', `translate(${node.x},${node.y})`).style('cursor', 'pointer');
+
+      if ((node.risk_score || 0) > 60) {
+        nodeG.append('circle').attr('r', 32).attr('fill', nodeColor).attr('opacity', 0)
+          .transition().duration(800).delay(i * 60).attr('opacity', 0.15);
+      }
+
+      nodeG.append('circle').attr('r', 0).attr('fill', nodeColor).attr('stroke', colors.stroke).attr('stroke-width', 3)
+        .transition().duration(500).delay(i * 60).ease(d3.easeBackOut).attr('r', 24);
+
+      nodeG.append('text').attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', 'white')
+        .attr('font-size', '14px').attr('font-weight', 'bold').attr('opacity', 0).text('S')
+        .transition().delay(i * 60 + 300).duration(200).attr('opacity', 1);
+
+      nodeG.append('text').attr('y', 38).attr('text-anchor', 'middle').attr('font-size', '11px').attr('font-weight', '500')
+        .attr('fill', colors.text).text(node.label);
+
+      nodeG.append('text').attr('y', 52).attr('text-anchor', 'middle').attr('font-size', '9px')
+        .attr('fill', colors.textMuted).text(`Risk: ${(node.risk_score || 0).toFixed(0)}/100`);
+
+      nodeG.on('mouseover', function (event) {
+        d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', 28);
         tooltip.style('opacity', '1')
-          .html(`<strong>${source.label}</strong> → <strong>${target.label}</strong><br/>${edge.relationship}${source.risk_score ? `<br/>Risk Score: ${source.risk_score}` : ''}`)
-          .style('left', `${event.pageX + 12}px`)
-          .style('top', `${event.pageY - 30}px`);
-      })
-      .on('mousemove', function (event) {
-        tooltip.style('left', `${event.pageX + 12}px`).style('top', `${event.pageY - 30}px`);
+          .html(`<strong>${node.label}</strong><br/>Type: ${node.supplier_type || 'supplier'}<br/>Region: ${node.country_code || ''} ${node.region || ''}<br/>Risk: ${node.risk_score || '?'}/100 (${node.risk_tier || '?'})`)
+          .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
       })
       .on('mouseout', function () {
-        d3.select(this).attr('opacity', 1).attr('stroke-width', strokeWidth);
+        d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', 24);
         tooltip.style('opacity', '0');
       });
     });
 
-    // Draw nodes
-    allPositioned.forEach((node, i) => {
-      const nx = (node as any).x;
-      const ny = (node as any).y;
-      const config = TYPE_CONFIG[node.type] || { color: '#94a3b8', icon: '?', tier: 1 };
-      const nodeColor = node.risk_tier ? TIER_COLORS[node.risk_tier] : node.severity ? TIER_COLORS[node.severity] : config.color;
-      const radius = node.type === 'organization' ? 32 : node.type === 'supplier' ? 24 : 20;
+    // Draw org nodes
+    posOrgs.forEach((node, i) => {
+      const nodeG = g.append('g').attr('transform', `translate(${node.x},${node.y})`);
 
-      const nodeG = g.append('g')
-        .attr('transform', `translate(${nx},${ny})`)
-        .style('cursor', 'pointer');
+      nodeG.append('circle').attr('r', 0).attr('fill', '#8b5cf6').attr('stroke', colors.stroke).attr('stroke-width', 3)
+        .transition().duration(500).delay(posSuppliers.length * 60 + 100).ease(d3.easeBackOut).attr('r', 36);
 
-      // Glow effect for high-risk nodes
-      if (node.risk_score && node.risk_score > 60) {
-        nodeG.append('circle')
-          .attr('r', radius + 8)
-          .attr('fill', nodeColor)
-          .attr('opacity', 0)
-          .transition()
-          .duration(1000)
-          .delay(i * 40)
-          .attr('opacity', 0.15);
-      }
+      nodeG.append('text').attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', 'white')
+        .attr('font-size', '18px').attr('font-weight', 'bold').attr('opacity', 0).text('O')
+        .transition().delay(posSuppliers.length * 60 + 400).duration(200).attr('opacity', 1);
 
-      // Main circle with animated entry
-      nodeG.append('circle')
-        .attr('r', 0)
-        .attr('fill', nodeColor)
-        .attr('stroke', colors.stroke)
-        .attr('stroke-width', 3)
-        .transition()
-        .duration(500)
-        .delay(i * 40)
-        .ease(d3.easeBackOut)
-        .attr('r', radius);
+      const shortLabel = node.label.length > 15 ? node.label.slice(0, 13) + '..' : node.label;
+      nodeG.append('text').attr('y', 50).attr('text-anchor', 'middle').attr('font-size', '11px').attr('font-weight', '500')
+        .attr('fill', colors.text).text(shortLabel);
+    });
 
-      // Icon text
-      nodeG.append('text')
-        .attr('text-anchor', 'middle')
-        .attr('dy', '0.35em')
-        .attr('fill', 'white')
-        .attr('class', 'font-bold')
-        .attr('font-size', `${radius * 0.6}px`)
-        .attr('opacity', 0)
-        .text(config.icon)
-        .transition()
-        .delay(i * 40 + 300)
-        .duration(200)
-        .attr('opacity', 1);
+    // Draw aggregated risk nodes (category bubbles with count)
+    posRisks.forEach((risk, i) => {
+      const rColor = SEVERITY_COLORS[risk.severity] || '#ef4444';
+      const radius = Math.max(18, Math.min(risk.count * 4 + 14, 36));
+      const delay = posSuppliers.length * 60 + 200 + i * 80;
+      const nodeG = g.append('g').attr('transform', `translate(${risk.x},${risk.y})`).style('cursor', 'pointer');
 
-      // Label below
-      nodeG.append('text')
-        .attr('y', radius + 16)
-        .attr('text-anchor', 'middle')
-        .attr('class', 'text-[10px] font-medium')
-        .attr('fill', colors.textLight)
-        .text(node.label.length > 20 ? node.label.slice(0, 18) + '...' : node.label);
+      nodeG.append('circle').attr('r', 0).attr('fill', rColor).attr('stroke', colors.stroke).attr('stroke-width', 2)
+        .transition().duration(500).delay(delay).ease(d3.easeBackOut).attr('r', radius);
 
-      // Sub-label (risk score or severity)
-      if (node.risk_score != null && node.risk_score > 0) {
-        nodeG.append('text')
-          .attr('y', radius + 28)
-          .attr('text-anchor', 'middle')
-          .attr('class', 'text-[9px]')
-          .attr('fill', colors.textMuted)
-          .text(`Risk: ${node.risk_score.toFixed(0)}/100`);
-      } else if (node.severity) {
-        nodeG.append('text')
-          .attr('y', radius + 28)
-          .attr('text-anchor', 'middle')
-          .attr('class', 'text-[9px] capitalize')
-          .attr('fill', colors.textMuted)
-          .text(node.severity);
-      }
+      // Count inside circle
+      nodeG.append('text').attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', 'white')
+        .attr('font-size', `${Math.max(12, radius * 0.5)}px`).attr('font-weight', 'bold')
+        .attr('opacity', 0).text(risk.count)
+        .transition().delay(delay + 300).duration(200).attr('opacity', 1);
 
-      // Hover
+      // Category label below
+      nodeG.append('text').attr('y', radius + 16).attr('text-anchor', 'middle').attr('font-size', '11px')
+        .attr('font-weight', '500').attr('fill', colors.text).style('text-transform', 'capitalize')
+        .text(risk.label);
+
+      // Severity label
+      nodeG.append('text').attr('y', radius + 30).attr('text-anchor', 'middle').attr('font-size', '9px')
+        .attr('fill', rColor).style('text-transform', 'capitalize').text(risk.severity);
+
       nodeG.on('mouseover', function (event) {
-        d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', radius * 1.2);
-        let html = `<strong>${node.label}</strong><br/>Type: <span class="capitalize">${node.type}</span>`;
-        if (node.risk_score != null) html += `<br/>Risk Score: <strong>${node.risk_score}/100</strong>`;
-        if (node.risk_tier) html += `<br/>Tier: <span class="capitalize">${node.risk_tier}</span>`;
-        if (node.severity) html += `<br/>Severity: <span class="capitalize">${node.severity}</span>`;
-        if (node.region) html += `<br/>Region: ${node.country_code || ''} ${node.region}`;
-        if (node.supplier_type) html += `<br/>Type: <span class="capitalize">${node.supplier_type.replace('_', ' ')}</span>`;
-        tooltip.style('opacity', '1').html(html)
+        d3.select(this).select('circle').transition().duration(150).attr('r', radius + 4);
+        tooltip.style('opacity', '1')
+          .html(`<strong class="capitalize">${risk.label}</strong><br/>${risk.count} risks<br/>Worst severity: <span style="color:${rColor}">${risk.severity}</span>`)
           .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
       })
-      .on('mousemove', function (event) {
-        tooltip.style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
-      })
       .on('mouseout', function () {
-        d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', radius);
+        d3.select(this).select('circle').transition().duration(150).attr('r', radius);
         tooltip.style('opacity', '0');
       });
     });
