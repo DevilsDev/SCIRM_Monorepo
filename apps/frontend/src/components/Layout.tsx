@@ -12,6 +12,7 @@ import {
   NewspaperIcon,
   CpuChipIcon,
   ShoppingCartIcon,
+  CubeIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: HomeIcon },
   { to: '/risks', label: 'Risks', icon: ShieldExclamationIcon },
   { to: '/suppliers', label: 'Suppliers', icon: TruckIcon },
+  { to: '/components', label: 'Components', icon: CubeIcon },
   { to: '/supply-chain', label: 'Supply Chain', icon: MapIcon },
   { to: '/predictions', label: 'Predictions', icon: ChartBarSquareIcon },
   { to: '/events', label: 'Risk Events', icon: BoltIcon },

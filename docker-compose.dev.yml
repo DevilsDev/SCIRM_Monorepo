@@ -281,6 +281,19 @@ services:
       - ./libs:/app/libs
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+  component-tracker:
+    build:
+      context: ./services/component-tracker
+      dockerfile: Dockerfile
+    ports:
+      - "8012:8000"
+    environment:
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/component-tracker:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
   api-gateway:
     build:
       context: ./apps/api-gateway
@@ -301,6 +314,7 @@ services:
       - CHAT_SERVICE_URL=http://chat:8000
       - SIMULATOR_SERVICE_URL=http://simulator:8000
       - PROCUREMENT_SERVICE_URL=http://procurement:8000
+      - COMPONENT_TRACKER_URL=http://component-tracker:8000
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-scirm-dev-secret-change-in-production}
       - ENVIRONMENT=development
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000

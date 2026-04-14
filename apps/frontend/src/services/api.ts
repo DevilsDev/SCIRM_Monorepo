@@ -206,6 +206,24 @@ export const api = {
     return response.data;
   },
 
+  // Components & Products
+  async getComponents(category?: string) {
+    const params: any = {};
+    if (category) params.category = category;
+    const response = await apiClient.get('/api/v1/components', { params });
+    return response.data;
+  },
+
+  async getProducts() {
+    const response = await apiClient.get('/api/v1/products');
+    return response.data;
+  },
+
+  async getProductBom(productId: string) {
+    const response = await apiClient.get(`/api/v1/products/${productId}/bom`);
+    return response.data;
+  },
+
   // Digital Twin Simulator
   async runSimulation(params: { disrupted_suppliers: string[]; severity: string; duration_days: number; num_simulations?: number }) {
     const response = await apiClient.post('/api/v1/simulator/run', { scenario_type: 'supplier_disruption', ...params });

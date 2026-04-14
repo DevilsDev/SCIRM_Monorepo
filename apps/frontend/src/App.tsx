@@ -17,6 +17,7 @@ import EventsPage from './pages/EventsPage';
 import IntelligenceFeedPage from './pages/IntelligenceFeedPage';
 import SimulatorPage from './pages/SimulatorPage';
 import ProcurementPage from './pages/ProcurementPage';
+import ComponentsPage from './pages/ComponentsPage';
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/intelligence" element={<IntelligenceFeedPage />} />
             <Route path="/simulator" element={<SimulatorPage />} />
             <Route path="/procurement" element={<ProcurementPage />} />
+            <Route path="/components" element={<ComponentsPage />} />
           </Route>
         </Route>
       </Routes>

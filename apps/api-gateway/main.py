@@ -40,6 +40,7 @@ INGESTION_URL = os.getenv("INGESTION_SERVICE_URL", "http://localhost:8008")
 CHAT_URL = os.getenv("CHAT_SERVICE_URL", "http://localhost:8009")
 SIMULATOR_URL = os.getenv("SIMULATOR_SERVICE_URL", "http://localhost:8010")
 PROCUREMENT_URL = os.getenv("PROCUREMENT_SERVICE_URL", "http://localhost:8011")
+COMPONENT_TRACKER_URL = os.getenv("COMPONENT_TRACKER_URL", "http://localhost:8012")
 
 security = HTTPBearer()
 
@@ -589,6 +590,55 @@ async def intelligence_sources(token: str = Depends(security)):
             return response.json()
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail="Source status unavailable")
+
+# --- Components ---
+
+@app.get("/api/v1/components")
+async def list_components(category: str = None, criticality: str = None, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {}
+            if category: params["category"] = category
+            if criticality: params["criticality"] = criticality
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/components", params=params, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Component tracker unavailable")
+
+@app.get("/api/v1/products")
+async def list_products(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/products", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Component tracker unavailable")
+
+@app.get("/api/v1/products/{product_id}/bom")
+async def get_product_bom(product_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/products/{product_id}/bom", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Component tracker unavailable")
+
+@app.get("/api/v1/components/{component_id}/impact")
+async def component_impact(component_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/impact-analysis/{component_id}", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Component tracker unavailable")
 
 # --- Digital Twin Simulator ---
 
