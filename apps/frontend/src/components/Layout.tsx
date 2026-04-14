@@ -17,7 +17,10 @@ import {
   MoonIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import OnboardingWizard from './OnboardingWizard';
 import { useTheme } from '../contexts/ThemeContext';
 import ChatPanel from './ChatPanel';
 import GlobalSearch from './GlobalSearch';
@@ -63,8 +66,13 @@ const navGroups = [
 export default function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  useKeyboardShortcuts();
+
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('scirm_onboarded'));
 
   return (
+    <>
+    {showOnboarding && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
       <a href="#main-content" className="skip-nav">Skip to main content</a>
 
@@ -132,5 +140,6 @@ export default function Layout() {
 
       <ChatPanel />
     </div>
+    </>
   );
 }

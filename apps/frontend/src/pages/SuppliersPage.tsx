@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, Supplier } from '../services/api';
 import RadarChart from '../components/d3/RadarChart';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -106,6 +107,7 @@ export default function SuppliersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Region</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk Score</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk Tier</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -124,6 +126,12 @@ export default function SuppliersPage() {
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${tierColors[s.risk_tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
                       {s.risk_tier}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Link to="/simulator" className="text-[10px] text-blue-600 hover:text-blue-800 font-medium">Simulate</Link>
+                      <Link to="/procurement" className="text-[10px] text-purple-600 hover:text-purple-800 font-medium">Alternatives</Link>
+                    </div>
                   </td>
                 </tr>
               ))}
