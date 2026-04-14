@@ -235,7 +235,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     // Draw aggregated risk nodes (category bubbles with count)
     posRisks.forEach((risk, i) => {
       const rColor = SEVERITY_COLORS[risk.severity] || '#ef4444';
-      const radius = Math.max(18, Math.min(risk.count * 4 + 14, 36));
+      const radius = Math.max(18, Math.min(risk.count * 2 + 14, 30));
       const delay = posSuppliers.length * 60 + 200 + i * 80;
       const nodeG = nodeLayer.append('g').attr('transform', `translate(${risk.x},${risk.y})`).style('cursor', 'pointer');
 
@@ -248,20 +248,14 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('opacity', 0).text(risk.count)
         .transition().delay(delay + 300).duration(200).attr('opacity', 1);
 
-      // Label background for readability over links
-      const labelX = -(radius + 12);
-      const bgRect = nodeG.append('rect')
-        .attr('x', labelX - 75).attr('y', -14).attr('width', 75).attr('height', 30)
-        .attr('rx', 4).attr('fill', isDark ? '#1f2937' : '#ffffff').attr('opacity', 0.85);
-
-      // Category label to the left of bubble
-      nodeG.append('text').attr('x', labelX).attr('dy', '-0.1em').attr('text-anchor', 'end').attr('font-size', '11px')
+      // Category label below bubble (130px spacing gives room)
+      nodeG.append('text').attr('y', radius + 18).attr('text-anchor', 'middle').attr('font-size', '12px')
         .attr('font-weight', '600').attr('fill', colors.text).style('text-transform', 'capitalize')
         .text(risk.label);
 
       // Severity label below category name
-      nodeG.append('text').attr('x', labelX).attr('dy', '1.1em').attr('text-anchor', 'end').attr('font-size', '9px')
-        .attr('fill', rColor).style('text-transform', 'capitalize').text(risk.severity);
+      nodeG.append('text').attr('y', radius + 33).attr('text-anchor', 'middle').attr('font-size', '10px')
+        .attr('fill', rColor).style('text-transform', 'capitalize').text(`${risk.severity} (${risk.count})`);
 
       nodeG.on('mouseover', function (event) {
         d3.select(this).select('circle').transition().duration(150).attr('r', radius + 4);
