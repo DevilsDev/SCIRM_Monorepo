@@ -2,13 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-/* WCAG 2.1 AA: Enhanced focus indicators */
 @layer base {
-  *:focus-visible {
-    @apply outline-2 outline-offset-2 outline-blue-600;
+  /* Dark mode body */
+  html.dark {
+    color-scheme: dark;
   }
 
-  /* Skip navigation link — hidden until focused */
+  /* Dark mode card backgrounds */
+  .dark .bg-white {
+    background-color: #1f2937; /* gray-800 */
+  }
+  .dark .border-gray-200 {
+    border-color: #374151; /* gray-700 */
+  }
+  .dark .text-gray-900 {
+    color: #f9fafb; /* gray-50 */
+  }
+  .dark .text-gray-700 {
+    color: #d1d5db; /* gray-300 */
+  }
+  .dark .text-gray-500 {
+    color: #9ca3af; /* gray-400 */
+  }
+  .dark .bg-gray-50 {
+    background-color: #111827; /* gray-900 */
+  }
+
+  /* Focus indicators */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-500;
+  }
+
+  /* Skip navigation */
   .skip-nav {
     @apply absolute -top-10 left-0 bg-blue-600 text-white px-4 py-2 z-50 transition-all;
   }
@@ -16,12 +41,12 @@
     @apply top-0;
   }
 
-  /* Ensure minimum touch target size (44x44px per WCAG) */
+  /* Minimum touch target */
   button, a, input, select, textarea {
     min-height: 2.75rem;
   }
 
-  /* Reduce motion for users who prefer it */
+  /* Reduce motion */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
