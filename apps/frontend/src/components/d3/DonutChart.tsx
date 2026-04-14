@@ -95,7 +95,7 @@ export default function DonutChart({ data, width = 320, height = 280 }: DonutCha
     g.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '1.4em')
-      .attr('fill', subcolors.text)
+      .attr('fill', colors.textMuted)
       .attr('font-size', '12px')
       .text('Total Risks');
 
