@@ -118,10 +118,18 @@ class MFAVerifyRequest(BaseModel):
 async def login(request: LoginRequest):
     """Authenticate user. If MFA is enabled, returns mfa_required=true with a temporary token."""
     user_info = DEV_USERS.get(request.email)
-    if not user_info:
+    registered = _registered_users.get(request.email)
+
+    if not user_info and not registered:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if request.password != DEV_PASSWORD:
+    # Check password: registered users use their own password, dev users use DEV_PASSWORD
+    if registered:
+        if request.password != registered.get("password"):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not user_info:
+            user_info = registered
+    elif request.password != DEV_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Check if MFA is required
