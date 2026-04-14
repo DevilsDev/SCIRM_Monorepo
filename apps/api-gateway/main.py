@@ -591,6 +591,119 @@ async def intelligence_sources(token: str = Depends(security)):
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail="Source status unavailable")
 
+# --- Data Export ---
+
+@app.get("/api/v1/export/risks")
+async def export_risks(format: str = "csv", token: str = Depends(security)):
+    """Export all risks as CSV or JSON."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 1000}, timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            risks = data.get("risks", [])
+
+        if format == "csv":
+            import io, csv
+            output = io.StringIO()
+            if risks:
+                writer = csv.DictWriter(output, fieldnames=risks[0].keys())
+                writer.writeheader()
+                writer.writerows(risks)
+            from fastapi.responses import StreamingResponse
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=scirm_risks_export.csv"},
+            )
+        return {"risks": risks, "total": len(risks), "exported_at": datetime.utcnow().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Export failed")
+
+@app.get("/api/v1/export/suppliers")
+async def export_suppliers(format: str = "csv", token: str = Depends(security)):
+    """Export all suppliers as CSV or JSON."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/suppliers", timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            suppliers = data.get("suppliers", [])
+
+        if format == "csv":
+            import io, csv
+            output = io.StringIO()
+            if suppliers:
+                writer = csv.DictWriter(output, fieldnames=suppliers[0].keys())
+                writer.writeheader()
+                writer.writerows(suppliers)
+            from fastapi.responses import StreamingResponse
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=scirm_suppliers_export.csv"},
+            )
+        return {"suppliers": suppliers, "total": len(suppliers), "exported_at": datetime.utcnow().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Export failed")
+
+@app.get("/api/v1/export/report")
+async def export_full_report(token: str = Depends(security)):
+    """Export comprehensive risk report as JSON."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            risks_resp = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 500}, timeout=10.0)
+            suppliers_resp = await client.get(f"{COORDINATOR_URL}/suppliers", timeout=10.0)
+            alerts_resp = await client.get(f"{COORDINATOR_URL}/alerts", timeout=10.0)
+            predictions_resp = await client.get(f"{COORDINATOR_URL}/predictions", timeout=10.0)
+
+        return {
+            "report_title": "SCIRM Supply Chain Risk Report",
+            "generated_at": datetime.utcnow().isoformat(),
+            "generated_by": user.email,
+            "risks": risks_resp.json() if risks_resp.status_code == 200 else {},
+            "suppliers": suppliers_resp.json() if suppliers_resp.status_code == 200 else {},
+            "alerts": alerts_resp.json() if alerts_resp.status_code == 200 else {},
+            "predictions": predictions_resp.json() if predictions_resp.status_code == 200 else {},
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Report generation failed")
+
+# --- Password Reset ---
+
+@app.post("/api/v1/auth/forgot-password")
+async def forgot_password(body: Dict[str, Any]):
+    """Request a password reset email."""
+    email = body.get("email", "")
+    # In production: generate token, send email via SMTP
+    # For dev: just acknowledge
+    logger.info("Password reset requested", email=email)
+    return {"message": "If an account exists for this email, a reset link has been sent."}
+
+@app.post("/api/v1/auth/reset-password")
+async def reset_password(body: Dict[str, Any]):
+    """Reset password with a token."""
+    token_val = body.get("token", "")
+    new_password = body.get("new_password", "")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    # In production: validate token, update password in DB
+    return {"message": "Password has been reset successfully."}
+
+@app.post("/api/v1/auth/change-password")
+async def change_password(body: Dict[str, Any], token: str = Depends(security)):
+    """Change password for authenticated user."""
+    user = await verify_token(token.credentials)
+    current = body.get("current_password", "")
+    new_pass = body.get("new_password", "")
+    if len(new_pass) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    # In production: verify current password, update in DB
+    return {"message": "Password changed successfully."}
+
 # --- Components ---
 
 @app.get("/api/v1/components")

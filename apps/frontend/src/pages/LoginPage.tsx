@@ -82,12 +82,16 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-6">
-            Don't have an account?{' '}
-            <Link to="/signup" className="text-blue-600 hover:text-blue-800 font-medium">
-              Create one
+          <div className="flex items-center justify-between mt-6">
+            <Link to="/forgot-password" className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              Forgot password?
             </Link>
-          </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              <Link to="/signup" className="text-blue-600 hover:text-blue-800 font-medium">
+                Create account
+              </Link>
+            </p>
+          </div>
 
           <p className="text-xs text-gray-400 text-center mt-2">
             Dev: sarah.chen@pharmacorp.com / scirm-dev-2026

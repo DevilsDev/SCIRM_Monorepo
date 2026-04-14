@@ -126,9 +126,10 @@ export default function Layout() {
         {/* User */}
         <div className="p-3 border-t border-gray-800">
           <p className="text-xs text-gray-300 truncate">{user?.email}</p>
-          <button onClick={logout} className="mt-1 text-[10px] text-gray-500 hover:text-white transition-colors">
-            Sign out
-          </button>
+          <div className="flex items-center gap-3 mt-1">
+            <NavLink to="/settings" className="text-[10px] text-gray-500 hover:text-white transition-colors">Settings</NavLink>
+            <button onClick={logout} className="text-[10px] text-gray-500 hover:text-white transition-colors">Sign out</button>
+          </div>
         </div>
       </aside>
 

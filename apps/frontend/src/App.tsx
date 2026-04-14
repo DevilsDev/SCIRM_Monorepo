@@ -18,6 +18,8 @@ import IntelligenceFeedPage from './pages/IntelligenceFeedPage';
 import SimulatorPage from './pages/SimulatorPage';
 import ProcurementPage from './pages/ProcurementPage';
 import ComponentsPage from './pages/ComponentsPage';
+import SettingsPage from './pages/SettingsPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 
 export default function App() {
   return (
@@ -25,6 +27,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
@@ -42,6 +45,7 @@ export default function App() {
             <Route path="/simulator" element={<SimulatorPage />} />
             <Route path="/procurement" element={<ProcurementPage />} />
             <Route path="/components" element={<ComponentsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
       </Routes>
