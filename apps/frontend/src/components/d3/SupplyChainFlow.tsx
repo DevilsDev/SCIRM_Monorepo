@@ -85,7 +85,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     });
 
     // Tier X positions (3 columns)
-    const tierX = [innerW * 0.12, innerW * 0.50, innerW * 0.88];
+    const tierX = [innerW * 0.12, innerW * 0.48, innerW * 0.92];
 
     // Minimum spacing per node (largest radius + labels + padding)
     const minNodeSpacing = 130;
@@ -242,13 +242,13 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('opacity', 0).text(risk.count)
         .transition().delay(delay + 300).duration(200).attr('opacity', 1);
 
-      // Category label below
-      nodeG.append('text').attr('y', radius + 16).attr('text-anchor', 'middle').attr('font-size', '11px')
-        .attr('font-weight', '500').attr('fill', colors.text).style('text-transform', 'capitalize')
+      // Category label to the left of bubble
+      nodeG.append('text').attr('x', -(radius + 10)).attr('dy', '-0.2em').attr('text-anchor', 'end').attr('font-size', '11px')
+        .attr('font-weight', '600').attr('fill', colors.text).style('text-transform', 'capitalize')
         .text(risk.label);
 
-      // Severity label
-      nodeG.append('text').attr('y', radius + 30).attr('text-anchor', 'middle').attr('font-size', '9px')
+      // Severity label below category name
+      nodeG.append('text').attr('x', -(radius + 10)).attr('dy', '1em').attr('text-anchor', 'end').attr('font-size', '9px')
         .attr('fill', rColor).style('text-transform', 'capitalize').text(risk.severity);
 
       nodeG.on('mouseover', function (event) {
