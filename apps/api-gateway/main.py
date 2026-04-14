@@ -34,6 +34,7 @@ PLANNER_URL = os.getenv("PLANNER_SERVICE_URL", "http://localhost:8002")
 RESEARCHER_URL = os.getenv("RESEARCHER_SERVICE_URL", "http://localhost:8003")
 EXECUTOR_URL = os.getenv("EXECUTOR_SERVICE_URL", "http://localhost:8004")
 REVIEWER_URL = os.getenv("REVIEWER_SERVICE_URL", "http://localhost:8005")
+RISK_SCORER_URL = os.getenv("RISK_SCORER_SERVICE_URL", "http://localhost:8006")
 
 security = HTTPBearer()
 
@@ -528,6 +529,33 @@ async def simulate_scenario(scenario: Dict[str, Any], token: str = Depends(secur
     except httpx.HTTPError as e:
         logger.error("Scenario simulation failed", error=str(e))
         raise HTTPException(status_code=500, detail="Scenario simulation failed")
+
+# --- Risk Scoring ---
+
+@app.post("/api/v1/risk-score")
+async def score_supplier_risk(body: Dict[str, Any], token: str = Depends(security)):
+    """Score a supplier across 7 risk dimensions."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{RISK_SCORER_URL}/score", json=body, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Risk scoring failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Risk scoring service unavailable")
+
+@app.get("/api/v1/risk-dimensions")
+async def list_risk_dimensions(token: str = Depends(security)):
+    """List all 7 risk dimensions with rubrics."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{RISK_SCORER_URL}/dimensions", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Risk scoring service unavailable")
 
 # --- ERP Integration ---
 

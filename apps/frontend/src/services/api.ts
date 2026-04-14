@@ -206,6 +206,17 @@ export const api = {
     return response.data;
   },
 
+  // Risk Scoring (7 dimensions)
+  async scoreSupplierRisk(supplierName: string, supplierContext: Record<string, any> = {}) {
+    const response = await apiClient.post('/api/v1/risk-score', { supplier_name: supplierName, supplier_context: supplierContext });
+    return response.data;
+  },
+
+  async getRiskDimensions() {
+    const response = await apiClient.get('/api/v1/risk-dimensions');
+    return response.data;
+  },
+
   // Predictions
   async getPredictions() {
     const response = await apiClient.get('/api/v1/predictions');
