@@ -37,6 +37,7 @@ PLANNER_URL = os.getenv("PLANNER_SERVICE_URL", "http://localhost:8002")
 RESEARCHER_URL = os.getenv("RESEARCHER_SERVICE_URL", "http://localhost:8003")
 EXECUTOR_URL = os.getenv("EXECUTOR_SERVICE_URL", "http://localhost:8004")
 REVIEWER_URL = os.getenv("REVIEWER_SERVICE_URL", "http://localhost:8005")
+DISCOVERY_URL = os.getenv("DISCOVERY_SERVICE_URL", "http://localhost:8007")
 AGENT_TIMEOUT = float(os.getenv("AGENT_TIMEOUT_SECONDS", "30"))
 AUTO_REFRESH_INTERVAL = int(os.getenv("AUTO_REFRESH_INTERVAL_MINUTES", "15"))
 AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "true").lower() == "true"
@@ -771,6 +772,99 @@ async def simulate_scenario(scenario: Dict[str, Any]):
         "recommendations": recommendations,
         "simulation_confidence": round(0.6 + len(impacted) * 0.05, 2),
     }
+
+
+# ---------------------------------------------------------------------------
+# Sub-Tier Discovery
+# ---------------------------------------------------------------------------
+
+_risk_events: List[Dict[str, Any]] = []
+_event_impacts: List[Dict[str, Any]] = []
+
+
+@app.post("/discover-subtiers")
+async def discover_subtiers(payload: Dict[str, Any]):
+    """Discover sub-tier suppliers using the Discovery Agent."""
+    try:
+        result = await _call_agent(
+            "discovery", DISCOVERY_URL, "/discover",
+            payload,
+            f"discovery-{uuid.uuid4().hex[:8]}",
+        )
+        return result if result else {"discovered_subtiers": [], "relationships": [], "total_discovered": 0}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Sub-tier discovery failed", error=str(exc))
+        return {"discovered_subtiers": [], "relationships": [], "total_discovered": 0, "error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Risk Events + Impact Propagation
+# ---------------------------------------------------------------------------
+
+@app.post("/events")
+async def create_risk_event(event: Dict[str, Any]):
+    """Create a risk event and propagate impact through the supplier graph."""
+    from libs.common.impact_propagation import propagate_impact
+
+    event_id = str(uuid.uuid4())
+    event["id"] = event_id
+    event["detected_at"] = datetime.utcnow().isoformat()
+    event.setdefault("status", "active")
+    _risk_events.append(event)
+
+    # Propagate impact through supplier graph
+    affected_ids = event.get("affected_supplier_ids", [])
+    if affected_ids:
+        # Build adjacency from known supplier relationships
+        supplier_graph: Dict[str, List[Dict[str, Any]]] = {}
+        # Simple: each supplier connects to the org
+        for sid, info in _suppliers.items():
+            supplier_graph.setdefault(sid, [])
+            # Add any known sub-tier connections from discovery
+            for rel in _event_impacts:
+                if rel.get("source_supplier_id") == sid:
+                    supplier_graph[sid].append({"target_id": rel["target_supplier_id"]})
+
+        impacts = propagate_impact(
+            event_id=event_id,
+            initial_severity=event.get("severity", "high"),
+            directly_affected_supplier_ids=affected_ids,
+            supplier_graph=supplier_graph,
+            supplier_info=_suppliers,
+        )
+        _event_impacts.extend(impacts)
+
+        # Auto-generate alerts for impacted suppliers
+        for impact in impacts:
+            if impact["impact_severity"] in ("critical", "high"):
+                _alerts.append({
+                    "id": str(uuid.uuid4()),
+                    "alert_type": "event_impact",
+                    "severity": impact["impact_severity"],
+                    "title": f"Impact from: {event.get('title', 'Unknown Event')}",
+                    "description": f"{impact['impacted_entity_name']} affected (Tier {impact['tier_distance']}, est. {impact['estimated_disruption_days']}d disruption)",
+                    "status": "active",
+                    "metadata": {"event_id": event_id, "impact_id": impact["id"]},
+                    "created_at": datetime.utcnow().isoformat(),
+                })
+
+    return {"event": event, "impacts": _event_impacts[-len(affected_ids):] if affected_ids else [], "total_impacts": len(_event_impacts)}
+
+
+@app.get("/events")
+async def list_risk_events(limit: int = 50):
+    """List all risk events."""
+    events = sorted(_risk_events, key=lambda e: e.get("detected_at", ""), reverse=True)
+    return {"events": events[:limit], "total": len(events)}
+
+
+@app.get("/events/{event_id}/impacts")
+async def get_event_impacts(event_id: str):
+    """Get all impacts for a specific risk event."""
+    impacts = [i for i in _event_impacts if i.get("event_id") == event_id]
+    return {"event_id": event_id, "impacts": impacts, "total": len(impacts)}
 
 
 # ---------------------------------------------------------------------------

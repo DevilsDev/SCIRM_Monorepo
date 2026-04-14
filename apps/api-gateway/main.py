@@ -35,6 +35,7 @@ RESEARCHER_URL = os.getenv("RESEARCHER_SERVICE_URL", "http://localhost:8003")
 EXECUTOR_URL = os.getenv("EXECUTOR_SERVICE_URL", "http://localhost:8004")
 REVIEWER_URL = os.getenv("REVIEWER_SERVICE_URL", "http://localhost:8005")
 RISK_SCORER_URL = os.getenv("RISK_SCORER_SERVICE_URL", "http://localhost:8006")
+DISCOVERY_URL = os.getenv("DISCOVERY_SERVICE_URL", "http://localhost:8007")
 
 security = HTTPBearer()
 
@@ -529,6 +530,58 @@ async def simulate_scenario(scenario: Dict[str, Any], token: str = Depends(secur
     except httpx.HTTPError as e:
         logger.error("Scenario simulation failed", error=str(e))
         raise HTTPException(status_code=500, detail="Scenario simulation failed")
+
+# --- Sub-Tier Discovery ---
+
+@app.post("/api/v1/suppliers/discover-subtiers")
+async def discover_subtiers(body: Dict[str, Any], token: str = Depends(security)):
+    """Discover sub-tier suppliers using AI."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/discover-subtiers", json=body, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Discovery failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Discovery service unavailable")
+
+# --- Risk Events ---
+
+@app.post("/api/v1/events")
+async def create_risk_event(body: Dict[str, Any], token: str = Depends(security)):
+    """Create a risk event with impact propagation."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/events", json=body, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Event creation failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Event service unavailable")
+
+@app.get("/api/v1/events")
+async def list_events(limit: int = 50, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/events", params={"limit": limit}, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Event service unavailable")
+
+@app.get("/api/v1/events/{event_id}/impacts")
+async def get_event_impacts(event_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/events/{event_id}/impacts", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Impact data unavailable")
 
 # --- Risk Scoring ---
 

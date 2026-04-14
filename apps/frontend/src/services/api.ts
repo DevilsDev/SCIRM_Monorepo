@@ -206,6 +206,28 @@ export const api = {
     return response.data;
   },
 
+  // Sub-Tier Discovery
+  async discoverSubtiers(supplierName: string, supplierId: string = '', supplierContext: Record<string, any> = {}) {
+    const response = await apiClient.post('/api/v1/suppliers/discover-subtiers', { supplier_name: supplierName, supplier_id: supplierId, supplier_context: supplierContext });
+    return response.data;
+  },
+
+  // Risk Events
+  async createEvent(event: Record<string, any>) {
+    const response = await apiClient.post('/api/v1/events', event);
+    return response.data;
+  },
+
+  async getEvents(limit: number = 50) {
+    const response = await apiClient.get('/api/v1/events', { params: { limit } });
+    return response.data;
+  },
+
+  async getEventImpacts(eventId: string) {
+    const response = await apiClient.get(`/api/v1/events/${eventId}/impacts`);
+    return response.data;
+  },
+
   // Risk Scoring (7 dimensions)
   async scoreSupplierRisk(supplierName: string, supplierContext: Record<string, any> = {}) {
     const response = await apiClient.post('/api/v1/risk-score', { supplier_name: supplierName, supplier_context: supplierContext });
