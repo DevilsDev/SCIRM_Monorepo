@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface RadarData {
   dimension: string;
@@ -30,6 +31,7 @@ export default function RadarChart({ data, size = 300 }: RadarChartProps) {
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+    const colors = getThemeColors();
 
     const margin = 50;
     const radius = size / 2 - margin;
@@ -47,13 +49,14 @@ export default function RadarChart({ data, size = 300 }: RadarChartProps) {
       g.append('circle')
         .attr('r', r)
         .attr('fill', 'none')
-        .attr('stroke', '#e5e7eb')
+        .attr('stroke', colors.grid)
         .attr('stroke-width', 0.5);
 
       g.append('text')
         .attr('x', 4)
         .attr('y', -r + 4)
-        .attr('class', 'text-[8px] fill-gray-400')
+        .attr('class', 'text-[8px]')
+        .attr('fill', colors.textMuted)
         .text(`${(lvl / levels) * 100}`);
     }
 
@@ -66,7 +69,7 @@ export default function RadarChart({ data, size = 300 }: RadarChartProps) {
       g.append('line')
         .attr('x1', 0).attr('y1', 0)
         .attr('x2', x).attr('y2', y)
-        .attr('stroke', '#d1d5db')
+        .attr('stroke', colors.grid)
         .attr('stroke-width', 0.5);
 
       const labelX = Math.cos(angle) * (radius + 20);
@@ -76,7 +79,8 @@ export default function RadarChart({ data, size = 300 }: RadarChartProps) {
         .attr('y', labelY)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
-        .attr('class', 'text-[9px] font-medium fill-gray-600')
+        .attr('class', 'text-[9px] font-medium')
+        .attr('fill', colors.textLight)
         .text(d.label.length > 12 ? d.label.slice(0, 10) + '..' : d.label);
     });
 

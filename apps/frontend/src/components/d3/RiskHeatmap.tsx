@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface HeatmapCell {
   category: string;
@@ -27,6 +28,7 @@ export default function RiskHeatmap({ data, height = 220 }: RiskHeatmapProps) {
     const innerH = height - margin.top - margin.bottom;
 
     d3.select(container).selectAll('*').remove();
+    const colors = getThemeColors();
 
     const svg = d3.select(container)
       .append('svg')
@@ -101,14 +103,14 @@ export default function RiskHeatmap({ data, height = 220 }: RiskHeatmapProps) {
     // Axes
     g.append('g').attr('transform', `translate(0,${innerH})`).call(d3.axisBottom(x).tickSize(0))
       .select('.domain').remove();
-    g.selectAll('.tick text').attr('class', 'fill-gray-600 text-xs capitalize');
+    g.selectAll('.tick text').attr('class', 'text-xs capitalize').attr('fill', colors.textLight);
 
     g.append('g').call(d3.axisLeft(y).tickSize(0)).select('.domain').remove();
-    g.selectAll('.tick text').attr('class', 'fill-gray-600 text-xs capitalize');
+    g.selectAll('.tick text').attr('class', 'text-xs capitalize').attr('fill', colors.textLight);
 
     // Title
     svg.append('text').attr('x', width / 2).attr('y', 16).attr('text-anchor', 'middle')
-      .attr('class', 'fill-gray-400 text-[10px]').text('Category × Severity');
+      .attr('class', 'text-[10px]').attr('fill', colors.textMuted).text('Category × Severity');
 
     return () => { tooltip.remove(); };
   }, [data, height]);

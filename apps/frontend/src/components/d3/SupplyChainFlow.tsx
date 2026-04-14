@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface FlowNode {
   id: string;
@@ -51,6 +52,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     const innerH = height - margin.top - margin.bottom;
 
     d3.select(container).selectAll('*').remove();
+    const colors = getThemeColors();
 
     const svg = d3.select(container)
       .append('svg')
@@ -194,7 +196,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       nodeG.append('circle')
         .attr('r', 0)
         .attr('fill', nodeColor)
-        .attr('stroke', 'white')
+        .attr('stroke', colors.stroke)
         .attr('stroke-width', 3)
         .transition()
         .duration(500)
@@ -220,7 +222,8 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       nodeG.append('text')
         .attr('y', radius + 16)
         .attr('text-anchor', 'middle')
-        .attr('class', 'text-[10px] font-medium fill-gray-700')
+        .attr('class', 'text-[10px] font-medium')
+        .attr('fill', colors.textLight)
         .text(node.label.length > 20 ? node.label.slice(0, 18) + '...' : node.label);
 
       // Sub-label (risk score or severity)
@@ -228,13 +231,15 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         nodeG.append('text')
           .attr('y', radius + 28)
           .attr('text-anchor', 'middle')
-          .attr('class', 'text-[9px] fill-gray-400')
+          .attr('class', 'text-[9px]')
+          .attr('fill', colors.textMuted)
           .text(`Risk: ${node.risk_score.toFixed(0)}/100`);
       } else if (node.severity) {
         nodeG.append('text')
           .attr('y', radius + 28)
           .attr('text-anchor', 'middle')
-          .attr('class', 'text-[9px] fill-gray-400 capitalize')
+          .attr('class', 'text-[9px] capitalize')
+          .attr('fill', colors.textMuted)
           .text(node.severity);
       }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface DonutData {
   name: string;
@@ -23,10 +24,17 @@ export default function DonutChart({ data, width = 320, height = 280 }: DonutCha
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    if (!svgRef.current || !data.length || data.every((d) => d.value === 0)) return;
+    if (!svgRef.current) return;
+
+    // Filter out zero-value items so they don't render as invisible slivers
+    const filteredData = data.filter((d) => d.value > 0);
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+
+    if (!filteredData.length) return;
+
+    const colors = getThemeColors();
 
     const radius = Math.min(width, height) / 2 - 20;
     const innerRadius = radius * 0.55;
@@ -36,18 +44,18 @@ export default function DonutChart({ data, width = 320, height = 280 }: DonutCha
     const arc = d3.arc<d3.PieArcDatum<DonutData>>().innerRadius(innerRadius).outerRadius(radius).cornerRadius(4);
     const arcHover = d3.arc<d3.PieArcDatum<DonutData>>().innerRadius(innerRadius).outerRadius(radius + 10).cornerRadius(4);
 
-    const total = data.reduce((s, d) => s + d.value, 0);
+    const total = filteredData.reduce((s, d) => s + d.value, 0);
 
     // Tooltip
     const tooltip = d3.select('body').append('div')
       .attr('class', 'fixed pointer-events-none bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl opacity-0 transition-opacity z-50');
 
     // Arcs with animated entry
-    const arcs = g.selectAll('.arc').data(pie(data)).enter().append('g').attr('class', 'arc');
+    const arcs = g.selectAll('.arc').data(pie(filteredData)).enter().append('g').attr('class', 'arc');
 
     arcs.append('path')
       .attr('fill', (d) => COLORS[d.data.name] || '#94a3b8')
-      .attr('stroke', 'white')
+      .attr('stroke', colors.stroke)
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
       .transition()
@@ -75,25 +83,30 @@ export default function DonutChart({ data, width = 320, height = 280 }: DonutCha
         tooltip.style('opacity', '0');
       });
 
-    // Center text
+    // Center text — uses theme-aware colors
     g.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '-0.2em')
-      .attr('class', 'fill-gray-900 text-3xl font-bold')
+      .attr('fill', colors.text)
+      .attr('font-size', '28px')
+      .attr('font-weight', 'bold')
       .text(total);
 
     g.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '1.4em')
-      .attr('class', 'fill-gray-500 text-xs')
+      .attr('fill', subcolors.text)
+      .attr('font-size', '12px')
       .text('Total Risks');
 
-    // Legend
-    const legend = svg.append('g').attr('transform', `translate(${width / 2 - 80},${height - 20})`);
-    data.filter((d) => d.value > 0).forEach((d, i) => {
+    // Legend — only show items with value > 0
+    const legendItems = filteredData;
+    const legendWidth = legendItems.length * 80;
+    const legend = svg.append('g').attr('transform', `translate(${width / 2 - legendWidth / 2},${height - 20})`);
+    legendItems.forEach((d, i) => {
       const lg = legend.append('g').attr('transform', `translate(${i * 80}, 0)`);
       lg.append('rect').attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', COLORS[d.name] || '#94a3b8');
-      lg.append('text').attr('x', 14).attr('y', 9).attr('class', 'fill-gray-600 text-[10px] capitalize').text(d.name);
+      lg.append('text').attr('x', 14).attr('y', 9).attr('fill', colors.textLight).attr('font-size', '10px').style('text-transform', 'capitalize').text(d.name);
     });
 
     return () => { tooltip.remove(); };

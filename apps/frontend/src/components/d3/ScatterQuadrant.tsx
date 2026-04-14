@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface ScatterPoint {
   x: number;
@@ -32,6 +33,7 @@ export default function ScatterQuadrant({ data, height = 360 }: ScatterQuadrantP
     const innerH = height - margin.top - margin.bottom;
 
     d3.select(container).selectAll('*').remove();
+    const colors = getThemeColors();
 
     const svg = d3.select(container)
       .append('svg')
@@ -45,8 +47,8 @@ export default function ScatterQuadrant({ data, height = 360 }: ScatterQuadrantP
     const y = d3.scaleLinear().domain([0, 10]).range([innerH, 0]);
 
     // Grid
-    g.append('g').call(d3.axisBottom(x).tickSize(innerH).tickFormat(() => '').ticks(6)).attr('stroke-opacity', 0.08).select('.domain').remove();
-    g.append('g').call(d3.axisLeft(y).tickSize(-innerW).tickFormat(() => '').ticks(5)).attr('stroke-opacity', 0.08).select('.domain').remove();
+    g.append('g').call(d3.axisBottom(x).tickSize(innerH).tickFormat(() => '').ticks(6)).attr('stroke', colors.grid).attr('stroke-opacity', 0.3).select('.domain').remove();
+    g.append('g').call(d3.axisLeft(y).tickSize(-innerW).tickFormat(() => '').ticks(5)).attr('stroke', colors.grid).attr('stroke-opacity', 0.3).select('.domain').remove();
 
     // Quadrant lines
     const midX = xMax * 0.5;
@@ -73,13 +75,13 @@ export default function ScatterQuadrant({ data, height = 360 }: ScatterQuadrantP
     // Axes
     g.append('g').attr('transform', `translate(0,${innerH})`).call(
       d3.axisBottom(x).ticks(6).tickFormat((d) => `$${(Number(d) / 1000).toFixed(0)}k`)
-    ).selectAll('text').attr('class', 'fill-gray-500 text-[10px]');
+    ).selectAll('text').attr('class', 'text-[10px]').attr('fill', colors.textMuted);
 
-    g.append('g').call(d3.axisLeft(y).ticks(5)).selectAll('text').attr('class', 'fill-gray-500 text-[10px]');
+    g.append('g').call(d3.axisLeft(y).ticks(5)).selectAll('text').attr('class', 'text-[10px]').attr('fill', colors.textMuted);
 
     // Axis labels
-    svg.append('text').attr('x', width / 2).attr('y', height - 6).attr('text-anchor', 'middle').attr('class', 'fill-gray-500 text-xs').text('Estimated Cost');
-    svg.append('text').attr('transform', 'rotate(-90)').attr('x', -height / 2).attr('y', 14).attr('text-anchor', 'middle').attr('class', 'fill-gray-500 text-xs').text('Impact Score');
+    svg.append('text').attr('x', width / 2).attr('y', height - 6).attr('text-anchor', 'middle').attr('class', 'text-xs').attr('fill', colors.textMuted).text('Estimated Cost');
+    svg.append('text').attr('transform', 'rotate(-90)').attr('x', -height / 2).attr('y', 14).attr('text-anchor', 'middle').attr('class', 'text-xs').attr('fill', colors.textMuted).text('Impact Score');
 
     // Tooltip
     const tooltip = d3.select('body').append('div')

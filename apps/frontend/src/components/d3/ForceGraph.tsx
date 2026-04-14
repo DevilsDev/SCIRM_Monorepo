@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -44,6 +45,7 @@ export default function ForceGraph({ nodes: rawNodes, edges: rawEdges, height = 
     const width = container.clientWidth;
 
     d3.select(container).selectAll('*').remove();
+    const colors = getThemeColors();
 
     const svg = d3.select(container)
       .append('svg')
@@ -127,7 +129,7 @@ export default function ForceGraph({ nodes: rawNodes, edges: rawEdges, height = 
     node.append('circle')
       .attr('r', 0)
       .attr('fill', (d) => NODE_COLORS[d.type] || '#94a3b8')
-      .attr('stroke', 'white')
+      .attr('stroke', colors.stroke)
       .attr('stroke-width', 2.5)
       .transition()
       .duration(600)
@@ -139,14 +141,16 @@ export default function ForceGraph({ nodes: rawNodes, edges: rawEdges, height = 
     node.append('text')
       .attr('dy', (d) => (NODE_RADIUS[d.type] || 16) + 14)
       .attr('text-anchor', 'middle')
-      .attr('class', 'text-[10px] font-medium fill-gray-700')
+      .attr('class', 'text-[10px] font-medium')
+      .attr('fill', colors.textLight)
       .text((d) => d.label.length > 18 ? d.label.slice(0, 16) + '...' : d.label);
 
     // Node type icon (first letter)
     node.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
-      .attr('class', 'font-bold fill-white')
+      .attr('class', 'font-bold')
+      .attr('fill', 'white')
       .attr('font-size', (d) => `${(NODE_RADIUS[d.type] || 16) * 0.7}px`)
       .text((d) => d.type === 'organization' ? 'O' : d.type === 'supplier' ? 'S' : 'R');
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { getThemeColors } from './theme';
 
 interface BarData {
   name: string;
@@ -35,6 +36,7 @@ export default function AnimatedBars({ data, height = 300, colorField, valueLabe
     const innerH = height - margin.top - margin.bottom;
 
     d3.select(container).selectAll('*').remove();
+    const colors = getThemeColors();
 
     const svg = d3.select(container)
       .append('svg')
@@ -50,7 +52,8 @@ export default function AnimatedBars({ data, height = 300, colorField, valueLabe
     g.append('g')
       .attr('class', 'grid')
       .call(d3.axisBottom(x).tickSize(innerH).tickFormat(() => '').ticks(5))
-      .attr('stroke-opacity', 0.1)
+      .attr('stroke', colors.grid)
+      .attr('stroke-opacity', 0.3)
       .select('.domain').remove();
 
     // Y axis
@@ -58,7 +61,8 @@ export default function AnimatedBars({ data, height = 300, colorField, valueLabe
       .call(d3.axisLeft(y).tickSize(0))
       .select('.domain').remove();
     g.selectAll('.tick text')
-      .attr('class', 'fill-gray-700 text-xs capitalize');
+      .attr('class', 'text-xs capitalize')
+      .attr('fill', colors.textLight);
 
     // Tooltip
     const tooltip = d3.select('body').append('div')
@@ -109,7 +113,8 @@ export default function AnimatedBars({ data, height = 300, colorField, valueLabe
       .data(data)
       .enter()
       .append('text')
-      .attr('class', 'fill-gray-700 text-xs font-semibold')
+      .attr('class', 'text-xs font-semibold')
+      .attr('fill', colors.textLight)
       .attr('y', (d) => (y(d.name) || 0) + y.bandwidth() / 2 + 4)
       .attr('x', 0)
       .transition()
