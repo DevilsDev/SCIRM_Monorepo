@@ -9,9 +9,11 @@ import {
   MapIcon,
   ChartBarSquareIcon,
   BoltIcon,
+  NewspaperIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
+import ChatPanel from './ChatPanel';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: HomeIcon },
@@ -20,6 +22,7 @@ const navItems = [
   { to: '/supply-chain', label: 'Supply Chain Map', icon: MapIcon },
   { to: '/predictions', label: 'Predictions', icon: ChartBarSquareIcon },
   { to: '/events', label: 'Risk Events', icon: BoltIcon },
+  { to: '/intelligence', label: 'Intel Feed', icon: NewspaperIcon },
   { to: '/alerts', label: 'Alerts', icon: BellAlertIcon },
   { to: '/assessments/new', label: 'New Assessment', icon: PlusCircleIcon },
   { to: '/recommendations', label: 'Recommendations', icon: LightBulbIcon },
@@ -74,6 +77,9 @@ export default function Layout() {
       <main id="main-content" className="flex-1 overflow-auto bg-gray-50 p-6" role="main" aria-label="Page content">
         <Outlet />
       </main>
+
+      {/* Floating chat panel */}
+      <ChatPanel />
     </div>
   );
 }

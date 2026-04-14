@@ -14,6 +14,7 @@ import AlertsPage from './pages/AlertsPage';
 import SupplyChainMapPage from './pages/SupplyChainMapPage';
 import PredictionsPage from './pages/PredictionsPage';
 import EventsPage from './pages/EventsPage';
+import IntelligenceFeedPage from './pages/IntelligenceFeedPage';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/supply-chain" element={<SupplyChainMapPage />} />
             <Route path="/predictions" element={<PredictionsPage />} />
             <Route path="/events" element={<EventsPage />} />
+            <Route path="/intelligence" element={<IntelligenceFeedPage />} />
           </Route>
         </Route>
       </Routes>

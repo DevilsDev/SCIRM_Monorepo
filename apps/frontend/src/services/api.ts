@@ -206,6 +206,25 @@ export const api = {
     return response.data;
   },
 
+  // Chat
+  async chat(message: string, context: Record<string, any> = {}) {
+    const response = await apiClient.post('/api/v1/chat', { message, context });
+    return response.data;
+  },
+
+  // Intelligence Feed
+  async triggerIngestion() {
+    const response = await apiClient.post('/api/v1/intelligence/ingest');
+    return response.data;
+  },
+
+  async getIntelligenceFeed(source?: string, limit: number = 50) {
+    const params: any = { limit };
+    if (source) params.source = source;
+    const response = await apiClient.get('/api/v1/intelligence/feed', { params });
+    return response.data;
+  },
+
   // Sub-Tier Discovery
   async discoverSubtiers(supplierName: string, supplierId: string = '', supplierContext: Record<string, any> = {}) {
     const response = await apiClient.post('/api/v1/suppliers/discover-subtiers', { supplier_name: supplierName, supplier_id: supplierId, supplier_context: supplierContext });

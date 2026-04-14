@@ -36,6 +36,8 @@ EXECUTOR_URL = os.getenv("EXECUTOR_SERVICE_URL", "http://localhost:8004")
 REVIEWER_URL = os.getenv("REVIEWER_SERVICE_URL", "http://localhost:8005")
 RISK_SCORER_URL = os.getenv("RISK_SCORER_SERVICE_URL", "http://localhost:8006")
 DISCOVERY_URL = os.getenv("DISCOVERY_SERVICE_URL", "http://localhost:8007")
+INGESTION_URL = os.getenv("INGESTION_SERVICE_URL", "http://localhost:8008")
+CHAT_URL = os.getenv("CHAT_SERVICE_URL", "http://localhost:8009")
 
 security = HTTPBearer()
 
@@ -530,6 +532,61 @@ async def simulate_scenario(scenario: Dict[str, Any], token: str = Depends(secur
     except httpx.HTTPError as e:
         logger.error("Scenario simulation failed", error=str(e))
         raise HTTPException(status_code=500, detail="Scenario simulation failed")
+
+# --- Chat ---
+
+@app.post("/api/v1/chat")
+async def chat(body: Dict[str, Any], token: str = Depends(security)):
+    """Natural language query interface."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{CHAT_URL}/chat", json=body, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Chat failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Chat service unavailable")
+
+# --- Intelligence Feed ---
+
+@app.post("/api/v1/intelligence/ingest")
+async def trigger_ingestion(token: str = Depends(security)):
+    """Trigger data ingestion from all sources."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{INGESTION_URL}/ingest", timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Ingestion service unavailable")
+
+@app.get("/api/v1/intelligence/feed")
+async def intelligence_feed(source: str = None, limit: int = 50, token: str = Depends(security)):
+    """Get intelligence feed documents."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {"limit": limit}
+            if source:
+                params["source"] = source
+            response = await client.get(f"{INGESTION_URL}/documents", params=params, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Intelligence feed unavailable")
+
+@app.get("/api/v1/intelligence/sources")
+async def intelligence_sources(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{INGESTION_URL}/sources", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Source status unavailable")
 
 # --- Sub-Tier Discovery ---
 
