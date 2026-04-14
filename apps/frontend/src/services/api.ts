@@ -206,6 +206,25 @@ export const api = {
     return response.data;
   },
 
+  // Digital Twin Simulator
+  async runSimulation(params: { disrupted_suppliers: string[]; severity: string; duration_days: number; num_simulations?: number }) {
+    const response = await apiClient.post('/api/v1/simulator/run', { scenario_type: 'supplier_disruption', ...params });
+    return response.data;
+  },
+
+  // Procurement
+  async evaluateProcurement(suppliers: Array<Record<string, any>>, riskThreshold: number = 65) {
+    const response = await apiClient.post('/api/v1/procurement/evaluate', { suppliers, risk_threshold: riskThreshold });
+    return response.data;
+  },
+
+  async getProcurementActions(status?: string) {
+    const params: any = {};
+    if (status) params.status = status;
+    const response = await apiClient.get('/api/v1/procurement/actions', { params });
+    return response.data;
+  },
+
   // Chat
   async chat(message: string, context: Record<string, any> = {}) {
     const response = await apiClient.post('/api/v1/chat', { message, context });

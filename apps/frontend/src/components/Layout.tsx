@@ -10,6 +10,8 @@ import {
   ChartBarSquareIcon,
   BoltIcon,
   NewspaperIcon,
+  CpuChipIcon,
+  ShoppingCartIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,10 +21,12 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: HomeIcon },
   { to: '/risks', label: 'Risks', icon: ShieldExclamationIcon },
   { to: '/suppliers', label: 'Suppliers', icon: TruckIcon },
-  { to: '/supply-chain', label: 'Supply Chain Map', icon: MapIcon },
+  { to: '/supply-chain', label: 'Supply Chain', icon: MapIcon },
   { to: '/predictions', label: 'Predictions', icon: ChartBarSquareIcon },
   { to: '/events', label: 'Risk Events', icon: BoltIcon },
   { to: '/intelligence', label: 'Intel Feed', icon: NewspaperIcon },
+  { to: '/simulator', label: 'Simulator', icon: CpuChipIcon },
+  { to: '/procurement', label: 'Procurement', icon: ShoppingCartIcon },
   { to: '/alerts', label: 'Alerts', icon: BellAlertIcon },
   { to: '/assessments/new', label: 'New Assessment', icon: PlusCircleIcon },
   { to: '/recommendations', label: 'Recommendations', icon: LightBulbIcon },

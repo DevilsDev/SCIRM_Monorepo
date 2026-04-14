@@ -38,6 +38,8 @@ RISK_SCORER_URL = os.getenv("RISK_SCORER_SERVICE_URL", "http://localhost:8006")
 DISCOVERY_URL = os.getenv("DISCOVERY_SERVICE_URL", "http://localhost:8007")
 INGESTION_URL = os.getenv("INGESTION_SERVICE_URL", "http://localhost:8008")
 CHAT_URL = os.getenv("CHAT_SERVICE_URL", "http://localhost:8009")
+SIMULATOR_URL = os.getenv("SIMULATOR_SERVICE_URL", "http://localhost:8010")
+PROCUREMENT_URL = os.getenv("PROCUREMENT_SERVICE_URL", "http://localhost:8011")
 
 security = HTTPBearer()
 
@@ -587,6 +589,60 @@ async def intelligence_sources(token: str = Depends(security)):
             return response.json()
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail="Source status unavailable")
+
+# --- Digital Twin Simulator ---
+
+@app.post("/api/v1/simulator/run")
+async def run_simulation(body: Dict[str, Any], token: str = Depends(security)):
+    """Run Monte Carlo simulation."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{SIMULATOR_URL}/simulate", json=body, timeout=60.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Simulation failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Simulator unavailable")
+
+# --- Procurement ---
+
+@app.post("/api/v1/procurement/evaluate")
+async def evaluate_procurement(body: Dict[str, Any], token: str = Depends(security)):
+    """Evaluate suppliers and generate procurement actions."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{PROCUREMENT_URL}/evaluate", json=body, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Procurement service unavailable")
+
+@app.get("/api/v1/procurement/actions")
+async def procurement_actions(status: str = None, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {}
+            if status:
+                params["status"] = status
+            response = await client.get(f"{PROCUREMENT_URL}/actions", params=params, timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Procurement service unavailable")
+
+@app.get("/api/v1/procurement/alternatives/{supplier_name}")
+async def procurement_alternatives(supplier_name: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{PROCUREMENT_URL}/alternatives/{supplier_name}", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=500, detail="Procurement service unavailable")
 
 # --- Sub-Tier Discovery ---
 
