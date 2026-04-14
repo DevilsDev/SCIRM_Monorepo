@@ -87,16 +87,27 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     // Tier X positions (3 columns)
     const tierX = [innerW * 0.12, innerW * 0.50, innerW * 0.88];
 
+    // Minimum spacing per node (radius + labels + padding)
+    const minNodeSpacing = 100;
+    const maxItems = Math.max(suppliers.length, orgs.length, aggregatedRisks.length);
+    const requiredH = maxItems * minNodeSpacing;
+    const effectiveH = Math.max(innerH, requiredH);
+
+    // Resize SVG if content overflows
+    if (effectiveH > innerH) {
+      svg.attr('height', effectiveH + margin.top + margin.bottom);
+    }
+
     // Position suppliers
-    const supplierSpacing = innerH / (suppliers.length + 1);
+    const supplierSpacing = effectiveH / (suppliers.length + 1);
     const posSuppliers = suppliers.map((s, i) => ({ ...s, x: tierX[0], y: supplierSpacing * (i + 1) }));
 
-    // Position orgs (center)
-    const orgSpacing = innerH / (orgs.length + 1);
+    // Position orgs (center, vertically centered)
+    const orgSpacing = effectiveH / (orgs.length + 1);
     const posOrgs = orgs.map((o, i) => ({ ...o, x: tierX[1], y: orgSpacing * (i + 1) }));
 
     // Position aggregated risks
-    const riskSpacing = innerH / (aggregatedRisks.length + 1);
+    const riskSpacing = effectiveH / (aggregatedRisks.length + 1);
     const posRisks = aggregatedRisks.map((r, i) => ({ ...r, x: tierX[2], y: riskSpacing * (i + 1) }));
 
     // Tooltip
