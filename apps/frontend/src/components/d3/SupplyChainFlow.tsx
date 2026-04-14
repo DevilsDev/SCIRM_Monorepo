@@ -64,6 +64,11 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
+    // Layer groups — links behind, nodes on top
+    const linkLayer = g.append('g').attr('class', 'links');
+    const nodeLayer = g.append('g').attr('class', 'nodes');
+    const labelLayer = g.append('g').attr('class', 'labels');
+
     // Separate and deduplicate nodes
     const suppliers = nodes.filter((n) => n.type === 'supplier');
     const orgs = [...new Map(nodes.filter((n) => n.type === 'organization').map((n) => [n.id, n])).values()];
@@ -121,7 +126,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       { label: 'ORGANIZATION', x: tierX[1], color: '#8b5cf6' },
       { label: 'RISK CATEGORIES', x: tierX[2], color: '#ef4444' },
     ].forEach(({ label, x, color }) => {
-      g.append('text').attr('x', x).attr('y', -20).attr('text-anchor', 'middle')
+      labelLayer.append('text').attr('x', x).attr('y', -20).attr('text-anchor', 'middle')
         .attr('fill', color).attr('font-size', '11px').attr('font-weight', 'bold')
         .attr('letter-spacing', '1px').text(label);
     });
@@ -141,7 +146,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       const strokeW = Math.max(2, Math.min((supplier.risk_score || 50) / 8, 10));
       const midX = (supplier.x + target.x) / 2;
 
-      g.append('path')
+      linkLayer.append('path')
         .attr('d', `M${supplier.x},${supplier.y} C${midX},${supplier.y} ${midX},${target.y} ${target.x},${target.y}`)
         .attr('fill', 'none').attr('stroke', `url(#${gradId})`).attr('stroke-width', strokeW)
         .attr('opacity', 0)
@@ -169,7 +174,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       const strokeW = Math.max(2, Math.min(risk.count * 2, 10));
       const midX = (source.x + risk.x) / 2;
 
-      g.append('path')
+      linkLayer.append('path')
         .attr('d', `M${source.x},${source.y} C${midX},${source.y} ${midX},${risk.y} ${risk.x},${risk.y}`)
         .attr('fill', 'none').attr('stroke', `url(#${gradId})`).attr('stroke-width', strokeW)
         .attr('opacity', 0)
@@ -179,7 +184,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     // Draw supplier nodes
     posSuppliers.forEach((node, i) => {
       const nodeColor = node.risk_tier ? TIER_COLORS[node.risk_tier] : '#3b82f6';
-      const nodeG = g.append('g').attr('transform', `translate(${node.x},${node.y})`).style('cursor', 'pointer');
+      const nodeG = nodeLayer.append('g').attr('transform', `translate(${node.x},${node.y})`).style('cursor', 'pointer');
 
       if ((node.risk_score || 0) > 60) {
         nodeG.append('circle').attr('r', 32).attr('fill', nodeColor).attr('opacity', 0)
@@ -213,7 +218,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
 
     // Draw org nodes
     posOrgs.forEach((node, i) => {
-      const nodeG = g.append('g').attr('transform', `translate(${node.x},${node.y})`);
+      const nodeG = nodeLayer.append('g').attr('transform', `translate(${node.x},${node.y})`);
 
       nodeG.append('circle').attr('r', 0).attr('fill', '#8b5cf6').attr('stroke', colors.stroke).attr('stroke-width', 3)
         .transition().duration(500).delay(posSuppliers.length * 60 + 100).ease(d3.easeBackOut).attr('r', 36);
@@ -232,7 +237,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       const rColor = SEVERITY_COLORS[risk.severity] || '#ef4444';
       const radius = Math.max(18, Math.min(risk.count * 4 + 14, 36));
       const delay = posSuppliers.length * 60 + 200 + i * 80;
-      const nodeG = g.append('g').attr('transform', `translate(${risk.x},${risk.y})`).style('cursor', 'pointer');
+      const nodeG = nodeLayer.append('g').attr('transform', `translate(${risk.x},${risk.y})`).style('cursor', 'pointer');
 
       nodeG.append('circle').attr('r', 0).attr('fill', rColor).attr('stroke', colors.stroke).attr('stroke-width', 2)
         .transition().duration(500).delay(delay).ease(d3.easeBackOut).attr('r', radius);
