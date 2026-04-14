@@ -126,19 +126,19 @@ export default function Layout() {
         {/* User */}
         <div className="p-3 border-t border-gray-800">
           <p className="text-xs text-gray-300 truncate mb-2">{user?.email}</p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <NavLink
               to="/settings"
-              className="flex-1 text-center text-xs py-1.5 px-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-              style={{ minHeight: 'unset' }}
+              data-compact=""
+              className="flex-1 text-center text-xs py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
             >
               Settings
             </NavLink>
-            <span className="text-gray-700">|</span>
+            <span className="text-gray-700 text-xs">|</span>
             <button
               onClick={logout}
-              className="flex-1 text-center text-xs py-1.5 px-2 rounded-md text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
-              style={{ minHeight: 'unset' }}
+              data-compact=""
+              className="flex-1 text-center text-xs py-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
             >
               Sign out
             </button>
