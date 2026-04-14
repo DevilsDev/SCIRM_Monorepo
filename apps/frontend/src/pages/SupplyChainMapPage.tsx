@@ -44,8 +44,8 @@ export default function SupplyChainMapPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Supply Chain Map</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Supply Chain Map</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Tiered flow — suppliers → organization → risks. Link thickness = risk magnitude.
         </p>
       </div>
@@ -65,11 +65,11 @@ export default function SupplyChainMapPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <SupplyChainFlow nodes={nodes} edges={edges} height={520} />
       </div>
 
-      <div className="flex gap-6 text-xs text-gray-500">
+      <div className="flex gap-6 text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-blue-500" /> Supplier</div>
         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-purple-500" /> Organization</div>
         <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /> Risk</div>

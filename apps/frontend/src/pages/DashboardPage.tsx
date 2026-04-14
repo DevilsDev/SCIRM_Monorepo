@@ -24,7 +24,6 @@ export default function DashboardPage() {
     { name: 'low', value: risks.filter((r) => r.severity === 'low').length },
   ];
 
-  // Build heatmap data: category × severity matrix
   const categories = [...new Set(risks.map((r) => r.risk_category))].filter(Boolean);
   const heatmapData = categories.flatMap((cat) =>
     ['low', 'medium', 'high', 'critical'].map((sev) => ({
@@ -37,11 +36,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Supply chain risk overview</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Supply chain risk overview</p>
       </div>
 
-      {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Total Risks" value={loading ? '...' : String(totalCount)} icon={ShieldExclamationIcon} color="blue" />
         <MetricCard title="Critical Risks" value={loading ? '...' : String(criticalCount)} icon={ExclamationTriangleIcon} color="red" />
@@ -49,22 +47,20 @@ export default function DashboardPage() {
         <MetricCard title="Monitored" value={loading ? '...' : String(totalCount)} icon={CheckCircleIcon} color="green" />
       </div>
 
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Severity Breakdown</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Severity Breakdown</h2>
           <SeverityChart data={severityData} />
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Heatmap</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Heatmap</h2>
           <RiskHeatmap data={heatmapData} height={220} />
         </div>
       </div>
 
-      {/* Recent Risks */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Risks</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Risks</h2>
         {loading ? (
           <p className="text-sm text-gray-400">Loading...</p>
         ) : risks.length === 0 ? (
@@ -75,11 +71,11 @@ export default function DashboardPage() {
               <Link
                 key={risk.id}
                 to={`/risks/${risk.id}`}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-100"
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-100 dark:border-gray-700"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 truncate">{risk.title}</p>
-                  <p className="text-xs text-gray-500 capitalize">{risk.risk_category}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{risk.title}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{risk.risk_category}</p>
                 </div>
                 <SeverityBadge severity={risk.severity} />
               </Link>

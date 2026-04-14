@@ -38,8 +38,8 @@ export default function RiskDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{risk.title}</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{risk.title}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Detected {new Date(risk.detected_at).toLocaleString()}
           </p>
         </div>
@@ -48,14 +48,14 @@ export default function RiskDetailPage() {
 
       {/* Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Risk Details</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Risk Details</h2>
 
-          <p className="text-sm text-gray-700">{risk.description}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{risk.description}</p>
 
           <div className="grid grid-cols-2 gap-4 pt-2">
             <div>
-              <p className="text-xs text-gray-500">Probability</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Probability</p>
               <div className="flex items-center gap-2 mt-1">
                 <div className="flex-1 bg-gray-200 rounded-full h-2">
                   <div
@@ -67,26 +67,26 @@ export default function RiskDetailPage() {
               </div>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Impact Score</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{risk.impact_score.toFixed(1)}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Impact Score</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{risk.impact_score.toFixed(1)}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Category</p>
-              <p className="text-sm font-medium text-gray-900 capitalize mt-1">{risk.risk_category}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Category</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white capitalize mt-1">{risk.risk_category}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Predicted Occurrence</p>
-              <p className="text-sm text-gray-900 mt-1">{risk.predicted_occurrence || 'N/A'}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Predicted Occurrence</p>
+              <p className="text-sm text-gray-900 dark:text-white mt-1">{risk.predicted_occurrence || 'N/A'}</p>
             </div>
           </div>
 
           {/* Tags */}
           <div className="pt-2">
-            <p className="text-xs text-gray-500 mb-2">Affected Entities</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Affected Entities</p>
             <div className="flex flex-wrap gap-1">
               {risk.affected_entities.length > 0 ? (
                 risk.affected_entities.map((entity) => (
-                  <span key={entity} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                  <span key={entity} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">
                     {entity}
                   </span>
                 ))
@@ -97,7 +97,7 @@ export default function RiskDetailPage() {
           </div>
 
           <div className="pt-2">
-            <p className="text-xs text-gray-500 mb-2">Data Sources</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Data Sources</p>
             <div className="flex flex-wrap gap-1">
               {risk.data_sources.map((src) => (
                 <span key={src} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
@@ -109,8 +109,8 @@ export default function RiskDetailPage() {
         </div>
 
         {/* Recommendations */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Recommendations ({recommendations.length})
           </h2>
           {recommendations.length === 0 ? (
@@ -118,19 +118,19 @@ export default function RiskDetailPage() {
           ) : (
             <div className="space-y-4">
               {recommendations.map((rec) => (
-                <div key={rec.id} className="border border-gray-100 rounded-lg p-4">
+                <div key={rec.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-4">
                   <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-medium text-gray-900">{rec.title}</h3>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">{rec.title}</h3>
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                        priorityColors[rec.priority] || 'bg-gray-100 text-gray-800'
+                        priorityColors[rec.priority] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'
                       }`}
                     >
                       {rec.priority}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">{rec.description}</p>
-                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{rec.description}</p>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
                     {rec.estimated_cost != null && (
                       <span>${rec.estimated_cost.toLocaleString()}</span>
                     )}

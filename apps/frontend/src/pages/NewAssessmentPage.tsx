@@ -78,14 +78,14 @@ export default function NewAssessmentPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">New Risk Assessment</h1>
-        <p className="text-sm text-gray-500 mt-1">Configure and run a supply chain risk assessment</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">New Risk Assessment</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure and run a supply chain risk assessment</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Entities */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Entities to Assess</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Entities to Assess</h2>
           <div className="space-y-3">
             {entities.map((entity, i) => (
               <EntityForm
@@ -107,15 +107,15 @@ export default function NewAssessmentPage() {
         </div>
 
         {/* Configuration */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Assessment Configuration</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assessment Configuration</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Assessment Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assessment Type</label>
               <select
                 value={assessmentType}
                 onChange={(e) => setAssessmentType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
               >
                 <option value="comprehensive">Comprehensive</option>
                 <option value="quick">Quick</option>
@@ -123,20 +123,20 @@ export default function NewAssessmentPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Time Horizon (days)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Time Horizon (days)</label>
               <input
                 type="number"
                 min={1}
                 max={365}
                 value={timeHorizon}
                 onChange={(e) => setTimeHorizon(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Priority Factors</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Priority Factors</label>
             <div className="flex flex-wrap gap-2">
               {PRIORITY_OPTIONS.map((p) => (
                 <button
@@ -146,7 +146,7 @@ export default function NewAssessmentPage() {
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                     selectedPriorities.includes(p)
                       ? 'bg-blue-100 text-blue-800 border-blue-300'
-                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {p.replace('_', ' ')}
@@ -169,24 +169,24 @@ export default function NewAssessmentPage() {
 
       {/* Results */}
       {result && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Assessment Complete</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Assessment Complete</h2>
           <div className="flex items-center justify-around">
             <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900">{result.risks.length}</p>
-              <p className="text-xs text-gray-500">Risks Identified</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{result.risks.length}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Risks Identified</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-gray-900">{result.recommendations.length}</p>
-              <p className="text-xs text-gray-500">Recommendations</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{result.recommendations.length}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Recommendations</p>
             </div>
             <GaugeChart value={Math.round(result.confidence_score * 100)} label="Confidence" size={120} />
           </div>
 
           {/* Reasoning Trail */}
           {result.reasoning_trail.length > 0 && (
-            <div className="pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Agent Reasoning Trail</h3>
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Agent Reasoning Trail</h3>
               <div className="space-y-3">
                 {result.reasoning_trail.map((step, i) => (
                   <div key={i} className="flex gap-3">
@@ -194,8 +194,8 @@ export default function NewAssessmentPage() {
                       {i + 1}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900 capitalize">{step.agent}</p>
-                      <p className="text-xs text-gray-600">{step.output || step.reasoning}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">{step.agent}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">{step.output || step.reasoning}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         Confidence: {(step.confidence * 100).toFixed(0)}%
                       </p>

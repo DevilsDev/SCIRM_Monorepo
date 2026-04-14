@@ -55,65 +55,65 @@ export default function RecommendationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Recommendations</h1>
-        <p className="text-sm text-gray-500 mt-1">{allRecs.length} recommendations across {groups.length} risks</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Recommendations</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{allRecs.length} recommendations across {groups.length} risks</p>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-          <p className="text-2xl font-bold text-gray-900">${(totalCost / 1000).toFixed(0)}k</p>
-          <p className="text-xs text-gray-500">Total Est. Cost</p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">${(totalCost / 1000).toFixed(0)}k</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Total Est. Cost</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-          <p className="text-2xl font-bold text-gray-900">{avgTimeline.toFixed(0)}d</p>
-          <p className="text-xs text-gray-500">Avg Timeline</p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgTimeline.toFixed(0)}d</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Avg Timeline</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-red-600">{highCount}</p>
-          <p className="text-xs text-gray-500">High Priority</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">High Priority</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-yellow-600">{mediumCount}</p>
-          <p className="text-xs text-gray-500">Medium Priority</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Medium Priority</p>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-green-600">{lowCount}</p>
-          <p className="text-xs text-gray-500">Low Priority</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Low Priority</p>
         </div>
       </div>
 
       {/* Priority Matrix */}
       {allRecs.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Priority Matrix</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Priority Matrix</h2>
           <PriorityMatrix recommendations={allRecs} />
         </div>
       )}
 
       {/* Grouped Recommendations */}
       {groups.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <p className="text-sm text-gray-400">No recommendations available. Run an assessment first.</p>
         </div>
       ) : (
         groups.map(({ risk, recommendations }) => (
-          <div key={risk.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div key={risk.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">{risk.title}</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{risk.title}</h2>
               <SeverityBadge severity={risk.severity} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {recommendations.map((rec) => (
-                <div key={rec.id} className="border border-gray-100 rounded-lg p-4">
+                <div key={rec.id} className="border border-gray-100 dark:border-gray-700 rounded-lg p-4">
                   <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-medium text-gray-900">{rec.title}</h3>
-                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full capitalize">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">{rec.title}</h3>
+                    <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full capitalize">
                       {rec.action_type}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mt-1">{rec.description}</p>
-                  <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{rec.description}</p>
+                  <div className="flex items-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
                     {rec.estimated_cost != null && <span>${rec.estimated_cost.toLocaleString()}</span>}
                     {rec.timeline_days != null && <span>{rec.timeline_days}d</span>}
                     <div className="flex-1">

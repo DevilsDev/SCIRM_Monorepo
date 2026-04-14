@@ -17,7 +17,7 @@ function RiskScoreBar({ score }: { score: number }) {
       <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[120px]">
         <div className={`${color} rounded-full h-2`} style={{ width: `${score}%` }} />
       </div>
-      <span className="text-sm font-medium text-gray-700">{score.toFixed(0)}</span>
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{score.toFixed(0)}</span>
     </div>
   );
 }
@@ -71,8 +71,8 @@ export default function SuppliersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
-          <p className="text-sm text-gray-500 mt-1">{suppliers.length} suppliers tracked — click a supplier for 7-dimension risk profile</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Suppliers</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{suppliers.length} suppliers tracked — click a supplier for 7-dimension risk profile</p>
         </div>
       </div>
 
@@ -80,7 +80,7 @@ export default function SuppliersPage() {
         <select
           value={tierFilter}
           onChange={(e) => setTierFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
         >
           <option value="">All Risk Tiers</option>
           <option value="low">Low</option>
@@ -89,7 +89,7 @@ export default function SuppliersPage() {
         </select>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {loading ? (
           <p className="p-6 text-sm text-gray-400">Loading suppliers...</p>
         ) : error ? (
@@ -98,14 +98,14 @@ export default function SuppliersPage() {
           <p className="p-6 text-sm text-gray-400">No suppliers found.</p>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Region</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Risk Score</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Risk Tier</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Code</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Region</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk Score</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk Tier</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -116,12 +116,12 @@ export default function SuppliersPage() {
                   onClick={() => handleSupplierClick(s)}
                 >
                   <td className="px-6 py-4 text-sm font-medium text-blue-600">{s.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{s.supplier_code}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">{s.supplier_type.replace('_', ' ')}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{s.country_code} {s.region}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">{s.supplier_code}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 capitalize">{s.supplier_type.replace('_', ' ')}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{s.country_code} {s.region}</td>
                   <td className="px-6 py-4"><RiskScoreBar score={s.risk_score} /></td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${tierColors[s.risk_tier] || 'bg-gray-100 text-gray-800'}`}>
+                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${tierColors[s.risk_tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
                       {s.risk_tier}
                     </span>
                   </td>
@@ -135,13 +135,13 @@ export default function SuppliersPage() {
       {/* 7-Dimension Risk Profile Modal */}
       {selectedSupplier && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setSelectedSupplier(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">{selectedSupplier.name}</h2>
-                <p className="text-xs text-gray-500">7-Dimension Risk Profile — {selectedSupplier.country_code} {selectedSupplier.region}</p>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">{selectedSupplier.name}</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">7-Dimension Risk Profile — {selectedSupplier.country_code} {selectedSupplier.region}</p>
               </div>
-              <button onClick={() => setSelectedSupplier(null)} className="p-1 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setSelectedSupplier(null)} className="p-1 hover:bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <XMarkIcon className="h-5 w-5 text-gray-400" />
               </button>
             </div>
@@ -157,8 +157,8 @@ export default function SuppliersPage() {
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   {radarData.map((d) => (
-                    <div key={d.dimension} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                      <span className="text-xs font-medium text-gray-700">{d.label}</span>
+                    <div key={d.dimension} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{d.label}</span>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-bold ${d.score > 65 ? 'text-red-600' : d.score > 40 ? 'text-yellow-600' : 'text-green-600'}`}>
                           {d.score.toFixed(0)}

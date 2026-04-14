@@ -12,7 +12,7 @@ export default function SeverityBadge({ severity }: { severity: string }) {
     <span
       className={clsx(
         'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
-        colorMap[severity] || 'bg-gray-100 text-gray-800'
+        colorMap[severity] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'
       )}
     >
       {severity}

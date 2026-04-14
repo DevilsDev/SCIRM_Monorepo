@@ -49,37 +49,37 @@ export default function EventsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Risk Events</h1>
-        <p className="text-sm text-gray-500 mt-1">Track disruption events and their cascading impact through the supply chain</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Events</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track disruption events and their cascading impact through the supply chain</p>
       </div>
 
       {loading ? (
         <p className="text-sm text-gray-400">Loading events...</p>
       ) : events.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
           <p className="text-sm text-gray-400">No risk events recorded. Events are auto-generated during assessments or can be created via API.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Event Timeline */}
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-gray-900">Event Timeline</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Event Timeline</h2>
             {events.map((event) => (
               <div
                 key={event.id}
                 onClick={() => handleEventClick(event)}
-                className={`bg-white rounded-xl shadow-sm border p-4 cursor-pointer transition-all hover:shadow-md ${
-                  selectedEvent?.id === event.id ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'
+                className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border p-4 cursor-pointer transition-all hover:shadow-md ${
+                  selectedEvent?.id === event.id ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200 dark:border-gray-700'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">{event.title}</h3>
-                    <p className="text-xs text-gray-500 mt-1 capitalize">{event.event_type?.replace('_', ' ')} — {event.affected_region || 'Global'}</p>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{event.title}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 capitalize">{event.event_type?.replace('_', ' ')} — {event.affected_region || 'Global'}</p>
                   </div>
                   <SeverityBadge severity={event.severity} />
                 </div>
-                {event.description && <p className="text-xs text-gray-600 mt-2">{event.description.slice(0, 120)}</p>}
+                {event.description && <p className="text-xs text-gray-600 dark:text-gray-300 mt-2">{event.description.slice(0, 120)}</p>}
                 <p className="text-xs text-gray-400 mt-2">{new Date(event.detected_at).toLocaleString()}</p>
               </div>
             ))}
@@ -87,7 +87,7 @@ export default function EventsPage() {
 
           {/* Impact Panel */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
               {selectedEvent ? `Impact: ${selectedEvent.title}` : 'Select an event to see impacts'}
             </h2>
             {selectedEvent && impacts.length > 0 ? (
@@ -103,15 +103,15 @@ export default function EventsPage() {
                   </div>
                 </div>
                 {impacts.map((impact, i) => (
-                  <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                  <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{impact.impacted_entity_name}</p>
-                        <p className="text-xs text-gray-500">Tier {impact.tier_distance} — {impact.estimated_disruption_days}d disruption</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{impact.impacted_entity_name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Tier {impact.tier_distance} — {impact.estimated_disruption_days}d disruption</p>
                       </div>
                       <div className="text-right">
                         <SeverityBadge severity={impact.impact_severity} />
-                        <p className="text-xs text-gray-500 mt-1">${(impact.estimated_financial_impact / 1000).toFixed(0)}k</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">${(impact.estimated_financial_impact / 1000).toFixed(0)}k</p>
                       </div>
                     </div>
                   </div>
@@ -120,7 +120,7 @@ export default function EventsPage() {
             ) : selectedEvent ? (
               <p className="text-sm text-gray-400">No cascading impacts detected for this event.</p>
             ) : (
-              <div className="bg-gray-50 rounded-xl p-8 text-center">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-8 text-center">
                 <p className="text-sm text-gray-400">Click an event in the timeline to see its cascading impact through the supply chain.</p>
               </div>
             )}

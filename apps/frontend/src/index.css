@@ -3,29 +3,9 @@
 @tailwind utilities;
 
 @layer base {
-  /* Dark mode body */
+  /* Dark mode color scheme */
   html.dark {
     color-scheme: dark;
-  }
-
-  /* Dark mode card backgrounds */
-  .dark .bg-white {
-    background-color: #1f2937; /* gray-800 */
-  }
-  .dark .border-gray-200 {
-    border-color: #374151; /* gray-700 */
-  }
-  .dark .text-gray-900 {
-    color: #f9fafb; /* gray-50 */
-  }
-  .dark .text-gray-700 {
-    color: #d1d5db; /* gray-300 */
-  }
-  .dark .text-gray-500 {
-    color: #9ca3af; /* gray-400 */
-  }
-  .dark .bg-gray-50 {
-    background-color: #111827; /* gray-900 */
   }
 
   /* Focus indicators */
@@ -53,5 +33,28 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+/*
+  Dark mode utility classes for cards and panels.
+  Apply these alongside existing Tailwind classes in components.
+  The approach: use dark: prefix on components, not global overrides.
+*/
+@layer utilities {
+  .card {
+    @apply bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700;
+  }
+  .card-title {
+    @apply text-gray-900 dark:text-gray-50;
+  }
+  .card-subtitle {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+  .card-text {
+    @apply text-gray-700 dark:text-gray-300;
+  }
+  .page-bg {
+    @apply bg-gray-50 dark:bg-gray-900;
   }
 }

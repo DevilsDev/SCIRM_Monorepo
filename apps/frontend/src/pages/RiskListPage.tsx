@@ -21,8 +21,8 @@ export default function RiskListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Risk Overview</h1>
-          <p className="text-sm text-gray-500 mt-1">{totalCount} risks tracked</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Overview</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{totalCount} risks tracked</p>
         </div>
         <Link
           to="/assessments/new"
@@ -40,7 +40,7 @@ export default function RiskListPage() {
             setSeverityFilter(e.target.value);
             setCurrentPage(1);
           }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
         >
           <option value="">All Severities</option>
           <option value="critical">Critical</option>
@@ -51,7 +51,7 @@ export default function RiskListPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {loading ? (
           <p className="p-6 text-sm text-gray-400">Loading risks...</p>
         ) : error ? (
@@ -60,19 +60,19 @@ export default function RiskListPage() {
           <p className="p-6 text-sm text-gray-400">No risks found.</p>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Probability</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Impact</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detected</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Title</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Severity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Probability</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Impact</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Detected</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200">
               {risks.map((risk) => (
-                <tr key={risk.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={risk.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   <td className="px-6 py-4">
                     <Link to={`/risks/${risk.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800">
                       {risk.title}
@@ -81,16 +81,16 @@ export default function RiskListPage() {
                   <td className="px-6 py-4">
                     <SeverityBadge severity={risk.severity} />
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {(risk.probability * 100).toFixed(0)}%
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {risk.impact_score.toFixed(1)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 capitalize">
                     {risk.risk_category}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {new Date(risk.detected_at).toLocaleDateString()}
                   </td>
                 </tr>

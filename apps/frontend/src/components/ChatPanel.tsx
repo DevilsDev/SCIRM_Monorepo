@@ -60,7 +60,7 @@ export default function ChatPanel() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-96 h-[520px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-50 w-96 h-[520px] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
             <div>
@@ -80,7 +80,7 @@ export default function ChatPanel() {
                   className={`max-w-[80%] px-3 py-2 rounded-xl text-sm whitespace-pre-wrap ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 rounded-bl-sm'
                   }`}
                 >
                   {msg.content}
@@ -89,7 +89,7 @@ export default function ChatPanel() {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-500 px-3 py-2 rounded-xl text-sm">
+                <div className="bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-3 py-2 rounded-xl text-sm">
                   <span className="animate-pulse">Thinking...</span>
                 </div>
               </div>
@@ -98,7 +98,7 @@ export default function ChatPanel() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-200 p-3">
+          <div className="border-t border-gray-200 dark:border-gray-700 p-3">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
               className="flex gap-2"
@@ -108,7 +108,7 @@ export default function ChatPanel() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about your supply chain..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 disabled={loading}
               />
               <button

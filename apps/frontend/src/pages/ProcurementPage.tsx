@@ -33,8 +33,8 @@ export default function ProcurementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Procurement Agent</h1>
-          <p className="text-sm text-gray-500 mt-1">Autonomous sourcing — evaluates supplier risk and proposes alternatives</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Procurement Agent</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Autonomous sourcing — evaluates supplier risk and proposes alternatives</p>
         </div>
         <button onClick={handleEvaluate} disabled={evaluating} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
           {evaluating ? 'Evaluating...' : 'Evaluate Suppliers'}
@@ -43,9 +43,9 @@ export default function ProcurementPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-          <p className="text-3xl font-bold text-gray-900">{actions.length}</p>
-          <p className="text-xs text-gray-500">Total Actions</p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{actions.length}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Total Actions</p>
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
           <p className="text-3xl font-bold text-yellow-700">{proposed.length}</p>
@@ -62,15 +62,15 @@ export default function ProcurementPage() {
       {/* Proposed Actions */}
       {proposed.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Proposed Actions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Proposed Actions</h2>
           <div className="space-y-3">
             {proposed.map((action) => (
-              <div key={action.id} className="bg-white rounded-xl shadow-sm border border-yellow-200 p-5">
+              <div key={action.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-yellow-200 p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-gray-900">{action.title}</h3>
-                    <p className="text-xs text-gray-600 mt-1">{action.description}</p>
-                    <div className="flex gap-4 mt-3 text-xs text-gray-500">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{action.title}</h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{action.description}</p>
+                    <div className="flex gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
                       <span>Risk: {action.current_supplier_risk?.toFixed(0)} → {action.proposed_supplier_risk?.toFixed(0) || '?'}</span>
                       {action.risk_reduction > 0 && <span className="text-green-600">↓ {action.risk_reduction.toFixed(0)} points</span>}
                       {action.alternatives_count > 0 && <span>{action.alternatives_count} alternatives</span>}
@@ -87,15 +87,15 @@ export default function ProcurementPage() {
       {/* Action History */}
       {executed.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Action History</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Action History</h2>
           <div className="space-y-2">
             {executed.map((action) => (
-              <div key={action.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center justify-between">
+              <div key={action.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{action.title}</p>
-                  <p className="text-xs text-gray-500">{new Date(action.created_at).toLocaleString()}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{action.title}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(action.created_at).toLocaleString()}</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${action.status === 'approved' ? 'bg-green-100 text-green-800' : action.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${action.status === 'approved' ? 'bg-green-100 text-green-800' : action.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
                   {action.status}
                 </span>
               </div>
@@ -107,7 +107,7 @@ export default function ProcurementPage() {
       {loading ? (
         <p className="text-sm text-gray-400">Loading procurement actions...</p>
       ) : actions.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
           <p className="text-sm text-gray-400">No procurement actions yet. Click "Evaluate Suppliers" to analyze your supply chain and generate sourcing proposals.</p>
         </div>
       ) : null}

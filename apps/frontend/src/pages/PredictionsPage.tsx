@@ -47,44 +47,44 @@ export default function PredictionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">7-Day Disruption Predictions</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">7-Day Disruption Predictions</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           {predictions.length} risk categories analyzed
         </p>
       </div>
 
       {predictions.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
           <p className="text-sm text-gray-400">No predictions available. Run an assessment first to generate risk data.</p>
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Disruption Probability by Category</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Disruption Probability by Category</h2>
             <AnimatedBars data={barData} height={predictions.length * 55 + 60} maxValue={100} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {predictions.map((p) => (
-              <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div key={p.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-900 capitalize">{p.category}</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white capitalize">{p.category}</h3>
                   <SeverityBadge severity={p.severity} />
                 </div>
                 <div className="flex items-center gap-4 mb-3">
                   <GaugeChart value={Math.round(p.predicted_disruption_probability * 100)} label="Disruption" size={100} />
                   <div className="flex-1 grid grid-cols-2 gap-3">
                     <div>
-                      <p className="text-2xl font-bold text-gray-900">{p.risk_count}</p>
-                      <p className="text-xs text-gray-500">Active Risks</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{p.risk_count}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Active Risks</p>
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-gray-900">{p.average_impact.toFixed(1)}</p>
-                      <p className="text-xs text-gray-500">Avg Impact</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{p.average_impact.toFixed(1)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Avg Impact</p>
                     </div>
                   </div>
                 </div>
-                <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">{p.recommendation}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded-lg p-3">{p.recommendation}</p>
               </div>
             ))}
           </div>
