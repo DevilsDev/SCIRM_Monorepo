@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import RiskListPage from './pages/RiskListPage';
 import RiskDetailPage from './pages/RiskDetailPage';
@@ -18,6 +19,7 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />

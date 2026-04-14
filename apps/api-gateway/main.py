@@ -5,11 +5,12 @@ Central entry point for all client requests, routing to appropriate agent servic
 
 import os
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from uuid import uuid4
 
 import jwt
 import httpx
-from datetime import timedelta
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
@@ -60,6 +61,15 @@ class HealthResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    organization_id: Optional[str] = None
+
+# In-memory user store for development (production would use database)
+_registered_users: Dict[str, Dict[str, Any]] = {}
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -215,6 +225,64 @@ async def oauth_authorize(provider: str = "google", redirect_uri: str = "http://
         "state": "mock-state-token",
         "message": "OAuth provider integration — redirect user to authorization_url",
     }
+
+
+@app.post("/api/v1/auth/signup")
+async def signup(request: SignupRequest):
+    """Register a new user account."""
+    # Check if email already taken (dev users + registered users)
+    if request.email in DEV_USERS or request.email in _registered_users:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Validate password strength
+    if len(request.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    # Create user
+    user_id = str(uuid4())
+    _registered_users[request.email] = {
+        "id": user_id,
+        "name": request.name,
+        "roles": ["analyst"],  # Default role for new signups
+        "org_id": request.organization_id or "default-org",
+        "password": request.password,
+        "mfa_secret": None,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+
+    # Also add to DEV_USERS so login works immediately
+    DEV_USERS[request.email] = {
+        "id": user_id,
+        "name": request.name,
+        "roles": ["analyst"],
+        "org_id": request.organization_id or "default-org",
+        "mfa_secret": None,
+    }
+
+    # Generate tokens
+    token = create_access_token(data={
+        "sub": user_id,
+        "email": request.email,
+        "name": request.name,
+        "roles": ["analyst"],
+        "org_id": request.organization_id or "default-org",
+    })
+    refresh = create_refresh_token(user_id)
+
+    logger.info("User registered", email=request.email, user_id=user_id)
+
+    return {
+        "access_token": token,
+        "refresh_token": refresh,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "email": request.email,
+            "name": request.name,
+            "roles": ["analyst"],
+        },
+    }
+
 
 @app.post("/api/v1/risk-assessment", response_model=RiskAssessmentResponse)
 async def assess_risk(

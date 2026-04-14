@@ -124,6 +124,12 @@ export const api = {
     return response.data;
   },
 
+  // Registration
+  async signup(email: string, password: string, name: string): Promise<{ access_token: string; token_type: string; user: any }> {
+    const response = await apiClient.post('/api/v1/auth/signup', { email, password, name });
+    return response.data;
+  },
+
   // Health check
   async getHealth() {
     const response = await apiClient.get('/health');
