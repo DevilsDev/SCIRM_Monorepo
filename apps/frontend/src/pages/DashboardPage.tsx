@@ -10,9 +10,11 @@ import SeverityBadge from '../components/SeverityBadge';
 import SeverityChart from '../components/SeverityChart';
 import RiskHeatmap from '../components/d3/RiskHeatmap';
 import { useRisks } from '../hooks/useRisks';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function DashboardPage() {
   const { risks, totalCount, loading } = useRisks({ limit: 50 });
+  const { theme } = useTheme();
 
   const criticalCount = risks.filter((r) => r.severity === 'critical').length;
   const highCount = risks.filter((r) => r.severity === 'high').length;
@@ -50,12 +52,12 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Severity Breakdown</h2>
-          <SeverityChart data={severityData} />
+          <SeverityChart key={`donut-${theme}`} data={severityData} />
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Heatmap</h2>
-          <RiskHeatmap data={heatmapData} height={220} />
+          <RiskHeatmap key={`heatmap-${theme}`} data={heatmapData} height={220} />
         </div>
       </div>
 
