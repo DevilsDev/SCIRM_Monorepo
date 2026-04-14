@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { getThemeColors } from './theme';
+import { getThemeColors, isDarkMode } from './theme';
 
 interface FlowNode {
   id: string;
@@ -55,6 +55,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
 
     d3.select(container).selectAll('*').remove();
     const colors = getThemeColors();
+    const isDark = isDarkMode();
 
     const svg = d3.select(container)
       .append('svg')
@@ -242,13 +243,19 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('opacity', 0).text(risk.count)
         .transition().delay(delay + 300).duration(200).attr('opacity', 1);
 
+      // Label background for readability over links
+      const labelX = -(radius + 12);
+      const bgRect = nodeG.append('rect')
+        .attr('x', labelX - 75).attr('y', -14).attr('width', 75).attr('height', 30)
+        .attr('rx', 4).attr('fill', isDark ? '#1f2937' : '#ffffff').attr('opacity', 0.85);
+
       // Category label to the left of bubble
-      nodeG.append('text').attr('x', -(radius + 10)).attr('dy', '-0.2em').attr('text-anchor', 'end').attr('font-size', '11px')
+      nodeG.append('text').attr('x', labelX).attr('dy', '-0.1em').attr('text-anchor', 'end').attr('font-size', '11px')
         .attr('font-weight', '600').attr('fill', colors.text).style('text-transform', 'capitalize')
         .text(risk.label);
 
       // Severity label below category name
-      nodeG.append('text').attr('x', -(radius + 10)).attr('dy', '1em').attr('text-anchor', 'end').attr('font-size', '9px')
+      nodeG.append('text').attr('x', labelX).attr('dy', '1.1em').attr('text-anchor', 'end').attr('font-size', '9px')
         .attr('fill', rColor).style('text-transform', 'capitalize').text(risk.severity);
 
       nodeG.on('mouseover', function (event) {
