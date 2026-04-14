@@ -87,8 +87,8 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     // Tier X positions (3 columns)
     const tierX = [innerW * 0.12, innerW * 0.50, innerW * 0.88];
 
-    // Minimum spacing per node (radius + labels + padding)
-    const minNodeSpacing = 100;
+    // Minimum spacing per node (largest radius + labels + padding)
+    const minNodeSpacing = 130;
     const maxItems = Math.max(suppliers.length, orgs.length, aggregatedRisks.length);
     const requiredH = maxItems * minNodeSpacing;
     const effectiveH = Math.max(innerH, requiredH);
