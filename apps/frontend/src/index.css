@@ -47,9 +47,12 @@
     @apply top-0;
   }
 
-  /* Minimum touch target */
-  button, a, input, select, textarea {
+  /* Minimum touch target — exempt toggle switches and small inline elements */
+  button:not([role="switch"]), a, input, select, textarea {
     min-height: 2.75rem;
+  }
+  button[role="switch"] {
+    min-height: unset !important;
   }
 
   /* Reduce motion */

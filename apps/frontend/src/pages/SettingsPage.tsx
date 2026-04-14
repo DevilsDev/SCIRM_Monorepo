@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/Toast';
+import Toggle from '../components/Toggle';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -91,18 +92,12 @@ export default function SettingsPage() {
       {/* Appearance */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Appearance</h2>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Switch between light and dark theme</p>
-          </div>
-          <button
-            onClick={toggleTheme}
-            className={`relative w-12 h-6 rounded-full transition-colors ${theme === 'dark' ? 'bg-blue-600' : 'bg-gray-300'}`}
-          >
-            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0.5'}`} />
-          </button>
-        </div>
+        <Toggle
+          enabled={theme === 'dark'}
+          onChange={toggleTheme}
+          label="Dark Mode"
+          description="Switch between light and dark theme"
+        />
       </div>
 
       {/* Language */}
@@ -129,24 +124,9 @@ export default function SettingsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notifications</h2>
         <div className="space-y-4">
-          {[
-            { label: 'Email alerts', desc: 'Receive risk alerts via email', value: emailAlerts, set: setEmailAlerts },
-            { label: 'Slack alerts', desc: 'Send alerts to Slack channel', value: slackAlerts, set: setSlackAlerts },
-            { label: 'Critical only', desc: 'Only notify for critical/high severity risks', value: criticalOnly, set: setCriticalOnly },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
-              </div>
-              <button
-                onClick={() => item.set(!item.value)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${item.value ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${item.value ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-          ))}
+          <Toggle enabled={emailAlerts} onChange={setEmailAlerts} label="Email alerts" description="Receive risk alerts via email" />
+          <Toggle enabled={slackAlerts} onChange={setSlackAlerts} label="Slack alerts" description="Send alerts to Slack channel" />
+          <Toggle enabled={criticalOnly} onChange={setCriticalOnly} label="Critical only" description="Only notify for critical/high severity risks" />
           <button onClick={handleNotificationSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             Save Preferences
           </button>
