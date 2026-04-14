@@ -91,7 +91,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     });
 
     // Tier X positions (3 columns)
-    const tierX = [innerW * 0.12, innerW * 0.48, innerW * 0.92];
+    const tierX = [innerW * 0.10, innerW * 0.45, innerW * 0.80];
 
     // Minimum spacing per node (largest radius + labels + padding)
     const minNodeSpacing = 130;
@@ -198,11 +198,11 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('font-size', '14px').attr('font-weight', 'bold').attr('opacity', 0).text('S')
         .transition().delay(i * 60 + 300).duration(200).attr('opacity', 1);
 
-      nodeG.append('text').attr('y', 38).attr('text-anchor', 'middle').attr('font-size', '11px').attr('font-weight', '500')
-        .attr('fill', colors.text).text(node.label);
+      labelLayer.append('text').attr('x', node.x).attr('y', node.y + 38).attr('text-anchor', 'middle')
+        .attr('font-size', '11px').attr('font-weight', '500').attr('fill', colors.text).text(node.label);
 
-      nodeG.append('text').attr('y', 52).attr('text-anchor', 'middle').attr('font-size', '9px')
-        .attr('fill', colors.textMuted).text(`Risk: ${(node.risk_score || 0).toFixed(0)}/100`);
+      labelLayer.append('text').attr('x', node.x).attr('y', node.y + 52).attr('text-anchor', 'middle')
+        .attr('font-size', '9px').attr('fill', colors.textMuted).text(`Risk: ${(node.risk_score || 0).toFixed(0)}/100`);
 
       nodeG.on('mouseover', function (event) {
         d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', 28);
@@ -228,8 +228,8 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .transition().delay(posSuppliers.length * 60 + 400).duration(200).attr('opacity', 1);
 
       const shortLabel = node.label.length > 15 ? node.label.slice(0, 13) + '..' : node.label;
-      nodeG.append('text').attr('y', 50).attr('text-anchor', 'middle').attr('font-size', '11px').attr('font-weight', '500')
-        .attr('fill', colors.text).text(shortLabel);
+      labelLayer.append('text').attr('x', node.x).attr('y', node.y + 50).attr('text-anchor', 'middle')
+        .attr('font-size', '11px').attr('font-weight', '500').attr('fill', colors.text).text(shortLabel);
     });
 
     // Draw aggregated risk nodes (category bubbles with count)
@@ -248,14 +248,15 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('opacity', 0).text(risk.count)
         .transition().delay(delay + 300).duration(200).attr('opacity', 1);
 
-      // Category label below bubble (130px spacing gives room)
-      nodeG.append('text').attr('y', radius + 18).attr('text-anchor', 'middle').attr('font-size', '12px')
-        .attr('font-weight', '600').attr('fill', colors.text).style('text-transform', 'capitalize')
-        .text(risk.label);
+      // Category label below bubble — in labelLayer so it renders on top of all circles
+      labelLayer.append('text').attr('x', risk.x).attr('y', risk.y + radius + 18).attr('text-anchor', 'middle')
+        .attr('font-size', '12px').attr('font-weight', '600').attr('fill', colors.text)
+        .style('text-transform', 'capitalize').text(risk.label);
 
-      // Severity label below category name
-      nodeG.append('text').attr('y', radius + 33).attr('text-anchor', 'middle').attr('font-size', '10px')
-        .attr('fill', rColor).style('text-transform', 'capitalize').text(`${risk.severity} (${risk.count})`);
+      // Severity label
+      labelLayer.append('text').attr('x', risk.x).attr('y', risk.y + radius + 33).attr('text-anchor', 'middle')
+        .attr('font-size', '10px').attr('fill', rColor)
+        .style('text-transform', 'capitalize').text(`${risk.severity} (${risk.count})`);
 
       nodeG.on('mouseover', function (event) {
         d3.select(this).select('circle').transition().duration(150).attr('r', radius + 4);
