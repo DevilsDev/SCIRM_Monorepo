@@ -71,7 +71,7 @@
     "passwordMedium": "मध्यम",
     "passwordStrong": "मज़बूत",
     "passwordTooShortLabel": "बहुत छोटा",
-    "devCredentials": "Dev: sarah.chen@pharmacorp.com / scirm-dev-2026"
+    "devCredentials": "Dev mode — check console for test credentials"
   },
   "risks": {
     "title": "जोखिम सारांश",

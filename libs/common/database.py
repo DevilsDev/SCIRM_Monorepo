@@ -9,10 +9,11 @@ from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://scirm:dev_password@localhost:5432/scirm_dev"
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+if not DATABASE_URL:
+    import warnings
+    warnings.warn("DATABASE_URL not set — using local dev default. Never deploy without setting DATABASE_URL.", stacklevel=2)
+    DATABASE_URL = "postgresql+asyncpg://scirm:dev_password@localhost:5432/scirm_dev"
 
 # Convert standard postgresql:// URL to async driver URL if needed
 if DATABASE_URL.startswith("postgresql://"):

@@ -71,7 +71,7 @@
     "passwordMedium": "普通",
     "passwordStrong": "強い",
     "passwordTooShortLabel": "短すぎます",
-    "devCredentials": "Dev: sarah.chen@pharmacorp.com / scirm-dev-2026"
+    "devCredentials": "Dev mode — check console for test credentials"
   },
   "risks": {
     "title": "リスク概要",
