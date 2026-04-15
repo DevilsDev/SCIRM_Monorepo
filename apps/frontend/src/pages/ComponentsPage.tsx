@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 
 const critColors: Record<string, string> = {
@@ -14,6 +15,7 @@ export default function ComponentsPage() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [bom, setBom] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useTranslation();
 
   useEffect(() => {
     Promise.all([api.getProducts(), api.getComponents()])
@@ -33,18 +35,18 @@ export default function ComponentsPage() {
     } catch { setBom([]); }
   };
 
-  if (loading) return <p className="text-sm text-gray-400">Loading components...</p>;
+  if (loading) return <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Components & BOM</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{components.length} components across {products.length} products</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('components.title', 'Components & BOM')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('components.subtitle', '{{components}} components across {{products}} products', { components: components.length, products: products.length })}</p>
       </div>
 
       {/* Products */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Products</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{t('components.products', 'Products')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {products.map((p) => (
             <div
@@ -58,15 +60,15 @@ export default function ComponentsPage() {
               <div className="grid grid-cols-3 gap-2 mt-3">
                 <div className="text-center">
                   <p className="text-lg font-bold text-gray-900 dark:text-white">{p.component_count}</p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Components</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">{t('components.componentCount', 'Components')}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-bold text-red-600">{p.critical_components}</p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Critical</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">{t('components.criticalCount', 'Critical')}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-bold text-gray-900 dark:text-white">{p.max_component_risk}</p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400">Max Risk</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">{t('components.maxRisk', 'Max Risk')}</p>
                 </div>
               </div>
             </div>
@@ -78,18 +80,18 @@ export default function ComponentsPage() {
       {selectedProduct && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">BOM: {selectedProduct.name}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('components.bom', 'BOM')}: {selectedProduct.name}</h2>
           </div>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Component</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Part #</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Criticality</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Quantity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Suppliers</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colComponent', 'Component')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colPartNumber', 'Part #')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colCategory', 'Category')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colCriticality', 'Criticality')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colQuantity', 'Quantity')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colRisk', 'Risk')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('components.colSuppliers', 'Suppliers')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -119,7 +121,7 @@ export default function ComponentsPage() {
 
       {/* Component Catalog */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Component Catalog</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{t('components.componentCatalog', 'Component Catalog')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {components.map((c: any) => (
             <div key={c.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">

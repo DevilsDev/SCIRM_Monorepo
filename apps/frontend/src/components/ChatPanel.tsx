@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChatBubbleLeftRightIcon, XMarkIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { api } from '../services/api';
 
@@ -9,9 +10,10 @@ interface ChatMessage {
 }
 
 export default function ChatPanel() {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: "Hi! I'm SCIRM AI. Ask me about risks, suppliers, predictions, or alerts. Try: \"How many risks do we have?\"", timestamp: new Date().toISOString() },
+    { role: 'assistant', content: t('chat.greeting', 'Hi! I\'m SCIRM AI. Ask me about risks, suppliers, predictions, or alerts. Try: "How many risks do we have?"'), timestamp: new Date().toISOString() },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export default function ChatPanel() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', timestamp: new Date().toISOString() },
+        { role: 'assistant', content: t('chat.error', 'Sorry, I encountered an error. Please try again.'), timestamp: new Date().toISOString() },
       ]);
     } finally {
       setLoading(false);
@@ -52,7 +54,7 @@ export default function ChatPanel() {
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 z-40 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
-          aria-label="Open chat"
+          aria-label={t('chat.openChat', 'Open chat')}
         >
           <ChatBubbleLeftRightIcon className="h-6 w-6" />
         </button>
@@ -64,8 +66,8 @@ export default function ChatPanel() {
           {/* Header */}
           <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold">SCIRM AI Assistant</h3>
-              <p className="text-[10px] text-gray-400">Ask about risks, suppliers, predictions</p>
+              <h3 className="text-sm font-semibold">{t('chat.title', 'SCIRM AI Assistant')}</h3>
+              <p className="text-[10px] text-gray-400">{t('chat.subtitle', 'Ask about risks, suppliers, predictions')}</p>
             </div>
             <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-gray-700 rounded">
               <XMarkIcon className="h-5 w-5" />
@@ -90,7 +92,7 @@ export default function ChatPanel() {
             {loading && (
               <div className="flex justify-start">
                 <div className="bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-3 py-2 rounded-xl text-sm">
-                  <span className="animate-pulse">Thinking...</span>
+                  <span className="animate-pulse">{t('chat.thinking', 'Thinking...')}</span>
                 </div>
               </div>
             )}
@@ -107,7 +109,7 @@ export default function ChatPanel() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about your supply chain..."
+                placeholder={t('chat.placeholder', 'Ask about your supply chain...')}
                 className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 disabled={loading}
               />

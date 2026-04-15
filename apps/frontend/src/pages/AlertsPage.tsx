@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, Alert } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
 
@@ -7,6 +8,7 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     api
@@ -22,9 +24,9 @@ export default function AlertsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Alerts</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('alerts.title', 'Alerts')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {activeCount} active alert{activeCount !== 1 ? 's' : ''} of {alerts.length} total
+            {t('alerts.activeCount', '{{count}} active alert(s) of {{total}} total', { count: activeCount, total: alerts.length })}
           </p>
         </div>
       </div>
@@ -35,21 +37,21 @@ export default function AlertsPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
         >
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="acknowledged">Acknowledged</option>
-          <option value="resolved">Resolved</option>
+          <option value="">{t('alerts.allStatuses', 'All Statuses')}</option>
+          <option value="active">{t('alerts.active', 'Active')}</option>
+          <option value="acknowledged">{t('alerts.acknowledged', 'Acknowledged')}</option>
+          <option value="resolved">{t('alerts.resolved', 'Resolved')}</option>
         </select>
       </div>
 
       <div className="space-y-3">
         {loading ? (
-          <p className="text-sm text-gray-400">Loading alerts...</p>
+          <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : alerts.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
-            <p className="text-sm text-gray-400">No alerts. Run an assessment to generate risk alerts.</p>
+            <p className="text-sm text-gray-400">{t('alerts.noAlerts', 'No alerts. Run an assessment to generate risk alerts.')}</p>
           </div>
         ) : (
           alerts.map((alert) => (

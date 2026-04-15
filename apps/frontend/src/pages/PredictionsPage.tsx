@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
 import AnimatedBars from '../components/d3/AnimatedBars';
@@ -26,6 +27,7 @@ export default function PredictionsPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     api
@@ -41,26 +43,26 @@ export default function PredictionsPage() {
     color: SEVERITY_COLORS[p.severity] || '#94a3b8',
   }));
 
-  if (loading) return <p className="text-sm text-gray-400">Loading predictions...</p>;
+  if (loading) return <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>;
   if (error) return <p className="text-sm text-red-500">{error}</p>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">7-Day Disruption Predictions</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('predictions.title', '7-Day Disruption Predictions')}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {predictions.length} risk categories analyzed
+          {t('predictions.analyzed', '{{count}} risk categories analyzed', { count: predictions.length })}
         </p>
       </div>
 
       {predictions.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <p className="text-sm text-gray-400">No predictions available. Run an assessment first to generate risk data.</p>
+          <p className="text-sm text-gray-400">{t('predictions.noPredictions', 'No predictions available. Run an assessment first to generate risk data.')}</p>
         </div>
       ) : (
         <>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Disruption Probability by Category</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('predictions.probability', 'Disruption Probability by Category')}</h2>
             <AnimatedBars data={barData} height={predictions.length * 55 + 60} maxValue={100} />
           </div>
 
@@ -72,15 +74,15 @@ export default function PredictionsPage() {
                   <SeverityBadge severity={p.severity} />
                 </div>
                 <div className="flex items-center gap-4 mb-3">
-                  <GaugeChart value={Math.round(p.predicted_disruption_probability * 100)} label="Disruption" size={100} />
+                  <GaugeChart value={Math.round(p.predicted_disruption_probability * 100)} label={t('predictions.disruption', 'Disruption')} size={100} />
                   <div className="flex-1 grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{p.risk_count}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Active Risks</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('predictions.activeRisks', 'Active Risks')}</p>
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{p.average_impact.toFixed(1)}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Avg Impact</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('predictions.avgImpact', 'Avg Impact')}</p>
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, Risk, Recommendation } from '../services/api';
 import PriorityMatrix from '../components/PriorityMatrix';
 import SeverityBadge from '../components/SeverityBadge';
@@ -13,6 +14,7 @@ export default function RecommendationsPage() {
   const [allRecs, setAllRecs] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     (async () => {
@@ -49,44 +51,44 @@ export default function RecommendationsPage() {
   const mediumCount = allRecs.filter((r) => r.priority === 'medium').length;
   const lowCount = allRecs.filter((r) => r.priority === 'low').length;
 
-  if (loading) return <p className="text-sm text-gray-400">Loading recommendations...</p>;
+  if (loading) return <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>;
   if (error) return <p className="text-sm text-red-500">{error}</p>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Recommendations</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{allRecs.length} recommendations across {groups.length} risks</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('recommendations.title', 'Recommendations')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('recommendations.subtitle', '{{count}} recommendations across {{risks}} risks', { count: allRecs.length, risks: groups.length })}</p>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-gray-900 dark:text-white">${(totalCost / 1000).toFixed(0)}k</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Total Est. Cost</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('recommendations.totalCost', 'Total Est. Cost')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{avgTimeline.toFixed(0)}d</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Avg Timeline</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('recommendations.avgTimeline', 'Avg Timeline')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-red-600">{highCount}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">High Priority</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('recommendations.highPriority', 'High Priority')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-yellow-600">{mediumCount}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Medium Priority</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('recommendations.mediumPriority', 'Medium Priority')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-2xl font-bold text-green-600">{lowCount}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Low Priority</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('recommendations.lowPriority', 'Low Priority')}</p>
         </div>
       </div>
 
       {/* Priority Matrix */}
       {allRecs.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Priority Matrix</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('recommendations.priorityMatrix', 'Priority Matrix')}</h2>
           <PriorityMatrix recommendations={allRecs} />
         </div>
       )}
@@ -94,7 +96,7 @@ export default function RecommendationsPage() {
       {/* Grouped Recommendations */}
       {groups.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-sm text-gray-400">No recommendations available. Run an assessment first.</p>
+          <p className="text-sm text-gray-400">{t('recommendations.noRecommendations', 'No recommendations available. Run an assessment first.')}</p>
         </div>
       ) : (
         groups.map(({ risk, recommendations }) => (

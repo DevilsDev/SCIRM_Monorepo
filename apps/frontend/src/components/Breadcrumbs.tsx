@@ -1,7 +1,25 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronRightIcon, HomeIcon } from '@heroicons/react/24/solid';
 
-const ROUTE_LABELS: Record<string, string> = {
+const ROUTE_LABEL_KEYS: Record<string, string> = {
+  dashboard: 'nav.dashboard',
+  risks: 'nav.risks',
+  suppliers: 'nav.suppliers',
+  components: 'nav.components',
+  'supply-chain': 'nav.supplyChain',
+  predictions: 'nav.predictions',
+  events: 'nav.events',
+  intelligence: 'nav.intelFeed',
+  simulator: 'nav.simulator',
+  procurement: 'nav.procurement',
+  alerts: 'nav.alerts',
+  assessments: 'nav.newAssessment',
+  recommendations: 'nav.recommendations',
+  new: 'nav.newAssessment',
+};
+
+const ROUTE_FALLBACKS: Record<string, string> = {
   dashboard: 'Dashboard',
   risks: 'Risks',
   suppliers: 'Suppliers',
@@ -20,6 +38,7 @@ const ROUTE_LABELS: Record<string, string> = {
 
 export default function Breadcrumbs() {
   const location = useLocation();
+  const { t } = useTranslation();
   const segments = location.pathname.split('/').filter(Boolean);
 
   if (segments.length <= 1) return null; // Don't show on top-level pages
@@ -31,7 +50,9 @@ export default function Breadcrumbs() {
       </Link>
       {segments.map((segment, i) => {
         const path = '/' + segments.slice(0, i + 1).join('/');
-        const label = ROUTE_LABELS[segment] || segment;
+        const labelKey = ROUTE_LABEL_KEYS[segment];
+        const fallback = ROUTE_FALLBACKS[segment] || segment;
+        const label = labelKey ? t(labelKey, fallback) : fallback;
         const isLast = i === segments.length - 1;
 
         return (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import EntityForm, { EntityData } from '../components/EntityForm';
 import GaugeChart from '../components/d3/GaugeChart';
@@ -25,6 +26,7 @@ export default function NewAssessmentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<RiskAssessmentResponse | null>(null);
+  const { t } = useTranslation();
 
   const updateEntity = (index: number, entity: EntityData) => {
     const next = [...entities];
@@ -49,7 +51,7 @@ export default function NewAssessmentPage() {
 
     const validEntities = entities.filter((e) => e.name && e.type);
     if (validEntities.length === 0) {
-      setError('At least one entity with name and type is required.');
+      setError(t('assessment.entityRequired', 'At least one entity with name and type is required.'));
       return;
     }
 
@@ -78,14 +80,14 @@ export default function NewAssessmentPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">New Risk Assessment</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure and run a supply chain risk assessment</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('assessment.title', 'New Risk Assessment')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('assessment.subtitle', 'Configure and run a supply chain risk assessment')}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Entities */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Entities to Assess</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('assessment.entities', 'Entities to Assess')}</h2>
           <div className="space-y-3">
             {entities.map((entity, i) => (
               <EntityForm
@@ -102,28 +104,28 @@ export default function NewAssessmentPage() {
             onClick={() => setEntities([...entities, newEntity()])}
             className="mt-3 inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
           >
-            <PlusIcon className="h-4 w-4" /> Add Entity
+            <PlusIcon className="h-4 w-4" /> {t('assessment.addEntity', 'Add Entity')}
           </button>
         </div>
 
         {/* Configuration */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Assessment Configuration</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('assessment.config', 'Assessment Configuration')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assessment Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assessment.type', 'Assessment Type')}</label>
               <select
                 value={assessmentType}
                 onChange={(e) => setAssessmentType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="comprehensive">Comprehensive</option>
-                <option value="quick">Quick</option>
-                <option value="targeted">Targeted</option>
+                <option value="comprehensive">{t('assessment.comprehensive', 'Comprehensive')}</option>
+                <option value="quick">{t('assessment.quick', 'Quick')}</option>
+                <option value="targeted">{t('assessment.targeted', 'Targeted')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Time Horizon (days)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('assessment.timeHorizon', 'Time Horizon (days)')}</label>
               <input
                 type="number"
                 min={1}
@@ -136,7 +138,7 @@ export default function NewAssessmentPage() {
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Priority Factors</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('assessment.priorityFactors', 'Priority Factors')}</label>
             <div className="flex flex-wrap gap-2">
               {PRIORITY_OPTIONS.map((p) => (
                 <button
@@ -163,30 +165,30 @@ export default function NewAssessmentPage() {
           disabled={loading}
           className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? 'Assessing risks...' : 'Run Assessment'}
+          {loading ? t('assessment.assessing', 'Assessing risks...') : t('assessment.runAssessment', 'Run Assessment')}
         </button>
       </form>
 
       {/* Results */}
       {result && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Assessment Complete</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('assessment.complete', 'Assessment Complete')}</h2>
           <div className="flex items-center justify-around">
             <div className="text-center">
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{result.risks.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Risks Identified</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('assessment.risksIdentified', 'Risks Identified')}</p>
             </div>
             <div className="text-center">
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{result.recommendations.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Recommendations</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('assessment.recommendations', 'Recommendations')}</p>
             </div>
-            <GaugeChart value={Math.round(result.confidence_score * 100)} label="Confidence" size={120} />
+            <GaugeChart value={Math.round(result.confidence_score * 100)} label={t('assessment.confidence', 'Confidence')} size={120} />
           </div>
 
           {/* Reasoning Trail */}
           {result.reasoning_trail.length > 0 && (
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Agent Reasoning Trail</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{t('assessment.reasoningTrail', 'Agent Reasoning Trail')}</h3>
               <div className="space-y-3">
                 {result.reasoning_trail.map((step, i) => (
                   <div key={i} className="flex gap-3">
@@ -197,7 +199,7 @@ export default function NewAssessmentPage() {
                       <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">{step.agent}</p>
                       <p className="text-xs text-gray-600 dark:text-gray-300">{step.output || step.reasoning}</p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        Confidence: {(step.confidence * 100).toFixed(0)}%
+                        {t('assessment.confidence', 'Confidence')}: {(step.confidence * 100).toFixed(0)}%
                       </p>
                     </div>
                   </div>
@@ -210,7 +212,7 @@ export default function NewAssessmentPage() {
             to="/risks"
             className="inline-block text-sm text-blue-600 hover:text-blue-800 font-medium"
           >
-            View all risks &rarr;
+            {t('assessment.viewAllRisks', 'View all risks')} &rarr;
           </Link>
         </div>
       )}

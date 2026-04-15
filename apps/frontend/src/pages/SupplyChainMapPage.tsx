@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import SupplyChainFlow from '../components/d3/SupplyChainFlow';
 
@@ -22,6 +23,7 @@ export default function SupplyChainMapPage() {
   const [edges, setEdges] = useState<MapEdge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     api
@@ -38,30 +40,30 @@ export default function SupplyChainMapPage() {
   const risks = nodes.filter((n) => n.type === 'risk').length;
   const orgs = nodes.filter((n) => n.type === 'organization').length;
 
-  if (loading) return <p className="text-sm text-gray-400">Loading supply chain map...</p>;
+  if (loading) return <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>;
   if (error) return <p className="text-sm text-red-500">{error}</p>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Supply Chain Map</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('supplyChain.title', 'Supply Chain Map')}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Tiered flow — suppliers → organization → risks. Link thickness = risk magnitude.
+          {t('supplyChain.subtitle', 'Tiered flow — suppliers → organization → risks. Link thickness = risk magnitude.')}
         </p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
           <p className="text-3xl font-bold text-blue-700">{orgs}</p>
-          <p className="text-xs text-blue-600">Organizations</p>
+          <p className="text-xs text-blue-600">{t('supplyChain.organizations', 'Organizations')}</p>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
           <p className="text-3xl font-bold text-green-700">{suppliers}</p>
-          <p className="text-xs text-green-600">Suppliers</p>
+          <p className="text-xs text-green-600">{t('supplyChain.suppliers', 'Suppliers')}</p>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
           <p className="text-3xl font-bold text-red-700">{risks}</p>
-          <p className="text-xs text-red-600">Active Risks</p>
+          <p className="text-xs text-red-600">{t('supplyChain.activeRisks', 'Active Risks')}</p>
         </div>
       </div>
 

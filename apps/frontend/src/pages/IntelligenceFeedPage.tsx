@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
 
@@ -24,6 +25,7 @@ export default function IntelligenceFeedPage() {
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState('');
   const [ingesting, setIngesting] = useState(false);
+  const { t } = useTranslation();
 
   const fetchDocs = () => {
     setLoading(true);
@@ -49,15 +51,15 @@ export default function IntelligenceFeedPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Intelligence Feed</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Real-time supply chain intelligence from news, weather, regulatory, and financial sources</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('intelligence.title', 'Intelligence Feed')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('intelligence.subtitle', 'Real-time supply chain intelligence from news, weather, regulatory, and financial sources')}</p>
         </div>
         <button
           onClick={handleIngest}
           disabled={ingesting}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {ingesting ? 'Ingesting...' : 'Refresh Feed'}
+          {ingesting ? t('intelligence.ingesting', 'Ingesting...') : t('intelligence.refreshFeed', 'Refresh Feed')}
         </button>
       </div>
 
@@ -70,16 +72,16 @@ export default function IntelligenceFeedPage() {
               sourceFilter === src ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >
-            {src || 'All Sources'}
+            {src || t('intelligence.allSources', 'All Sources')}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading intelligence feed...</p>
+        <p className="text-sm text-gray-400">{t('intelligence.loading', 'Loading intelligence feed...')}</p>
       ) : docs.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <p className="text-sm text-gray-400">No intelligence documents. Click "Refresh Feed" to ingest data from all sources.</p>
+          <p className="text-sm text-gray-400">{t('intelligence.noDocuments', 'No intelligence documents. Click "Refresh Feed" to ingest data from all sources.')}</p>
         </div>
       ) : (
         <div className="space-y-3">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
 
@@ -6,6 +7,7 @@ export default function ProcurementPage() {
   const [actions, setActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
+  const { t } = useTranslation();
 
   const fetchActions = () => {
     api.getProcurementActions()
@@ -33,11 +35,11 @@ export default function ProcurementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Procurement Agent</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Autonomous sourcing — evaluates supplier risk and proposes alternatives</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('procurement.title', 'Procurement Agent')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('procurement.subtitle', 'Autonomous sourcing — evaluates supplier risk and proposes alternatives')}</p>
         </div>
         <button onClick={handleEvaluate} disabled={evaluating} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-          {evaluating ? 'Evaluating...' : 'Evaluate Suppliers'}
+          {evaluating ? t('procurement.evaluating', 'Evaluating...') : t('procurement.evaluate', 'Evaluate Suppliers')}
         </button>
       </div>
 
@@ -45,24 +47,24 @@ export default function ProcurementPage() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{actions.length}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Total Actions</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('procurement.totalActions', 'Total Actions')}</p>
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
           <p className="text-3xl font-bold text-yellow-700">{proposed.length}</p>
-          <p className="text-xs text-yellow-600">Pending Approval</p>
+          <p className="text-xs text-yellow-600">{t('procurement.pendingApproval', 'Pending Approval')}</p>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
           <p className="text-3xl font-bold text-green-700">
             {actions.reduce((s, a) => s + (a.risk_reduction || 0), 0).toFixed(0)}
           </p>
-          <p className="text-xs text-green-600">Total Risk Reduction</p>
+          <p className="text-xs text-green-600">{t('procurement.totalRiskReduction', 'Total Risk Reduction')}</p>
         </div>
       </div>
 
       {/* Proposed Actions */}
       {proposed.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Proposed Actions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{t('procurement.proposedActions', 'Proposed Actions')}</h2>
           <div className="space-y-3">
             {proposed.map((action) => (
               <div key={action.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-yellow-200 p-5">
@@ -87,7 +89,7 @@ export default function ProcurementPage() {
       {/* Action History */}
       {executed.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Action History</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{t('procurement.actionHistory', 'Action History')}</h2>
           <div className="space-y-2">
             {executed.map((action) => (
               <div key={action.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
@@ -105,10 +107,10 @@ export default function ProcurementPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading procurement actions...</p>
+        <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>
       ) : actions.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <p className="text-sm text-gray-400">No procurement actions yet. Click "Evaluate Suppliers" to analyze your supply chain and generate sourcing proposals.</p>
+          <p className="text-sm text-gray-400">{t('procurement.noActions', 'No procurement actions yet. Click "Evaluate Suppliers" to analyze your supply chain and generate sourcing proposals.')}</p>
         </div>
       ) : null}
     </div>

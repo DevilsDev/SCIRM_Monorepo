@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import AnimatedBars from '../components/d3/AnimatedBars';
 
@@ -11,6 +12,7 @@ export default function SimulatorPage() {
   const [simCount, setSimCount] = useState(1000);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const { t } = useTranslation();
 
   const handleRun = async () => {
     setLoading(true);
@@ -26,16 +28,16 @@ export default function SimulatorPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Digital Twin Simulator</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monte Carlo simulation — model disruption scenarios across your supply chain</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('simulator.title', 'Digital Twin Simulator')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('simulator.subtitle', 'Monte Carlo simulation — model disruption scenarios across your supply chain')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Scenario Builder */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Scenario Builder</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('simulator.scenarioBuilder', 'Scenario Builder')}</h2>
 
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Disrupt Suppliers</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('simulator.disruptSuppliers', 'Disrupt Suppliers')}</label>
           <div className="space-y-2 mb-4">
             {SUPPLIERS.map((s) => (
               <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -45,22 +47,22 @@ export default function SimulatorPage() {
             ))}
           </div>
 
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Severity</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('simulator.severity', 'Severity')}</label>
           <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm mb-4">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="low">{t('risks.low', 'Low')}</option>
+            <option value="medium">{t('risks.medium', 'Medium')}</option>
+            <option value="high">{t('risks.high', 'High')}</option>
+            <option value="critical">{t('risks.critical', 'Critical')}</option>
           </select>
 
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration (days)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('simulator.duration', 'Duration (days)')}</label>
           <input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={1} max={365} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm mb-4" />
 
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Simulations</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('simulator.simulations', 'Simulations')}</label>
           <input type="number" value={simCount} onChange={(e) => setSimCount(Number(e.target.value))} min={100} max={10000} step={100} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm mb-4" />
 
           <button onClick={handleRun} disabled={loading || !selected.length} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {loading ? 'Simulating...' : `Run ${simCount.toLocaleString()} Simulations`}
+            {loading ? t('simulator.simulating', 'Simulating...') : t('simulator.runSimulations', 'Run {{count}} Simulations', { count: simCount.toLocaleString() })}
           </button>
         </div>
 
@@ -71,25 +73,25 @@ export default function SimulatorPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">${(result.financial_impact_p50 / 1000).toFixed(0)}k</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Median Impact (P50)</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('simulator.medianImpact', 'Median Impact (P50)')}</p>
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-red-700">${(result.financial_impact_p95 / 1000).toFixed(0)}k</p>
-                  <p className="text-xs text-red-600">Worst Case (P95)</p>
+                  <p className="text-xs text-red-600">{t('simulator.worstCase', 'Worst Case (P95)')}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.recovery_days_p50.toFixed(0)}d</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Median Recovery</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('simulator.medianRecovery', 'Median Recovery')}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.suppliers_affected_mean.toFixed(1)}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Avg Suppliers Hit</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('simulator.avgSuppliersHit', 'Avg Suppliers Hit')}</p>
                 </div>
               </div>
 
               {/* Financial Impact Distribution */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Financial Impact Distribution ({result.num_simulations.toLocaleString()} simulations)</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{t('simulator.financialDistribution', 'Financial Impact Distribution')} ({result.num_simulations.toLocaleString()} simulations)</h3>
                 <AnimatedBars
                   data={result.financial_histogram.map((h: any) => ({
                     name: `$${(h.bin_start / 1000).toFixed(0)}k`,
@@ -103,7 +105,7 @@ export default function SimulatorPage() {
 
               {/* Mitigation Actions */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Recommended Mitigations</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{t('simulator.recommendedMitigations', 'Recommended Mitigations')}</h3>
                 <div className="space-y-2">
                   {result.mitigation_actions.map((m: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
@@ -124,7 +126,7 @@ export default function SimulatorPage() {
             </>
           ) : (
             <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-12 text-center">
-              <p className="text-sm text-gray-400">Select suppliers to disrupt and run the simulation to see Monte Carlo results.</p>
+              <p className="text-sm text-gray-400">{t('simulator.selectAndRun', 'Select suppliers to disrupt and run the simulation to see Monte Carlo results.')}</p>
             </div>
           )}
         </div>

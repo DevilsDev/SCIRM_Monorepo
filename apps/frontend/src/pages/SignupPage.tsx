@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function SignupPage() {
   const { isAuthenticated, signup } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,12 +23,12 @@ export default function SignupPage() {
     setError('');
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError(t('auth.passwordTooShort', 'Password must be at least 8 characters.'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('auth.passwordMismatch', 'Passwords do not match.'));
       return;
     }
 
@@ -35,7 +37,7 @@ export default function SignupPage() {
       await signup(email, password, name);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed. Please try again.');
+      setError(err.response?.data?.detail || t('auth.registrationFailed', 'Registration failed. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -47,13 +49,13 @@ export default function SignupPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">SCIRM</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create your account</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('auth.createAccount', 'Create account')}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Full Name
+                {t('auth.fullName', 'Full Name')}
               </label>
               <input
                 id="name"
@@ -62,13 +64,13 @@ export default function SignupPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="John Doe"
+                placeholder={t('auth.namePlaceholder', 'John Doe')}
               />
             </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email
+                {t('auth.email', 'Email')}
               </label>
               <input
                 id="email"
@@ -77,13 +79,13 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="you@company.com"
+                placeholder={t('auth.emailPlaceholder', 'you@company.com')}
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Password
+                {t('auth.password', 'Password')}
               </label>
               <input
                 id="password"
@@ -110,7 +112,7 @@ export default function SignupPage() {
                     })}
                   </div>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    {password.length < 8 ? 'Too short' : (/[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password)) ? 'Strong' : (/[A-Z]/.test(password) || /[0-9]/.test(password)) ? 'Medium' : 'Weak'}
+                    {password.length < 8 ? t('auth.passwordTooShortLabel', 'Too short') : (/[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password)) ? t('auth.passwordStrong', 'Strong') : (/[A-Z]/.test(password) || /[0-9]/.test(password)) ? t('auth.passwordMedium', 'Medium') : t('auth.passwordWeak', 'Weak')}
                   </p>
                 </div>
               )}
@@ -118,7 +120,7 @@ export default function SignupPage() {
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Confirm Password
+                {t('auth.confirmPassword', 'Confirm Password')}
               </label>
               <input
                 id="confirmPassword"
@@ -127,7 +129,7 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Repeat your password"
+                placeholder={t('auth.confirmPlaceholder', 'Repeat your password')}
               />
             </div>
 
@@ -140,14 +142,14 @@ export default function SignupPage() {
               disabled={loading}
               className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? t('auth.signingUp', 'Creating account...') : t('auth.signUp', 'Create Account')}
             </button>
           </form>
 
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-6">
-            Already have an account?{' '}
+            {t('auth.haveAccount', 'Already have an account?')}{' '}
             <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">
-              Sign in
+              {t('auth.signIn', 'Sign in')}
             </Link>
           </p>
         </div>

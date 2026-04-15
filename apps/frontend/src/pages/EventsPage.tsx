@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
 
@@ -26,6 +27,7 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<RiskEvent | null>(null);
   const [impacts, setImpacts] = useState<EventImpact[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useTranslation();
 
   useEffect(() => {
     api.getEvents()
@@ -49,21 +51,21 @@ export default function EventsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Events</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track disruption events and their cascading impact through the supply chain</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('events.title', 'Risk Events')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('events.subtitle', 'Track disruption events and their cascading impact through the supply chain')}</p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading events...</p>
+        <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>
       ) : events.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
-          <p className="text-sm text-gray-400">No risk events recorded. Events are auto-generated during assessments or can be created via API.</p>
+          <p className="text-sm text-gray-400">{t('events.noEvents', 'No risk events recorded. Events are auto-generated during assessments or can be created via API.')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Event Timeline */}
           <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Event Timeline</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('events.timeline', 'Event Timeline')}</h2>
             {events.map((event) => (
               <div
                 key={event.id}
@@ -88,18 +90,18 @@ export default function EventsPage() {
           {/* Impact Panel */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              {selectedEvent ? `Impact: ${selectedEvent.title}` : 'Select an event to see impacts'}
+              {selectedEvent ? `${t('events.impact', 'Impact')}: ${selectedEvent.title}` : t('events.selectEvent', 'Select an event to see impacts')}
             </h2>
             {selectedEvent && impacts.length > 0 ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
                     <p className="text-2xl font-bold text-red-700">{impacts.length}</p>
-                    <p className="text-xs text-red-600">Entities Impacted</p>
+                    <p className="text-xs text-red-600">{t('events.entitiesImpacted', 'Entities Impacted')}</p>
                   </div>
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
                     <p className="text-2xl font-bold text-orange-700">${(totalFinancialImpact / 1000).toFixed(0)}k</p>
-                    <p className="text-xs text-orange-600">Est. Financial Impact</p>
+                    <p className="text-xs text-orange-600">{t('events.estFinancialImpact', 'Est. Financial Impact')}</p>
                   </div>
                 </div>
                 {impacts.map((impact, i) => (
@@ -118,10 +120,10 @@ export default function EventsPage() {
                 ))}
               </div>
             ) : selectedEvent ? (
-              <p className="text-sm text-gray-400">No cascading impacts detected for this event.</p>
+              <p className="text-sm text-gray-400">{t('events.noImpacts', 'No cascading impacts detected for this event.')}</p>
             ) : (
               <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-8 text-center">
-                <p className="text-sm text-gray-400">Click an event in the timeline to see its cascading impact through the supply chain.</p>
+                <p className="text-sm text-gray-400">{t('events.clickEvent', 'Click an event in the timeline to see its cascading impact through the supply chain.')}</p>
               </div>
             )}
           </div>

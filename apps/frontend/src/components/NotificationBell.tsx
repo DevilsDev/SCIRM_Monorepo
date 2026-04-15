@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BellIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
@@ -8,6 +9,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<any[]>([]);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const fetchAlerts = () => {
@@ -29,7 +31,7 @@ export default function NotificationBell() {
       <button
         onClick={() => setOpen(!open)}
         className="relative p-1.5 rounded-lg hover:bg-gray-700 transition-colors"
-        aria-label="Notifications"
+        aria-label={t('common.notifications', 'Notifications')}
       >
         <BellIcon className="h-5 w-5 text-gray-400" />
         {count > 0 && (
@@ -44,12 +46,12 @@ export default function NotificationBell() {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-10 z-50 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</span>
-              {count > 0 && <span className="text-xs text-red-500 font-medium">{count} active</span>}
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">{t('common.notifications', 'Notifications')}</span>
+              {count > 0 && <span className="text-xs text-red-500 font-medium">{count} {t('alerts.active', 'active')}</span>}
             </div>
             <div className="max-h-60 overflow-y-auto">
               {alerts.length === 0 ? (
-                <p className="px-4 py-6 text-xs text-gray-400 text-center">No active alerts</p>
+                <p className="px-4 py-6 text-xs text-gray-400 text-center">{t('common.noActiveAlerts', 'No active alerts')}</p>
               ) : (
                 alerts.map((alert, i) => (
                   <div key={i} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0"
@@ -65,7 +67,7 @@ export default function NotificationBell() {
               onClick={() => { navigate('/alerts'); setOpen(false); }}
               className="w-full px-4 py-2.5 text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700 font-medium border-t border-gray-200 dark:border-gray-700"
             >
-              View all alerts
+              {t('common.viewAllAlerts', 'View all alerts')}
             </button>
           </div>
         </>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, Supplier } from '../services/api';
 import RadarChart from '../components/d3/RadarChart';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -40,6 +41,7 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [radarData, setRadarData] = useState<DimensionScore[]>([]);
   const [scoringLoading, setScoringLoading] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     api
@@ -72,8 +74,8 @@ export default function SuppliersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Suppliers</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{suppliers.length} suppliers tracked — click a supplier for 7-dimension risk profile</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('suppliers.title', 'Suppliers')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('suppliers.tracked', '{{count}} suppliers tracked', { count: suppliers.length })} — {t('suppliers.clickForProfile', 'click a supplier for 7-dimension risk profile')}</p>
         </div>
       </div>
 
@@ -83,31 +85,31 @@ export default function SuppliersPage() {
           onChange={(e) => setTierFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
         >
-          <option value="">All Risk Tiers</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
+          <option value="">{t('suppliers.allTiers', 'All Risk Tiers')}</option>
+          <option value="low">{t('risks.low', 'Low')}</option>
+          <option value="medium">{t('risks.medium', 'Medium')}</option>
+          <option value="high">{t('risks.high', 'High')}</option>
         </select>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {loading ? (
-          <p className="p-6 text-sm text-gray-400">Loading suppliers...</p>
+          <p className="p-6 text-sm text-gray-400">{t('suppliers.loading', 'Loading suppliers...')}</p>
         ) : error ? (
           <p className="p-6 text-sm text-red-500">{error}</p>
         ) : suppliers.length === 0 ? (
-          <p className="p-6 text-sm text-gray-400">No suppliers found.</p>
+          <p className="p-6 text-sm text-gray-400">{t('suppliers.noSuppliers', 'No suppliers found.')}</p>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Code</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Region</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk Score</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Risk Tier</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colName', 'Name')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colCode', 'Code')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colType', 'Type')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRegion', 'Region')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskScore', 'Risk Score')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskTier', 'Risk Tier')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colActions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -129,8 +131,8 @@ export default function SuppliersPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Link to="/simulator" className="text-[10px] text-blue-600 hover:text-blue-800 font-medium">Simulate</Link>
-                      <Link to="/procurement" className="text-[10px] text-purple-600 hover:text-purple-800 font-medium">Alternatives</Link>
+                      <Link to="/simulator" className="text-[10px] text-blue-600 hover:text-blue-800 font-medium">{t('suppliers.simulate', 'Simulate')}</Link>
+                      <Link to="/procurement" className="text-[10px] text-purple-600 hover:text-purple-800 font-medium">{t('suppliers.alternatives', 'Alternatives')}</Link>
                     </div>
                   </td>
                 </tr>
@@ -147,7 +149,7 @@ export default function SuppliersPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">{selectedSupplier.name}</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">7-Dimension Risk Profile — {selectedSupplier.country_code} {selectedSupplier.region}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('suppliers.riskProfile', '7-Dimension Risk Profile')} — {selectedSupplier.country_code} {selectedSupplier.region}</p>
               </div>
               <button onClick={() => setSelectedSupplier(null)} className="p-1 hover:bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <XMarkIcon className="h-5 w-5 text-gray-400" />
@@ -156,7 +158,7 @@ export default function SuppliersPage() {
 
             {scoringLoading ? (
               <div className="flex items-center justify-center h-64">
-                <p className="text-sm text-gray-400">Scoring across 7 dimensions...</p>
+                <p className="text-sm text-gray-400">{t('suppliers.scoring', 'Scoring across 7 dimensions...')}</p>
               </div>
             ) : radarData.length > 0 ? (
               <>
@@ -178,7 +180,7 @@ export default function SuppliersPage() {
                 </div>
               </>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-8">No scoring data available</p>
+              <p className="text-sm text-gray-400 text-center py-8">{t('common.noData', 'No data available')}</p>
             )}
           </div>
         </div>
