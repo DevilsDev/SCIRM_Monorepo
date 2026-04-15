@@ -1,28 +1,36 @@
 """
 SCIRM Executor Agent
 Generates actionable risk mitigation recommendations based on context and research data.
+Uses LLM for context-aware recommendations when available, falls back to templates.
 """
 
+import json
 import os
-from datetime import datetime, timedelta
-from typing import Dict, List, Any
+import sys
+from datetime import datetime
+from typing import Any, Dict, List
 from uuid import uuid4
 
+import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import structlog
 
-from libs.common.models import RiskAssessmentRequest, Recommendation, Risk, RiskSeverity
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from libs.common.models import Recommendation, Risk, RiskAssessmentRequest, RiskSeverity
 from libs.common.monitoring import setup_monitoring, track_agent_task
+from libs.common.security import setup_cors
+from libs.common import llm as llm_client
 
 logger = structlog.get_logger()
 
 app = FastAPI(
     title="SCIRM Executor Agent",
     description="Actionable risk mitigation recommendation engine",
-    version="1.0.0"
+    version="1.0.0",
 )
 
+setup_cors(app)
 setup_monitoring(app, "executor")
 
 class RecommendationRequest(BaseModel):
@@ -33,6 +41,7 @@ class RecommendationRequest(BaseModel):
 
 class RecommendationResponse(BaseModel):
     """Response with generated recommendations."""
+    risks: List[Risk] = []
     recommendations: List[Recommendation]
     risk_mitigation_strategy: str
     priority_matrix: Dict[str, List[str]]
@@ -165,7 +174,7 @@ class ExecutorAgent:
         # Generate recommendations for each risk
         recommendations = []
         for risk in identified_risks:
-            risk_recommendations = self._generate_risk_recommendations(risk, context, research_data)
+            risk_recommendations = await self._generate_risk_recommendations(risk, context, research_data)
             recommendations.extend(risk_recommendations)
         
         # Prioritize recommendations
@@ -179,7 +188,7 @@ class ExecutorAgent:
         implementation_timeline = self._create_implementation_timeline(prioritized_recommendations)
         
         # Generate overall strategy
-        strategy = self._generate_mitigation_strategy(prioritized_recommendations, context)
+        strategy = await self._generate_mitigation_strategy(prioritized_recommendations, context)
         
         # Calculate confidence score
         confidence_score = self._calculate_confidence(prioritized_recommendations, research_data)
@@ -187,6 +196,7 @@ class ExecutorAgent:
         reasoning = self._build_reasoning(identified_risks, prioritized_recommendations, context)
         
         return RecommendationResponse(
+            risks=identified_risks,
             recommendations=prioritized_recommendations,
             risk_mitigation_strategy=strategy,
             priority_matrix=priority_matrix,
@@ -275,33 +285,72 @@ class ExecutorAgent:
         
         return min(base_impact * entity_multiplier, 10.0)
     
-    def _generate_risk_recommendations(self, risk: Risk, context: Dict[str, Any], 
-                                     research_data: Dict[str, Any]) -> List[Recommendation]:
-        """Generate recommendations for a specific risk."""
+    async def _generate_risk_recommendations(self, risk: Risk, context: Dict[str, Any],
+                                             research_data: Dict[str, Any]) -> List[Recommendation]:
+        """Generate recommendations for a specific risk — LLM-enhanced when available."""
+        industry = context.get("industry", context.get("metadata", {}).get("industry", "general"))
+
+        # Try LLM-powered generation first
+        if llm_client.is_configured():
+            try:
+                findings_summary = json.dumps(research_data.get("findings", [])[:5], default=str)
+                prompt = f"""Generate 3-5 specific, actionable risk mitigation recommendations.
+
+Risk: {risk.title}
+Description: {risk.description}
+Severity: {risk.severity.value}, Probability: {risk.probability}, Impact: {risk.impact_score}
+Category: {risk.risk_category}
+Industry: {industry}
+Compliance: {context.get('compliance_requirements', [])}
+Related research: {findings_summary}
+
+Return a JSON object with key "recommendations" as an array. Each recommendation:
+{{
+  "title": "<clear action title>",
+  "description": "<specific implementation description, 1-2 sentences>",
+  "action_type": "preventive|reactive|monitoring",
+  "priority": "high|medium|low",
+  "estimated_cost": <dollar amount>,
+  "estimated_impact": <1.0-10.0>,
+  "timeline_days": <integer>,
+  "resources_required": ["<role1>", "<role2>"],
+  "success_probability": <0.0-1.0>
+}}
+
+Tailor recommendations to {industry} industry. Be specific and realistic with costs and timelines."""
+
+                result = await llm_client.generate_json(prompt)
+                llm_recs = result.get("recommendations", [])
+                if llm_recs:
+                    return [
+                        Recommendation(
+                            id=str(uuid4()),
+                            risk_id=risk.id,
+                            **{k: v for k, v in rec.items() if k in Recommendation.model_fields},
+                        )
+                        for rec in llm_recs
+                    ]
+            except Exception as exc:
+                logger.warning("LLM recommendation generation failed, using templates", error=str(exc))
+
+        # Template-based fallback
         recommendations = []
         category = risk.risk_category
-        
-        # Get templates for this category
         templates = self.recommendation_templates.get(category, {})
-        
-        # Industry context
-        industry = context.get("industry", "general")
         cost_model = self.cost_models.get(industry, self.cost_models["general"])
-        
+
         for template_name, template in templates.items():
-            # Calculate adjusted cost
             base_cost = template["base_cost"]
-            adjusted_cost = cost_model(base_cost, [risk.id])  # Simplified entity list
-            
-            # Adjust timeline based on severity
+            adjusted_cost = cost_model(base_cost, [risk.id])
+
             timeline_multiplier = 1.0
             if risk.severity == RiskSeverity.CRITICAL:
-                timeline_multiplier = 0.5  # Faster implementation
+                timeline_multiplier = 0.5
             elif risk.severity == RiskSeverity.HIGH:
                 timeline_multiplier = 0.7
-            
+
             adjusted_timeline = int(template["timeline_days"] * timeline_multiplier)
-            
+
             recommendation = Recommendation(
                 id=str(uuid4()),
                 risk_id=risk.id,
@@ -313,10 +362,10 @@ class ExecutorAgent:
                 estimated_impact=self._calculate_recommendation_impact(risk, template),
                 timeline_days=adjusted_timeline,
                 resources_required=self._determine_resources(template, industry),
-                success_probability=template["success_probability"]
+                success_probability=template["success_probability"],
             )
             recommendations.append(recommendation)
-        
+
         return recommendations
     
     def _determine_priority(self, risk: Risk, template: Dict[str, Any]) -> str:
@@ -410,23 +459,45 @@ class ExecutorAgent:
         
         return timeline
     
-    def _generate_mitigation_strategy(self, recommendations: List[Recommendation], 
-                                    context: Dict[str, Any]) -> str:
-        """Generate overall risk mitigation strategy."""
+    async def _generate_mitigation_strategy(self, recommendations: List[Recommendation],
+                                            context: Dict[str, Any]) -> str:
+        """Generate overall risk mitigation strategy — LLM-enhanced when available."""
         high_priority = [r for r in recommendations if r.priority == "high"]
-        
+        total_cost = sum(r.estimated_cost or 0 for r in recommendations)
+        industry = context.get("industry", context.get("metadata", {}).get("industry", "general"))
+
+        if llm_client.is_configured() and recommendations:
+            try:
+                rec_summary = [
+                    {"title": r.title, "priority": r.priority, "cost": r.estimated_cost, "days": r.timeline_days}
+                    for r in recommendations[:10]
+                ]
+                prompt = f"""Write a concise executive risk mitigation strategy summary (3-5 sentences).
+
+Industry: {industry}
+Recommendations: {json.dumps(rec_summary)}
+Total investment: ${total_cost:,.0f}
+High-priority actions: {len(high_priority)}
+
+Focus on: phased approach, expected outcomes, and critical success factors.
+Return a JSON object with key "strategy" as a string."""
+
+                result = await llm_client.generate_json(prompt)
+                strategy = result.get("strategy", "")
+                if strategy:
+                    return strategy
+            except Exception as exc:
+                logger.warning("LLM strategy generation failed, using template", error=str(exc))
+
+        # Template fallback
         strategy_parts = [
             f"Comprehensive risk mitigation strategy with {len(recommendations)} recommendations",
             f"Immediate focus on {len(high_priority)} high-priority actions",
-            f"Estimated total investment: ${sum(r.estimated_cost or 0 for r in recommendations):,.0f}",
-            f"Expected risk reduction: {sum(r.estimated_impact for r in recommendations):.1f} points"
+            f"Estimated total investment: ${total_cost:,.0f}",
+            f"Expected risk reduction: {sum(r.estimated_impact for r in recommendations):.1f} points",
         ]
-        
-        # Add industry-specific guidance
-        industry = context.get("industry", "general")
         if industry == "pharmaceutical":
             strategy_parts.append("Special emphasis on regulatory compliance and quality assurance")
-        
         return ". ".join(strategy_parts) + "."
     
     def _calculate_confidence(self, recommendations: List[Recommendation], 
@@ -464,8 +535,11 @@ executor_agent = ExecutorAgent()
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "agent": "executor"}
+    return {"status": "healthy", "agent": "executor", "llm_configured": llm_client.is_configured()}
+
+@app.get("/ready")
+async def ready():
+    return {"status": "ready", "agent": "executor"}
 
 @app.post("/generate-recommendations", response_model=RecommendationResponse)
 async def generate_recommendations(request: RecommendationRequest):

@@ -1,0 +1,64 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import GuestRoute from './components/GuestRoute';
+import Layout from './components/Layout';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import NotFoundPage from './pages/NotFoundPage';
+import DashboardPage from './pages/DashboardPage';
+import RiskListPage from './pages/RiskListPage';
+import RiskDetailPage from './pages/RiskDetailPage';
+import NewAssessmentPage from './pages/NewAssessmentPage';
+import RecommendationsPage from './pages/RecommendationsPage';
+import SuppliersPage from './pages/SuppliersPage';
+import AlertsPage from './pages/AlertsPage';
+import SupplyChainMapPage from './pages/SupplyChainMapPage';
+import PredictionsPage from './pages/PredictionsPage';
+import EventsPage from './pages/EventsPage';
+import IntelligenceFeedPage from './pages/IntelligenceFeedPage';
+import SimulatorPage from './pages/SimulatorPage';
+import ProcurementPage from './pages/ProcurementPage';
+import ComponentsPage from './pages/ComponentsPage';
+import SettingsPage from './pages/SettingsPage';
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        {/* Guest-only routes — redirect to dashboard if already logged in */}
+        <Route element={<GuestRoute />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        </Route>
+
+        {/* Protected routes — require authentication */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/risks" element={<RiskListPage />} />
+            <Route path="/risks/:id" element={<RiskDetailPage />} />
+            <Route path="/assessments/new" element={<NewAssessmentPage />} />
+            <Route path="/recommendations" element={<RecommendationsPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/supply-chain" element={<SupplyChainMapPage />} />
+            <Route path="/predictions" element={<PredictionsPage />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/intelligence" element={<IntelligenceFeedPage />} />
+            <Route path="/simulator" element={<SimulatorPage />} />
+            <Route path="/procurement" element={<ProcurementPage />} />
+            <Route path="/components" element={<ComponentsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+        </Route>
+
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </AuthProvider>
+  );
+}

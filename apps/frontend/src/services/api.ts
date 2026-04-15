@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -62,6 +62,31 @@ export interface Recommendation {
   success_probability: number;
 }
 
+export interface Supplier {
+  id: string;
+  organization_id: string;
+  supplier_code: string;
+  name: string;
+  supplier_type: string;
+  country_code: string;
+  region: string;
+  risk_score: number;
+  risk_tier: string;
+  contact_name?: string;
+  contact_email?: string;
+  is_active: boolean;
+}
+
+export interface Alert {
+  id: string;
+  alert_type: string;
+  severity: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
 export interface RiskAssessmentRequest {
   entities: Array<{
     id: string;
@@ -93,6 +118,18 @@ export interface RiskAssessmentResponse {
 }
 
 export const api = {
+  // Authentication
+  async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
+    const response = await apiClient.post('/api/v1/auth/login', { email, password });
+    return response.data;
+  },
+
+  // Registration
+  async signup(email: string, password: string, name: string): Promise<{ access_token: string; token_type: string; user: any }> {
+    const response = await apiClient.post('/api/v1/auth/signup', { email, password, name });
+    return response.data;
+  },
+
   // Health check
   async getHealth() {
     const response = await apiClient.get('/health');
@@ -107,6 +144,16 @@ export const api = {
 
   async getRisk(riskId: string) {
     const response = await apiClient.get(`/api/v1/risks/${riskId}`);
+    return response.data;
+  },
+
+  async createRisk(risk: Partial<Risk> & { status?: string; owner?: string }) {
+    const response = await apiClient.post('/api/v1/risks', risk);
+    return response.data;
+  },
+
+  async updateRisk(riskId: string, updates: Partial<Risk> & { status?: string; owner?: string }) {
+    const response = await apiClient.put(`/api/v1/risks/${riskId}`, updates);
     return response.data;
   },
 
@@ -146,6 +193,156 @@ export const api = {
     return response.data;
   },
 
+  // Suppliers
+  async getSuppliers(params: { org_id?: string; risk_tier?: string; limit?: number } = {}) {
+    const response = await apiClient.get('/api/v1/suppliers', { params });
+    return response.data;
+  },
+
+  async getSupplier(supplierId: string) {
+    const response = await apiClient.get(`/api/v1/suppliers/${supplierId}`);
+    return response.data;
+  },
+
+  async createSupplier(supplier: Partial<Supplier>) {
+    const response = await apiClient.post('/api/v1/suppliers', supplier);
+    return response.data;
+  },
+
+  async updateSupplier(supplierId: string, updates: Partial<Supplier>) {
+    const response = await apiClient.put(`/api/v1/suppliers/${supplierId}`, updates);
+    return response.data;
+  },
+
+  async deleteSupplier(supplierId: string) {
+    const response = await apiClient.delete(`/api/v1/suppliers/${supplierId}`);
+    return response.data;
+  },
+
+  // Alerts
+  async getAlerts(params: { status?: string; severity?: string; limit?: number } = {}) {
+    const response = await apiClient.get('/api/v1/alerts', { params });
+    return response.data;
+  },
+
+  async acknowledgeAlert(alertId: string) {
+    const response = await apiClient.post(`/api/v1/alerts/${alertId}/acknowledge`);
+    return response.data;
+  },
+
+  // Risk History
+  async getRiskHistory(limit: number = 100) {
+    const response = await apiClient.get('/api/v1/risks/history', { params: { limit } });
+    return response.data;
+  },
+
+  // Components & Products
+  async getComponents(category?: string) {
+    const params: any = {};
+    if (category) params.category = category;
+    const response = await apiClient.get('/api/v1/components', { params });
+    return response.data;
+  },
+
+  async getProducts() {
+    const response = await apiClient.get('/api/v1/products');
+    return response.data;
+  },
+
+  async getProductBom(productId: string) {
+    const response = await apiClient.get(`/api/v1/products/${productId}/bom`);
+    return response.data;
+  },
+
+  // Digital Twin Simulator
+  async runSimulation(params: { disrupted_suppliers: string[]; severity: string; duration_days: number; num_simulations?: number }) {
+    const response = await apiClient.post('/api/v1/simulator/run', { scenario_type: 'supplier_disruption', ...params });
+    return response.data;
+  },
+
+  // Procurement
+  async evaluateProcurement(suppliers: Array<Record<string, any>>, riskThreshold: number = 65) {
+    const response = await apiClient.post('/api/v1/procurement/evaluate', { suppliers, risk_threshold: riskThreshold });
+    return response.data;
+  },
+
+  async getProcurementActions(status?: string) {
+    const params: any = {};
+    if (status) params.status = status;
+    const response = await apiClient.get('/api/v1/procurement/actions', { params });
+    return response.data;
+  },
+
+  // Chat
+  async chat(message: string, context: Record<string, any> = {}) {
+    const response = await apiClient.post('/api/v1/chat', { message, context });
+    return response.data;
+  },
+
+  // Intelligence Feed
+  async triggerIngestion() {
+    const response = await apiClient.post('/api/v1/intelligence/ingest');
+    return response.data;
+  },
+
+  async getIntelligenceFeed(source?: string, limit: number = 50) {
+    const params: any = { limit };
+    if (source) params.source = source;
+    const response = await apiClient.get('/api/v1/intelligence/feed', { params });
+    return response.data;
+  },
+
+  // Sub-Tier Discovery
+  async discoverSubtiers(supplierName: string, supplierId: string = '', supplierContext: Record<string, any> = {}) {
+    const response = await apiClient.post('/api/v1/suppliers/discover-subtiers', { supplier_name: supplierName, supplier_id: supplierId, supplier_context: supplierContext });
+    return response.data;
+  },
+
+  // Risk Events
+  async createEvent(event: Record<string, any>) {
+    const response = await apiClient.post('/api/v1/events', event);
+    return response.data;
+  },
+
+  async getEvents(limit: number = 50) {
+    const response = await apiClient.get('/api/v1/events', { params: { limit } });
+    return response.data;
+  },
+
+  async getEventImpacts(eventId: string) {
+    const response = await apiClient.get(`/api/v1/events/${eventId}/impacts`);
+    return response.data;
+  },
+
+  // Risk Scoring (7 dimensions)
+  async scoreSupplierRisk(supplierName: string, supplierContext: Record<string, any> = {}) {
+    const response = await apiClient.post('/api/v1/risk-score', { supplier_name: supplierName, supplier_context: supplierContext });
+    return response.data;
+  },
+
+  async getRiskDimensions() {
+    const response = await apiClient.get('/api/v1/risk-dimensions');
+    return response.data;
+  },
+
+  // Predictions
+  async getPredictions() {
+    const response = await apiClient.get('/api/v1/predictions');
+    return response.data;
+  },
+
+  // Supply Chain Map
+  async getSupplyChainMap(orgId?: string) {
+    const response = await apiClient.get('/api/v1/supply-chain/map', { params: orgId ? { org_id: orgId } : {} });
+    return response.data;
+  },
+
+  // Scenario Simulation
+  async simulateScenario(scenario: { type: string; affected_suppliers: string[]; severity: string; duration_days: number; description?: string }) {
+    const response = await apiClient.post('/api/v1/scenarios/simulate', scenario);
+    return response.data;
+  },
+
   // Organizations
   async getOrganizations() {
     const response = await apiClient.get('/api/v1/organizations');
@@ -159,7 +356,7 @@ export const api = {
 
   // Real-time updates via WebSocket
   createWebSocket(onMessage: (data: any) => void, onError?: (error: Event) => void) {
-    const wsUrl = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8000/ws';
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
     const ws = new WebSocket(wsUrl);
     
     ws.onmessage = (event) => {

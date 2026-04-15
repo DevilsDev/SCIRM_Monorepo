@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Dark mode color scheme */
+  html.dark {
+    color-scheme: dark;
+  }
+
+  /* Custom scrollbars — thin and unobtrusive */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  *:hover {
+    scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+  }
+  *:hover::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.3);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.5);
+  }
+
+  /* Focus indicators */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-500;
+  }
+
+  /* Skip navigation */
+  .skip-nav {
+    @apply absolute -top-10 left-0 bg-blue-600 text-white px-4 py-2 z-50 transition-all;
+  }
+  .skip-nav:focus {
+    @apply top-0;
+  }
+
+  /* Minimum touch target — exempt toggles and [data-compact] elements */
+  button:not([role="switch"]):not([data-compact]),
+  a:not([data-compact]),
+  input, select, textarea {
+    min-height: 2.75rem;
+  }
+  button[role="switch"],
+  [data-compact] {
+    min-height: unset !important;
+  }
+
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/*
+  Dark mode utility classes for cards and panels.
+  Apply these alongside existing Tailwind classes in components.
+  The approach: use dark: prefix on components, not global overrides.
+*/
+/* Toast slide-in animation */
+@keyframes slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Modal animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes slide-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+.animate-slide-right {
+  animation: slide-right 0.25s ease-out;
+}
+
+@layer utilities {
+  .card {
+    @apply bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700;
+  }
+  .card-title {
+    @apply text-gray-900 dark:text-gray-50;
+  }
+  .card-subtitle {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+  .card-text {
+    @apply text-gray-700 dark:text-gray-300;
+  }
+  .page-bg {
+    @apply bg-gray-50 dark:bg-gray-900;
+  }
+}

@@ -1,28 +1,36 @@
 """
 SCIRM Reviewer Agent
 Quality validation and review of risk assessments and recommendations.
+Uses LLM for semantic compliance checking and review summaries when available.
 """
 
+import json
 import os
+import sys
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import structlog
 
-from libs.common.models import Risk, Recommendation, RiskSeverity
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from libs.common.models import Recommendation, Risk, RiskSeverity
 from libs.common.monitoring import setup_monitoring, track_agent_task
+from libs.common.security import setup_cors
+from libs.common import llm as llm_client
 
 logger = structlog.get_logger()
 
 app = FastAPI(
     title="SCIRM Reviewer Agent",
     description="Quality validation and review engine for risk assessments",
-    version="1.0.0"
+    version="1.0.0",
 )
 
+setup_cors(app)
 setup_monitoring(app, "reviewer")
 
 class ReviewRequest(BaseModel):
@@ -171,7 +179,7 @@ class ReviewerAgent:
         quality_issues.extend(consistency_issues)
         
         # Perform compliance checks
-        compliance_results = self._check_compliance(risk_objects, recommendation_objects, context)
+        compliance_results = await self._check_compliance(risk_objects, recommendation_objects, context)
         
         # Calculate overall quality score
         quality_score = self._calculate_quality_score(quality_issues, compliance_results)
@@ -434,35 +442,70 @@ class ReviewerAgent:
         
         return issues
     
-    def _check_compliance(self, risks: List[Risk], recommendations: List[Recommendation], 
-                         context: Dict[str, Any]) -> Dict[str, Any]:
-        """Check compliance with industry regulations and standards."""
-        industry = context.get("industry", "general")
+    async def _check_compliance(self, risks: List[Risk], recommendations: List[Recommendation],
+                               context: Dict[str, Any]) -> Dict[str, Any]:
+        """Check compliance — LLM-enhanced semantic checking when available."""
+        industry = context.get("industry", context.get("metadata", {}).get("industry", "general"))
         rules = self.compliance_rules.get(industry, self.compliance_rules["general"])
-        
+
+        all_descriptions = " ".join([r.description for r in risks] + [r.description for r in recommendations])
+
+        # Try LLM-powered semantic compliance check
+        if llm_client.is_configured() and all_descriptions.strip():
+            try:
+                prompt = f"""Assess compliance of these risk assessments and recommendations against {industry} industry requirements.
+
+Required considerations: {json.dumps(rules['required_considerations'])}
+
+Risk descriptions:
+{chr(10).join(f'- {r.title}: {r.description}' for r in risks[:10])}
+
+Recommendation descriptions:
+{chr(10).join(f'- {r.title}: {r.description}' for r in recommendations[:10])}
+
+Return a JSON object:
+{{
+  "required_considerations_met": ["<consideration that IS substantively addressed>"],
+  "missing_considerations": ["<consideration that is NOT addressed>"],
+  "overall_compliance_score": <0.0-1.0>,
+  "compliance_gaps": ["<specific gap description>"]
+}}
+
+Use semantic matching, not keyword matching. A consideration is "met" if the concept is substantively addressed even with different wording."""
+
+                result = await llm_client.generate_json(prompt)
+                return {
+                    "industry": industry,
+                    "required_considerations_met": result.get("required_considerations_met", []),
+                    "missing_considerations": result.get("missing_considerations", []),
+                    "mandatory_reviews_status": {},
+                    "documentation_compliance": {},
+                    "overall_compliance_score": result.get("overall_compliance_score", 0.0),
+                    "compliance_gaps": result.get("compliance_gaps", []),
+                }
+            except Exception as exc:
+                logger.warning("LLM compliance check failed, using keyword matching", error=str(exc))
+
+        # Keyword-based fallback
         compliance_results = {
             "industry": industry,
             "required_considerations_met": [],
             "missing_considerations": [],
             "mandatory_reviews_status": {},
             "documentation_compliance": {},
-            "overall_compliance_score": 0.0
+            "overall_compliance_score": 0.0,
         }
-        
-        # Check required considerations
-        all_descriptions = " ".join([r.description for r in risks] + [r.description for r in recommendations])
-        
+
         for consideration in rules["required_considerations"]:
             if consideration.lower() in all_descriptions.lower():
                 compliance_results["required_considerations_met"].append(consideration)
             else:
                 compliance_results["missing_considerations"].append(consideration)
-        
-        # Calculate compliance score
-        total_considerations = len(rules["required_considerations"])
-        met_considerations = len(compliance_results["required_considerations_met"])
-        compliance_results["overall_compliance_score"] = met_considerations / total_considerations if total_considerations > 0 else 1.0
-        
+
+        total = len(rules["required_considerations"])
+        met = len(compliance_results["required_considerations_met"])
+        compliance_results["overall_compliance_score"] = met / total if total > 0 else 1.0
+
         return compliance_results
     
     def _calculate_quality_score(self, quality_issues: List[QualityIssue], 
@@ -654,8 +697,11 @@ reviewer_agent = ReviewerAgent()
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "agent": "reviewer"}
+    return {"status": "healthy", "agent": "reviewer", "llm_configured": llm_client.is_configured()}
+
+@app.get("/ready")
+async def ready():
+    return {"status": "ready", "agent": "reviewer"}
 
 @app.post("/review", response_model=ReviewResponse)
 async def review_assessment(request: ReviewRequest):

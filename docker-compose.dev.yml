@@ -56,6 +56,11 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - PLANNER_SERVICE_URL=http://planner:8000
+      - RESEARCHER_SERVICE_URL=http://researcher:8000
+      - EXECUTOR_SERVICE_URL=http://executor:8000
+      - REVIEWER_SERVICE_URL=http://reviewer:8000
+      - DISCOVERY_SERVICE_URL=http://discovery:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -79,6 +84,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -102,6 +111,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -125,6 +138,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -148,6 +165,10 @@ services:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -161,6 +182,118 @@ services:
       - ./libs:/app/libs
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+  risk-scorer:
+    build:
+      context: ./services/risk-scorer
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/risk-scorer:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  discovery:
+    build:
+      context: ./services/discovery
+      dockerfile: Dockerfile
+    ports:
+      - "8007:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/discovery:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  ingestion:
+    build:
+      context: ./services/ingestion
+      dockerfile: Dockerfile
+    ports:
+      - "8008:8000"
+    environment:
+      - NEWS_API_KEY=${NEWS_API_KEY:-}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/ingestion:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  chat:
+    build:
+      context: ./services/chat
+      dockerfile: Dockerfile
+    ports:
+      - "8009:8000"
+    environment:
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - RISK_SCORER_SERVICE_URL=http://risk-scorer:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/chat:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  simulator:
+    build:
+      context: ./services/simulator
+      dockerfile: Dockerfile
+    ports:
+      - "8010:8000"
+    environment:
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/simulator:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  procurement:
+    build:
+      context: ./services/procurement
+      dockerfile: Dockerfile
+    ports:
+      - "8011:8000"
+    environment:
+      - PROCUREMENT_MODE=advisory
+      - PROCUREMENT_RISK_THRESHOLD=65
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/procurement:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  component-tracker:
+    build:
+      context: ./services/component-tracker
+      dockerfile: Dockerfile
+    ports:
+      - "8012:8000"
+    environment:
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./services/component-tracker:/app
+      - ./libs:/app/libs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
   api-gateway:
     build:
       context: ./apps/api-gateway
@@ -170,11 +303,21 @@ services:
     environment:
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
-      - COORDINATOR_URL=http://coordinator:8000
-      - PLANNER_URL=http://planner:8000
-      - RESEARCHER_URL=http://researcher:8000
-      - EXECUTOR_URL=http://executor:8000
-      - REVIEWER_URL=http://reviewer:8000
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - PLANNER_SERVICE_URL=http://planner:8000
+      - RESEARCHER_SERVICE_URL=http://researcher:8000
+      - EXECUTOR_SERVICE_URL=http://executor:8000
+      - REVIEWER_SERVICE_URL=http://reviewer:8000
+      - RISK_SCORER_SERVICE_URL=http://risk-scorer:8000
+      - DISCOVERY_SERVICE_URL=http://discovery:8000
+      - INGESTION_SERVICE_URL=http://ingestion:8000
+      - CHAT_SERVICE_URL=http://chat:8000
+      - SIMULATOR_SERVICE_URL=http://simulator:8000
+      - PROCUREMENT_SERVICE_URL=http://procurement:8000
+      - COMPONENT_TRACKER_URL=http://component-tracker:8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-scirm-dev-secret-change-in-production}
+      - ENVIRONMENT=development
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -203,13 +346,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      - REACT_APP_WS_URL=ws://localhost:8000
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000/ws
       - NODE_ENV=development
     volumes:
       - ./apps/frontend:/app
-      - /app/node_modules
-    command: npm run dev
+    command: sh -c "npm install && npm run dev"
 
   # Monitoring
   prometheus:

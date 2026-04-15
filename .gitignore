@@ -137,3 +137,42 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.pytest_cache/
+venv/
+env/
+.venv/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Kubernetes secrets (use secrets.example.yml instead)
+infra/k8s/*/secrets.yml
+infra/k8s/*/secrets.local.yml
+
+# Local deployment overrides
+ops/deployment/*.local.*
+
+# Frontend build
+apps/frontend/dist/
+apps/frontend/.vite/
