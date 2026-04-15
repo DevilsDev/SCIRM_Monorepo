@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/Toast';
@@ -17,8 +18,9 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { addToast } = useToast();
+  const { i18n } = useTranslation();
 
-  const [language, setLanguage] = useState(() => localStorage.getItem('i18nextLng') || 'en');
+  const [language, setLanguage] = useState(() => i18n.language || 'en');
   const [emailAlerts, setEmailAlerts] = useState(() => localStorage.getItem('scirm_email_alerts') !== 'false');
   const [slackAlerts, setSlackAlerts] = useState(() => localStorage.getItem('scirm_slack_alerts') !== 'false');
   const [criticalOnly, setCriticalOnly] = useState(() => localStorage.getItem('scirm_critical_only') === 'true');
@@ -31,7 +33,7 @@ export default function SettingsPage() {
 
   const handleLanguageChange = (code: string) => {
     setLanguage(code);
-    localStorage.setItem('i18nextLng', code);
+    i18n.changeLanguage(code);
     addToast('success', 'Language updated', `Language set to ${LANGUAGES.find((l) => l.code === code)?.label}`);
   };
 

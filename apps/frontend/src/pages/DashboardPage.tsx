@@ -5,6 +5,7 @@ import {
   ChartBarIcon,
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
+import { useTranslation } from 'react-i18next';
 import MetricCard from '../components/MetricCard';
 import SeverityBadge from '../components/SeverityBadge';
 import SeverityChart from '../components/SeverityChart';
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const prevCount = useRef(totalCount);
 
   // Auto-refresh every 30 seconds
@@ -61,9 +63,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('dashboard.title', 'Dashboard')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Supply chain risk overview
+            {t('dashboard.subtitle', 'Supply chain risk overview')}
             <span className="text-xs ml-2 text-gray-400">Auto-refreshes every 30s</span>
           </p>
         </div>
@@ -86,10 +88,10 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Total Risks" value={String(totalCount)} icon={ShieldExclamationIcon} color="blue" />
-          <MetricCard title="Critical Risks" value={String(criticalCount)} icon={ExclamationTriangleIcon} color="red" />
-          <MetricCard title="High Risks" value={String(highCount)} icon={ChartBarIcon} color="yellow" />
-          <MetricCard title="Monitored" value={String(totalCount)} icon={CheckCircleIcon} color="green" />
+          <MetricCard title={t('dashboard.totalRisks', 'Total Risks')} value={String(totalCount)} icon={ShieldExclamationIcon} color="blue" />
+          <MetricCard title={t('dashboard.criticalRisks', 'Critical Risks')} value={String(criticalCount)} icon={ExclamationTriangleIcon} color="red" />
+          <MetricCard title={t('dashboard.highRisks', 'High Risks')} value={String(highCount)} icon={ChartBarIcon} color="yellow" />
+          <MetricCard title={t('dashboard.monitored', 'Monitored')} value={String(totalCount)} icon={CheckCircleIcon} color="green" />
         </div>
       )}
 
@@ -102,20 +104,20 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Severity Breakdown</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.severityBreakdown', 'Risk Severity Breakdown')}</h2>
             <SeverityChart key={`donut-${theme}`} data={severityData} />
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Heatmap</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.riskHeatmap', 'Risk Heatmap')}</h2>
             <RiskHeatmap key={`heatmap-${theme}`} data={heatmapData} height={220} />
           </div>
         </div>
       )}
 
-      {/* Recent Risks with contextual actions */}
+      {/* {t('dashboard.recentRisks', 'Recent Risks')} with contextual actions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Risks</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.recentRisks', 'Recent Risks')}</h2>
           <Link to="/risks" className="text-xs text-blue-600 hover:text-blue-800 font-medium">View all &rarr;</Link>
         </div>
         {loading ? (
