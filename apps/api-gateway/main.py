@@ -106,7 +106,7 @@ async def readiness():
     """Readiness probe for Kubernetes."""
     return {"status": "ready", "service": "api-gateway"}
 
-DEV_PASSWORD = "scirm-dev-2026"
+DEV_PASSWORD = os.getenv("DEV_PASSWORD", "scirm-dev-2026")  # Override via env var in production
 DEV_USERS = {
     "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
     "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},

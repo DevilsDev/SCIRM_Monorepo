@@ -111,7 +111,10 @@ spec:
         - name: POSTGRES_USER
           value: scirm
         - name: POSTGRES_PASSWORD
-          value: staging_password
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: database-password
         ports:
         - containerPort: 5432
         volumeMounts:
@@ -328,7 +331,10 @@ spec:
         image: grafana/grafana:latest
         env:
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: grafana-admin-password
         ports:
         - containerPort: 3000
 ---

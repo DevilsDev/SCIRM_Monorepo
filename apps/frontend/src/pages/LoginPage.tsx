@@ -120,9 +120,11 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <p className="text-xs text-gray-400 text-center mt-2">
-            {t('auth.devCredentials', 'Dev: sarah.chen@pharmacorp.com / scirm-dev-2026')}
-          </p>
+          {import.meta.env.DEV && (
+            <p className="text-xs text-gray-400 text-center mt-2">
+              {t('auth.devCredentials', 'Dev: sarah.chen@pharmacorp.com / scirm-dev-2026')}
+            </p>
+          )}
         </div>
       </div>
     </div>
