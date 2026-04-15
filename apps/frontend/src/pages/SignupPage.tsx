@@ -94,6 +94,26 @@ export default function SignupPage() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 placeholder="At least 8 characters"
               />
+              {password.length > 0 && (
+                <div className="mt-1.5">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4].map((level) => {
+                      const strength =
+                        (password.length >= 8 ? 1 : 0) +
+                        (/[A-Z]/.test(password) ? 1 : 0) +
+                        (/[0-9]/.test(password) ? 1 : 0) +
+                        (/[^A-Za-z0-9]/.test(password) ? 1 : 0);
+                      const color = strength >= level
+                        ? strength <= 1 ? 'bg-red-500' : strength <= 2 ? 'bg-yellow-500' : strength <= 3 ? 'bg-blue-500' : 'bg-green-500'
+                        : 'bg-gray-200 dark:bg-gray-700';
+                      return <div key={level} className={`h-1 flex-1 rounded-full ${color}`} />;
+                    })}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {password.length < 8 ? 'Too short' : (/[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password)) ? 'Strong' : (/[A-Z]/.test(password) || /[0-9]/.test(password)) ? 'Medium' : 'Weak'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>

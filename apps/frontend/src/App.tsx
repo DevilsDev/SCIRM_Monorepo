@@ -1,9 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import GuestRoute from './components/GuestRoute';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import NotFoundPage from './pages/NotFoundPage';
 import DashboardPage from './pages/DashboardPage';
 import RiskListPage from './pages/RiskListPage';
 import RiskDetailPage from './pages/RiskDetailPage';
@@ -19,15 +22,19 @@ import SimulatorPage from './pages/SimulatorPage';
 import ProcurementPage from './pages/ProcurementPage';
 import ComponentsPage from './pages/ComponentsPage';
 import SettingsPage from './pages/SettingsPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        {/* Guest-only routes — redirect to dashboard if already logged in */}
+        <Route element={<GuestRoute />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        </Route>
+
+        {/* Protected routes — require authentication */}
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
@@ -48,6 +55,9 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
+
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AuthProvider>
   );

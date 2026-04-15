@@ -1,29 +1,54 @@
-import { useState } from 'react';
-import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useState, useRef } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 60;
+
 export default function LoginPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const lockTimer = useRef<NodeJS.Timeout | null>(null);
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Where to redirect after login (saved by ProtectedRoute)
+  const redirectTo = (location.state as any)?.from || '/dashboard';
+
+  const isLocked = lockedUntil && Date.now() < lockedUntil;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) return;
+
     setError('');
     setLoading(true);
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      setAttempts(0);
+      navigate(redirectTo);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+
+      if (newAttempts >= MAX_ATTEMPTS) {
+        const until = Date.now() + LOCKOUT_SECONDS * 1000;
+        setLockedUntil(until);
+        setError(`Too many failed attempts. Try again in ${LOCKOUT_SECONDS} seconds.`);
+        lockTimer.current = setTimeout(() => {
+          setLockedUntil(null);
+          setAttempts(0);
+          setError('');
+        }, LOCKOUT_SECONDS * 1000);
+      } else {
+        setError(err.response?.data?.detail || `Login failed. ${MAX_ATTEMPTS - newAttempts} attempt(s) remaining.`);
+      }
     } finally {
       setLoading(false);
     }

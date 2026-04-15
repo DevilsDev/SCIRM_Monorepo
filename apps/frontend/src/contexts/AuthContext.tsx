@@ -29,6 +29,12 @@ const AuthContext = createContext<AuthContextType>({
 function decodeToken(token: string): User | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
+
+    // Check if token is expired
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return null; // expired
+    }
+
     return {
       id: payload.sub || '',
       email: payload.email || '',
@@ -47,8 +53,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem('auth_token');
     if (stored) {
-      setToken(stored);
-      setUser(decodeToken(stored));
+      const decoded = decodeToken(stored);
+      if (decoded) {
+        setToken(stored);
+        setUser(decoded);
+      } else {
+        // Token expired or invalid — clear it
+        localStorage.removeItem('auth_token');
+      }
     }
   }, []);
 
