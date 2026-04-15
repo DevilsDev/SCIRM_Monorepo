@@ -78,7 +78,30 @@ export default function ProcurementPage() {
                       {action.alternatives_count > 0 && <span>{action.alternatives_count} alternatives</span>}
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 capitalize">{action.status}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 capitalize">{action.status}</span>
+                    <button
+                      onClick={() => {
+                        // Local approval — store in localStorage
+                        const key = `scirm_procurement_${action.id}`;
+                        localStorage.setItem(key, JSON.stringify({ status: 'approved', timestamp: new Date().toISOString() }));
+                        window.location.reload();
+                      }}
+                      className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
+                    >
+                      {t('procurement.approve', 'Approve')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const key = `scirm_procurement_${action.id}`;
+                        localStorage.setItem(key, JSON.stringify({ status: 'rejected', timestamp: new Date().toISOString() }));
+                        window.location.reload();
+                      }}
+                      className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 transition-colors"
+                    >
+                      {t('procurement.reject', 'Reject')}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

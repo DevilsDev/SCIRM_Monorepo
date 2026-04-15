@@ -47,6 +47,7 @@ logger = structlog.get_logger()
 
 # In-memory task store — production would use Redis / DB
 _tasks: Dict[str, Dict[str, Any]] = {}
+_manual_risks: Dict[str, Dict[str, Any]] = {}  # Manually created risks (not from assessments)
 
 # Shared HTTP client
 _http_client: Optional[httpx.AsyncClient] = None
@@ -461,7 +462,7 @@ async def list_risks(limit: int = 50, offset: int = 0, severity: str = None):
     List risks from completed assessments.
     In production this would query the database; for now it aggregates from in-memory tasks.
     """
-    all_risks = []
+    all_risks = list(_manual_risks.values())
     for task in _tasks.values():
         if task.get("status") == "completed" and task.get("result"):
             all_risks.extend(task["result"].get("risks", []))
@@ -480,10 +481,53 @@ async def list_risks(limit: int = 50, offset: int = 0, severity: str = None):
 @app.get("/risks/{risk_id}")
 async def get_risk(risk_id: str):
     """Get a single risk by ID."""
+    if risk_id in _manual_risks:
+        return _manual_risks[risk_id]
     for task in _tasks.values():
         if task.get("status") == "completed" and task.get("result"):
             for risk in task["result"].get("risks", []):
                 if risk.get("id") == risk_id:
+                    return risk
+    raise HTTPException(status_code=404, detail="Risk not found")
+
+
+@app.post("/risks")
+async def create_risk(body: Dict[str, Any]):
+    """Create a manual risk entry."""
+    import uuid
+    from datetime import datetime
+    risk_id = f"risk-{uuid.uuid4().hex[:8]}"
+    risk = {
+        "id": risk_id,
+        "title": body.get("title", ""),
+        "description": body.get("description", ""),
+        "severity": body.get("severity", "medium"),
+        "probability": body.get("probability", 0.5),
+        "impact_score": body.get("impact_score", 5.0),
+        "affected_entities": body.get("affected_entities", []),
+        "risk_category": body.get("risk_category", ""),
+        "detected_at": datetime.utcnow().isoformat(),
+        "predicted_occurrence": body.get("predicted_occurrence"),
+        "data_sources": ["manual_entry"],
+        "status": body.get("status", "open"),
+        "owner": body.get("owner"),
+    }
+    _manual_risks[risk_id] = risk
+    return risk
+
+
+@app.put("/risks/{risk_id}")
+async def update_risk(risk_id: str, body: Dict[str, Any]):
+    """Update a risk entry."""
+    if risk_id in _manual_risks:
+        _manual_risks[risk_id].update(body)
+        return _manual_risks[risk_id]
+    # For assessment-generated risks, find and update in place
+    for task in _tasks.values():
+        if task.get("status") == "completed" and task.get("result"):
+            for risk in task["result"].get("risks", []):
+                if risk.get("id") == risk_id:
+                    risk.update(body)
                     return risk
     raise HTTPException(status_code=404, detail="Risk not found")
 

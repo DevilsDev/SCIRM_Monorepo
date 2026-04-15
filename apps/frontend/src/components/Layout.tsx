@@ -30,7 +30,8 @@ import Breadcrumbs from './Breadcrumbs';
 
 const navGroups = [
   {
-    labelKey: 'Overview',
+    labelKey: 'common.overview',
+    fallbackLabel: 'Overview',
     items: [
       { to: '/dashboard', tKey: 'nav.dashboard', fallback: 'Dashboard', icon: HomeIcon },
       { to: '/risks', tKey: 'nav.risks', fallback: 'Risks', icon: ShieldExclamationIcon },
@@ -38,7 +39,8 @@ const navGroups = [
     ],
   },
   {
-    labelKey: 'Supply Chain',
+    labelKey: 'common.supplyChainGroup',
+    fallbackLabel: 'Supply Chain',
     items: [
       { to: '/suppliers', tKey: 'nav.suppliers', fallback: 'Suppliers', icon: TruckIcon },
       { to: '/components', tKey: 'nav.components', fallback: 'Components', icon: CubeIcon },
@@ -46,7 +48,8 @@ const navGroups = [
     ],
   },
   {
-    labelKey: 'Intelligence',
+    labelKey: 'common.intelligence',
+    fallbackLabel: 'Intelligence',
     items: [
       { to: '/predictions', tKey: 'nav.predictions', fallback: 'Predictions', icon: ChartBarSquareIcon },
       { to: '/events', tKey: 'nav.events', fallback: 'Risk Events', icon: BoltIcon },
@@ -54,7 +57,8 @@ const navGroups = [
     ],
   },
   {
-    labelKey: 'Operations',
+    labelKey: 'common.operations',
+    fallbackLabel: 'Operations',
     items: [
       { to: '/simulator', tKey: 'nav.simulator', fallback: 'Simulator', icon: CpuChipIcon },
       { to: '/procurement', tKey: 'nav.procurement', fallback: 'Procurement', icon: ShoppingCartIcon },
@@ -101,7 +105,7 @@ export default function Layout() {
         <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-4">
           {navGroups.map((group) => (
             <div key={group.labelKey}>
-              <p className="px-3 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{group.labelKey}</p>
+              <p className="px-3 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{t(group.labelKey, group.fallbackLabel)}</p>
               <div className="space-y-0.5">
                 {group.items.map(({ to, tKey, fallback, icon: Icon }) => (
                   <NavLink
@@ -134,7 +138,7 @@ export default function Layout() {
               data-compact=""
               className="flex-1 text-center text-xs py-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
             >
-              Settings
+              {t('common.settings', 'Settings')}
             </NavLink>
             <span className="text-gray-700 text-xs">|</span>
             <button
@@ -142,7 +146,7 @@ export default function Layout() {
               data-compact=""
               className="flex-1 text-center text-xs py-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
             >
-              Sign out
+              {t('common.signOut', 'Sign out')}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 
@@ -7,6 +8,7 @@ interface MetricCardProps {
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
   color: 'red' | 'green' | 'blue' | 'yellow' | 'purple';
+  href?: string;
   trend?: {
     value: number;
     isPositive: boolean;
@@ -21,11 +23,22 @@ const colorClasses = {
   purple: { icon: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/30' },
 };
 
-const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon: Icon, color, trend }) => {
+const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon: Icon, color, href, trend }) => {
   const classes = colorClasses[color];
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (href) navigate(href);
+  };
 
   return (
-    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
+    <div
+      onClick={handleClick}
+      className={clsx(
+        'bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700 transition-all',
+        href && 'cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700'
+      )}
+    >
       <div className="p-5">
         <div className="flex items-center">
           <div className="flex-shrink-0">

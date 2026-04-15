@@ -16,7 +16,8 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { DateRangePicker } from '../components/ui';
 
 export default function DashboardPage() {
   const { risks, totalCount, loading, refetch } = useRisks({ limit: 50 });
@@ -25,6 +26,8 @@ export default function DashboardPage() {
   const { addToast } = useToast();
   const { t } = useTranslation();
   const prevCount = useRef(totalCount);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Auto-refresh every 30 seconds
   useAutoRefresh(refetch, 30000);
@@ -66,18 +69,29 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('dashboard.title', 'Dashboard')}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {t('dashboard.subtitle', 'Supply chain risk overview')}
-            <span className="text-xs ml-2 text-gray-400">Auto-refreshes every 30s</span>
+            <span className="text-xs ml-2 text-gray-400">{t('dashboard.autoRefresh', 'Auto-refreshes every 30s')}</span>
           </p>
         </div>
         {!isViewer && (
           <div className="flex gap-2">
             <Link to="/assessments/new" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">
-              New Assessment
+              {t('dashboard.newAssessmentBtn', 'New Assessment')}
             </Link>
             <Link to="/simulator" className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600">
-              Simulator
+              {t('dashboard.simulatorBtn', 'Simulator')}
             </Link>
           </div>
+        )}
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.dateRange', 'Date range')}:</span>
+        <DateRangePicker from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs text-blue-600 hover:text-blue-800">
+            {t('common.clear', 'Clear')}
+          </button>
         )}
       </div>
 
@@ -88,10 +102,10 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title={t('dashboard.totalRisks', 'Total Risks')} value={String(totalCount)} icon={ShieldExclamationIcon} color="blue" />
-          <MetricCard title={t('dashboard.criticalRisks', 'Critical Risks')} value={String(criticalCount)} icon={ExclamationTriangleIcon} color="red" />
-          <MetricCard title={t('dashboard.highRisks', 'High Risks')} value={String(highCount)} icon={ChartBarIcon} color="yellow" />
-          <MetricCard title={t('dashboard.monitored', 'Monitored')} value={String(totalCount)} icon={CheckCircleIcon} color="green" />
+          <MetricCard title={t('dashboard.totalRisks', 'Total Risks')} value={String(totalCount)} icon={ShieldExclamationIcon} color="blue" href="/risks" />
+          <MetricCard title={t('dashboard.criticalRisks', 'Critical Risks')} value={String(criticalCount)} icon={ExclamationTriangleIcon} color="red" href="/risks?severity=critical" />
+          <MetricCard title={t('dashboard.highRisks', 'High Risks')} value={String(highCount)} icon={ChartBarIcon} color="yellow" href="/risks?severity=high" />
+          <MetricCard title={t('dashboard.monitored', 'Monitored')} value={String(totalCount)} icon={CheckCircleIcon} color="green" href="/suppliers" />
         </div>
       )}
 
@@ -118,12 +132,12 @@ export default function DashboardPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.recentRisks', 'Recent Risks')}</h2>
-          <Link to="/risks" className="text-xs text-blue-600 hover:text-blue-800 font-medium">View all &rarr;</Link>
+          <Link to="/risks" className="text-xs text-blue-600 hover:text-blue-800 font-medium">{t('dashboard.viewAll', 'View all')} &rarr;</Link>
         </div>
         {loading ? (
           <div className="space-y-3">{[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}</div>
         ) : risks.length === 0 ? (
-          <p className="text-sm text-gray-400">No risks found. Run an assessment to get started.</p>
+          <p className="text-sm text-gray-400">{t('dashboard.noRisks', 'No risks found. Run an assessment to get started.')}</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {risks.slice(0, 8).map((risk) => (
@@ -135,8 +149,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2">
                   <SeverityBadge severity={risk.severity} />
                   {!isViewer && (
-                    <Link to={`/simulator`} className="text-[10px] text-blue-500 hover:text-blue-700 whitespace-nowrap" title="Simulate disruption">
-                      Simulate
+                    <Link to={`/simulator`} className="text-[10px] text-blue-500 hover:text-blue-700 whitespace-nowrap" title={t('dashboard.simulate', 'Simulate')}>
+                      {t('dashboard.simulate', 'Simulate')}
                     </Link>
                   )}
                 </div>
@@ -149,12 +163,12 @@ export default function DashboardPage() {
       {/* Admin-only: quick links */}
       {isAdmin && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Admin Quick Actions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{t('dashboard.adminActions', 'Admin Quick Actions')}</h2>
           <div className="flex flex-wrap gap-2">
-            <Link to="/procurement" className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200">Procurement Agent</Link>
-            <Link to="/intelligence" className="px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-lg text-xs font-medium hover:bg-cyan-200">Intel Feed</Link>
-            <Link to="/events" className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200">Risk Events</Link>
-            <Link to="/components" className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200">Components</Link>
+            <Link to="/procurement" className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200">{t('dashboard.procurementAgent', 'Procurement Agent')}</Link>
+            <Link to="/intelligence" className="px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-lg text-xs font-medium hover:bg-cyan-200">{t('dashboard.intelFeed', 'Intel Feed')}</Link>
+            <Link to="/events" className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200">{t('dashboard.riskEvents', 'Risk Events')}</Link>
+            <Link to="/components" className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200">{t('dashboard.componentsBtn', 'Components')}</Link>
           </div>
         </div>
       )}

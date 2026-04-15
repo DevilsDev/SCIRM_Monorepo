@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { useTranslation } from 'react-i18next';
 import { getThemeColors, isDarkMode } from './theme';
 
 interface FlowNode {
@@ -43,6 +44,7 @@ interface SupplyChainFlowProps {
 
 export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyChainFlowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!containerRef.current || !nodes.length) return;
@@ -123,9 +125,9 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
 
     // Tier labels
     [
-      { label: 'SUPPLIERS', x: tierX[0], color: '#3b82f6' },
-      { label: 'ORGANIZATION', x: tierX[1], color: '#8b5cf6' },
-      { label: 'RISK CATEGORIES', x: tierX[2], color: '#ef4444' },
+      { label: t('supplyChain.colSuppliers', 'SUPPLIERS'), x: tierX[0], color: '#3b82f6' },
+      { label: t('supplyChain.colOrganization', 'ORGANIZATION'), x: tierX[1], color: '#8b5cf6' },
+      { label: t('supplyChain.colRiskCategories', 'RISK CATEGORIES'), x: tierX[2], color: '#ef4444' },
     ].forEach(({ label, x, color }) => {
       labelLayer.append('text').attr('x', x).attr('y', -20).attr('text-anchor', 'middle')
         .attr('fill', color).attr('font-size', '11px').attr('font-weight', 'bold')
@@ -203,12 +205,13 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('font-size', '11px').attr('font-weight', '500').attr('fill', colors.text).text(node.label);
 
       labelLayer.append('text').attr('x', node.x).attr('y', node.y + 52).attr('text-anchor', 'middle')
-        .attr('font-size', '9px').attr('fill', colors.textMuted).text(`Risk: ${(node.risk_score || 0).toFixed(0)}/100`);
+        .attr('font-size', '9px').attr('fill', colors.textMuted).text(t('supplyChain.riskScore', 'Risk: {{score}}/100', { score: (node.risk_score || 0).toFixed(0) }));
 
       nodeG.on('mouseover', function (event) {
         d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', 28);
+        const tierLabel = node.risk_tier ? t(`common.severity${node.risk_tier.charAt(0).toUpperCase()}${node.risk_tier.slice(1)}`, node.risk_tier) : '?';
         tooltip.style('opacity', '1')
-          .html(`<strong>${node.label}</strong><br/>Type: ${node.supplier_type || 'supplier'}<br/>Region: ${node.country_code || ''} ${node.region || ''}<br/>Risk: ${node.risk_score || '?'}/100 (${node.risk_tier || '?'})`)
+          .html(`<strong>${node.label}</strong><br/>${node.supplier_type || 'supplier'}<br/>${node.country_code || ''} ${node.region || ''}<br/>${t('supplyChain.riskScore', 'Risk: {{score}}/100', { score: node.risk_score || '?' })} (${tierLabel})`)
           .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
       })
       .on('mouseout', function () {
@@ -255,14 +258,15 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .style('text-transform', 'capitalize').text(risk.label);
 
       // Severity label
+      const sevLabel = t(`common.severity${risk.severity.charAt(0).toUpperCase()}${risk.severity.slice(1)}`, risk.severity);
       labelLayer.append('text').attr('x', risk.x).attr('y', risk.y + radius + 33).attr('text-anchor', 'middle')
         .attr('font-size', '10px').attr('fill', rColor)
-        .style('text-transform', 'capitalize').text(`${risk.severity} (${risk.count})`);
+        .text(`${sevLabel} (${risk.count})`);
 
       nodeG.on('mouseover', function (event) {
         d3.select(this).select('circle').transition().duration(150).attr('r', radius + 4);
         tooltip.style('opacity', '1')
-          .html(`<strong class="capitalize">${risk.label}</strong><br/>${risk.count} risks<br/>Worst severity: <span style="color:${rColor}">${risk.severity}</span>`)
+          .html(`<strong class="capitalize">${risk.label}</strong><br/>${t('supplyChain.risks', '{{count}} risks', { count: risk.count })}<br/>${t('supplyChain.worstSeverity', 'Worst severity')}: <span style="color:${rColor}">${sevLabel}</span>`)
           .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
       })
       .on('mouseout', function () {
@@ -272,10 +276,10 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
     });
 
     return () => { tooltip.remove(); };
-  }, [nodes, edges, height]);
+  }, [nodes, edges, height, t]);
 
   if (!nodes.length) {
-    return <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>No supply chain data</div>;
+    return <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>{t('supplyChain.noSupplyChainData', 'No supply chain data')}</div>;
   }
 
   return <div ref={containerRef} style={{ width: '100%', height }} />;

@@ -147,6 +147,16 @@ export const api = {
     return response.data;
   },
 
+  async createRisk(risk: Partial<Risk> & { status?: string; owner?: string }) {
+    const response = await apiClient.post('/api/v1/risks', risk);
+    return response.data;
+  },
+
+  async updateRisk(riskId: string, updates: Partial<Risk> & { status?: string; owner?: string }) {
+    const response = await apiClient.put(`/api/v1/risks/${riskId}`, updates);
+    return response.data;
+  },
+
   async assessRisk(request: RiskAssessmentRequest): Promise<RiskAssessmentResponse> {
     const response = await apiClient.post('/api/v1/risk-assessment', request);
     return response.data;
@@ -194,9 +204,29 @@ export const api = {
     return response.data;
   },
 
+  async createSupplier(supplier: Partial<Supplier>) {
+    const response = await apiClient.post('/api/v1/suppliers', supplier);
+    return response.data;
+  },
+
+  async updateSupplier(supplierId: string, updates: Partial<Supplier>) {
+    const response = await apiClient.put(`/api/v1/suppliers/${supplierId}`, updates);
+    return response.data;
+  },
+
+  async deleteSupplier(supplierId: string) {
+    const response = await apiClient.delete(`/api/v1/suppliers/${supplierId}`);
+    return response.data;
+  },
+
   // Alerts
   async getAlerts(params: { status?: string; severity?: string; limit?: number } = {}) {
     const response = await apiClient.get('/api/v1/alerts', { params });
+    return response.data;
+  },
+
+  async acknowledgeAlert(alertId: string) {
+    const response = await apiClient.post(`/api/v1/alerts/${alertId}/acknowledge`);
     return response.data;
   },
 

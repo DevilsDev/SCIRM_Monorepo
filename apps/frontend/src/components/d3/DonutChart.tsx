@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { useTranslation } from 'react-i18next';
 import { getThemeColors } from './theme';
 
 interface DonutData {
@@ -21,6 +22,7 @@ interface DonutChartProps {
 }
 
 export default function DonutChart({ data, width = 320, height = 280 }: DonutChartProps) {
+  const { t } = useTranslation();
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -113,7 +115,7 @@ export default function DonutChart({ data, width = 320, height = 280 }: DonutCha
   }, [data, width, height]);
 
   if (!data.length || data.every((d) => d.value === 0)) {
-    return <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>No risk data available</div>;
+    return <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>{t('common.noRiskData', 'No risk data available')}</div>;
   }
 
   return <svg ref={svgRef} width={width} height={height} />;

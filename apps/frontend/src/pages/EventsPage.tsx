@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { PlusIcon } from '@heroicons/react/24/outline';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
+import { Modal } from '../components/ui';
+import EventForm from '../components/forms/EventForm';
+import { useToast } from '../components/Toast';
 
 interface RiskEvent {
   id: string;
@@ -27,14 +31,26 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<RiskEvent | null>(null);
   const [impacts, setImpacts] = useState<EventImpact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const { t } = useTranslation();
+  const { addToast } = useToast();
 
-  useEffect(() => {
+  const fetchEvents = useCallback(() => {
+    setLoading(true);
     api.getEvents()
       .then((data) => setEvents(data.events || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  const handleCreateEvent = async (values: any) => {
+    await api.createEvent(values);
+    addToast('success', t('events.created', 'Event created'), t('events.createdDesc', 'Risk event has been recorded'));
+    setShowCreateModal(false);
+    fetchEvents();
+  };
 
   const handleEventClick = async (event: RiskEvent) => {
     setSelectedEvent(event);
@@ -50,10 +66,30 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('events.title', 'Risk Events')}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('events.subtitle', 'Track disruption events and their cascading impact through the supply chain')}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('events.title', 'Risk Events')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('events.subtitle', 'Track disruption events and their cascading impact through the supply chain')}</p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          <PlusIcon className="h-4 w-4" />
+          {t('events.createEvent', 'Create Event')}
+        </button>
       </div>
+
+      {/* Create Event Modal */}
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title={t('events.createEvent', 'Create Event')}
+        description={t('events.createDesc', 'Record a new supply chain disruption event')}
+        size="lg"
+      >
+        <EventForm onSubmit={handleCreateEvent} onCancel={() => setShowCreateModal(false)} />
+      </Modal>
 
       {loading ? (
         <p className="text-sm text-gray-400">{t('common.loading', 'Loading...')}</p>

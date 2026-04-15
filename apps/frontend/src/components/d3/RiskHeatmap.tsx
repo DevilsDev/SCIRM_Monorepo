@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { useTranslation } from 'react-i18next';
 import { getThemeColors } from './theme';
 
 interface HeatmapCell {
@@ -16,6 +17,7 @@ interface RiskHeatmapProps {
 const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'];
 
 export default function RiskHeatmap({ data, height = 220 }: RiskHeatmapProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -116,7 +118,7 @@ export default function RiskHeatmap({ data, height = 220 }: RiskHeatmapProps) {
   }, [data, height]);
 
   if (!data.length) {
-    return <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>No heatmap data</div>;
+    return <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>{t('common.noHeatmapData', 'No heatmap data')}</div>;
   }
 
   return <div ref={containerRef} style={{ width: '100%', height }} />;

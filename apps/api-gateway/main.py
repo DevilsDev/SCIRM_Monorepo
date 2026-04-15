@@ -807,6 +807,77 @@ async def procurement_alternatives(supplier_name: str, token: str = Depends(secu
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail="Procurement service unavailable")
 
+# --- Risk CRUD ---
+
+@app.post("/api/v1/risks")
+async def create_risk(body: Dict[str, Any], token: str = Depends(security)):
+    """Create a manual risk entry."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/risks", json=body, timeout=15.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Risk creation failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Risk service unavailable")
+
+@app.put("/api/v1/risks/{risk_id}")
+async def update_risk(risk_id: str, body: Dict[str, Any], token: str = Depends(security)):
+    """Update a risk entry."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.put(f"{COORDINATOR_URL}/risks/{risk_id}", json=body, timeout=15.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Risk update failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Risk service unavailable")
+
+# --- Supplier CRUD ---
+
+@app.post("/api/v1/suppliers")
+async def create_supplier(body: Dict[str, Any], token: str = Depends(security)):
+    """Create a new supplier."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/suppliers", json=body, timeout=15.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Supplier creation failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Supplier service unavailable")
+
+@app.put("/api/v1/suppliers/{supplier_id}")
+async def update_supplier(supplier_id: str, body: Dict[str, Any], token: str = Depends(security)):
+    """Update an existing supplier."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.put(f"{COORDINATOR_URL}/suppliers/{supplier_id}", json=body, timeout=15.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Supplier update failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Supplier service unavailable")
+
+# --- Alert Actions ---
+
+@app.post("/api/v1/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(alert_id: str, token: str = Depends(security)):
+    """Acknowledge an active alert."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/alerts/{alert_id}/acknowledge", timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Alert acknowledge failed", error=str(e))
+        raise HTTPException(status_code=500, detail="Alert service unavailable")
+
 # --- Sub-Tier Discovery ---
 
 @app.post("/api/v1/suppliers/discover-subtiers")

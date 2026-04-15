@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { PlusIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { api } from '../services/api';
+import { Modal } from '../components/ui';
+import ComponentForm from '../components/forms/ComponentForm';
+import CSVUpload from '../components/CSVUpload';
+import { useToast } from '../components/Toast';
 
 const critColors: Record<string, string> = {
   critical: 'bg-red-100 text-red-800',
@@ -9,13 +14,23 @@ const critColors: Record<string, string> = {
   low: 'bg-green-100 text-green-800',
 };
 
+const severityKeys: Record<string, string> = {
+  low: 'common.severityLow',
+  medium: 'common.severityMedium',
+  high: 'common.severityHigh',
+  critical: 'common.severityCritical',
+};
+
 export default function ComponentsPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [components, setComponents] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [bom, setBom] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const { t } = useTranslation();
+  const { addToast } = useToast();
 
   useEffect(() => {
     Promise.all([api.getProducts(), api.getComponents()])
@@ -39,10 +54,57 @@ export default function ComponentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('components.title', 'Components & BOM')}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('components.subtitle', '{{components}} components across {{products}} products', { components: components.length, products: products.length })}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('components.title', 'Components & BOM')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('components.subtitle', '{{components}} components across {{products}} products', { components: components.length, products: products.length })}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <PlusIcon className="h-4 w-4" />
+            {t('components.addComponent', 'Add Component')}
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
+            <ArrowUpTrayIcon className="h-4 w-4" />
+            {t('csv.import', 'Import CSV')}
+          </button>
+        </div>
       </div>
+
+      {/* Add Component Modal */}
+      <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title={t('components.addComponent', 'Add Component')} size="lg">
+        <ComponentForm
+          onSubmit={async (values) => {
+            // Store locally since no backend endpoint exists yet
+            const newComp = { id: `comp-${Date.now()}`, ...values, risk_score: 0 };
+            setComponents((prev) => [...prev, newComp]);
+            addToast('success', t('components.created', 'Component added'));
+            setShowAddModal(false);
+          }}
+          onCancel={() => setShowAddModal(false)}
+          submitLabel={t('components.addComponent', 'Add Component')}
+        />
+      </Modal>
+
+      {/* CSV Import Modal */}
+      <Modal open={showImportModal} onClose={() => setShowImportModal(false)} title={t('csv.importComponents', 'Import Components')} description={t('csv.importDesc', 'Upload a CSV file to bulk import components')} size="lg">
+        <CSVUpload
+          expectedColumns={['name', 'part_number', 'category', 'criticality']}
+          entityLabel={t('components.componentCount', 'components')}
+          onUpload={async (rows) => {
+            const imported = rows.map((r, i) => ({ id: `comp-import-${Date.now()}-${i}`, ...r, risk_score: 0, suppliers: [] }));
+            setComponents((prev) => [...prev, ...imported]);
+            addToast('success', t('csv.importSuccess', '{{count}} components imported', { count: rows.length }));
+            setShowImportModal(false);
+          }}
+        />
+      </Modal>
 
       {/* Products */}
       <div>
@@ -101,8 +163,8 @@ export default function ComponentsPage() {
                   <td className="px-6 py-3 text-sm text-gray-500 dark:text-gray-400 font-mono">{item.part_number}</td>
                   <td className="px-6 py-3 text-sm text-gray-500 dark:text-gray-400 capitalize">{item.category?.replace('_', ' ')}</td>
                   <td className="px-6 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${critColors[item.criticality] || 'bg-gray-100 dark:bg-gray-700'}`}>
-                      {item.criticality}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${critColors[item.criticality] || 'bg-gray-100 dark:bg-gray-700'}`}>
+                      {t(severityKeys[item.criticality] || item.criticality, item.criticality)}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{item.quantity}</td>
@@ -127,14 +189,14 @@ export default function ComponentsPage() {
             <div key={c.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-mono text-gray-400">{c.part_number}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${critColors[c.criticality] || 'bg-gray-100 dark:bg-gray-700'}`}>
-                  {c.criticality}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${critColors[c.criticality] || 'bg-gray-100 dark:bg-gray-700'}`}>
+                  {t(severityKeys[c.criticality] || c.criticality, c.criticality)}
                 </span>
               </div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">{c.name}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 capitalize mt-1">{c.category?.replace('_', ' ')}</p>
               <div className="flex items-center justify-between mt-2">
-                <span className="text-xs text-gray-400">{(c.suppliers || []).length} supplier(s)</span>
+                <span className="text-xs text-gray-400">{t('common.supplierCount', '{{count}} supplier(s)', { count: (c.suppliers || []).length })}</span>
                 <span className={`text-sm font-bold ${c.risk_score > 60 ? 'text-red-600' : c.risk_score > 40 ? 'text-yellow-600' : 'text-green-600'}`}>
                   {c.risk_score}
                 </span>

@@ -72,13 +72,13 @@ export default function SupplyChainMapPage() {
       </div>
 
       <div className="flex gap-6 text-xs text-gray-500 dark:text-gray-400">
-        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-blue-500" /> Supplier</div>
-        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-purple-500" /> Organization</div>
-        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /> Risk</div>
-        <div className="ml-4 flex items-center gap-2"><div className="w-6 h-1 bg-green-400 rounded" /> Low Risk</div>
-        <div className="flex items-center gap-2"><div className="w-6 h-1 bg-yellow-400 rounded" /> Medium</div>
-        <div className="flex items-center gap-2"><div className="w-6 h-1 bg-orange-400 rounded" /> High</div>
-        <div className="flex items-center gap-2"><div className="w-6 h-2 bg-red-400 rounded" /> Critical (thicker = higher risk)</div>
+        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-blue-500" /> {t('supplyChain.legendSupplier', 'Supplier')}</div>
+        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-purple-500" /> {t('supplyChain.legendOrganization', 'Organization')}</div>
+        <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500" /> {t('supplyChain.legendRisk', 'Risk')}</div>
+        <div className="ml-4 flex items-center gap-2"><div className="w-6 h-1 bg-green-400 rounded" /> {t('supplyChain.legendLow', 'Low Risk')}</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1 bg-yellow-400 rounded" /> {t('supplyChain.legendMedium', 'Medium')}</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1 bg-orange-400 rounded" /> {t('supplyChain.legendHigh', 'High')}</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-2 bg-red-400 rounded" /> {t('supplyChain.legendCritical', 'Critical (thicker = higher risk)')}</div>
       </div>
     </div>
   );
