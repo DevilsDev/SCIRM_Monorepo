@@ -358,7 +358,12 @@ export const api = {
   createWebSocket(onMessage: (data: any) => void, onError?: (error: Event) => void) {
     const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
     const ws = new WebSocket(wsUrl);
-    
+
+    // The gateway requires the access token as the first message (never in the URL).
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ token: localStorage.getItem('auth_token') || '' }));
+    };
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);

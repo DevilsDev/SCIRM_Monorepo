@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 import httpx
 import structlog
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from libs.common.monitoring import setup_monitoring
 from libs.common.security import setup_cors
 from libs.common import llm as llm_client
+from libs.common.tenancy import internal_headers, tenant_org
 
 logger = structlog.get_logger()
 
@@ -77,9 +78,9 @@ def _classify_intent(message: str) -> str:
     return best_intent
 
 
-async def _handle_risk_summary() -> tuple:
+async def _handle_risk_summary(headers: Dict[str, str]) -> tuple:
     client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 100})
+    resp = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 100}, headers=headers)
     data = resp.json()
     risks = data.get("risks", [])
     total = data.get("total", 0)
@@ -93,9 +94,9 @@ async def _handle_risk_summary() -> tuple:
     return reply, {"total": total, "critical": critical, "high": high, "medium": medium, "low": low}
 
 
-async def _handle_supplier_info() -> tuple:
+async def _handle_supplier_info(headers: Dict[str, str]) -> tuple:
     client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/suppliers")
+    resp = await client.get(f"{COORDINATOR_URL}/suppliers", headers=headers)
     data = resp.json()
     suppliers = data.get("suppliers", [])
     lines = [f"**{len(suppliers)} suppliers** tracked:\n"]
@@ -105,13 +106,13 @@ async def _handle_supplier_info() -> tuple:
     return "\n".join(lines), {"suppliers": suppliers}
 
 
-async def _handle_high_risk() -> tuple:
+async def _handle_high_risk(headers: Dict[str, str]) -> tuple:
     client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/risks", params={"severity": "high", "limit": 10})
+    resp = await client.get(f"{COORDINATOR_URL}/risks", params={"severity": "high", "limit": 10}, headers=headers)
     data = resp.json()
     risks = data.get("risks", [])
     if not risks:
-        resp2 = await client.get(f"{COORDINATOR_URL}/risks", params={"severity": "critical", "limit": 10})
+        resp2 = await client.get(f"{COORDINATOR_URL}/risks", params={"severity": "critical", "limit": 10}, headers=headers)
         risks = resp2.json().get("risks", [])
     if not risks:
         return "No high or critical risks found. Your supply chain looks healthy!", {}
@@ -121,9 +122,9 @@ async def _handle_high_risk() -> tuple:
     return "\n".join(lines), {"risks": risks}
 
 
-async def _handle_predictions() -> tuple:
+async def _handle_predictions(headers: Dict[str, str]) -> tuple:
     client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/predictions")
+    resp = await client.get(f"{COORDINATOR_URL}/predictions", headers=headers)
     data = resp.json()
     preds = data.get("predictions", [])
     if not preds:
@@ -135,9 +136,9 @@ async def _handle_predictions() -> tuple:
     return "\n".join(lines), {"predictions": preds}
 
 
-async def _handle_alerts() -> tuple:
+async def _handle_alerts(headers: Dict[str, str]) -> tuple:
     client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/alerts")
+    resp = await client.get(f"{COORDINATOR_URL}/alerts", headers=headers)
     data = resp.json()
     alerts = data.get("alerts", [])
     active = [a for a in alerts if a.get("status") == "active"]
@@ -149,9 +150,9 @@ async def _handle_alerts() -> tuple:
     return "\n".join(lines), {"alerts": active}
 
 
-async def _handle_events() -> tuple:
+async def _handle_events(headers: Dict[str, str]) -> tuple:
     client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/events")
+    resp = await client.get(f"{COORDINATOR_URL}/events", headers=headers)
     data = resp.json()
     events = data.get("events", [])
     if not events:
@@ -191,7 +192,7 @@ async def ready():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, org_id: str = Depends(tenant_org)):
     """Process a natural language query about supply chain risks."""
     intent = _classify_intent(request.message)
     logger.info("Chat query", message=request.message[:50], intent=intent)
@@ -208,7 +209,8 @@ async def chat(request: ChatRequest):
     handler = handlers.get(intent)
     if handler:
         try:
-            reply, data = await handler()
+            # Coordinator queries run as the caller's organization.
+            reply, data = await handler(internal_headers(org_id))
         except Exception as exc:
             logger.error("Chat handler failed", intent=intent, error=str(exc))
             reply = f"I tried to look that up but encountered an error. Try checking the {intent.replace('_', ' ')} page directly."
