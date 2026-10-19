@@ -48,8 +48,10 @@ services:
   # Agent Services
   coordinator:
     build:
-      context: ./services/coordinator
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/coordinator
     ports:
       - "8001:8000"
     environment:
@@ -70,14 +72,17 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/coordinator:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/coordinator:/app/services/coordinator
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/coordinator --host 0.0.0.0 --port 8000 --reload --reload-dir services/coordinator --reload-dir libs
 
   planner:
     build:
-      context: ./services/planner
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/planner
     ports:
       - "8002:8000"
     environment:
@@ -97,14 +102,18 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/planner:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/planner:/app/services/planner
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/planner --host 0.0.0.0 --port 8000 --reload --reload-dir services/planner --reload-dir libs
 
   researcher:
     build:
-      context: ./services/researcher
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/researcher
+        EXTRA_PIP: weaviate-client==3.26.7
     ports:
       - "8003:8000"
     environment:
@@ -124,14 +133,17 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/researcher:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/researcher:/app/services/researcher
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/researcher --host 0.0.0.0 --port 8000 --reload --reload-dir services/researcher --reload-dir libs
 
   executor:
     build:
-      context: ./services/executor
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/executor
     ports:
       - "8004:8000"
     environment:
@@ -151,14 +163,17 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/executor:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/executor:/app/services/executor
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/executor --host 0.0.0.0 --port 8000 --reload --reload-dir services/executor --reload-dir libs
 
   reviewer:
     build:
-      context: ./services/reviewer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/reviewer
     ports:
       - "8005:8000"
     environment:
@@ -178,14 +193,17 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/reviewer:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/reviewer:/app/services/reviewer
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/reviewer --host 0.0.0.0 --port 8000 --reload --reload-dir services/reviewer --reload-dir libs
 
   risk-scorer:
     build:
-      context: ./services/risk-scorer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/risk-scorer
     ports:
       - "8006:8000"
     environment:
@@ -195,14 +213,17 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/risk-scorer:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/risk-scorer:/app/services/risk-scorer
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/risk-scorer --host 0.0.0.0 --port 8000 --reload --reload-dir services/risk-scorer --reload-dir libs
 
   discovery:
     build:
-      context: ./services/discovery
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/discovery
     ports:
       - "8007:8000"
     environment:
@@ -212,14 +233,17 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/discovery:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/discovery:/app/services/discovery
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/discovery --host 0.0.0.0 --port 8000 --reload --reload-dir services/discovery --reload-dir libs
 
   ingestion:
     build:
-      context: ./services/ingestion
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/ingestion
     ports:
       - "8008:8000"
     environment:
@@ -227,14 +251,17 @@ services:
       - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/ingestion:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/ingestion:/app/services/ingestion
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/ingestion --host 0.0.0.0 --port 8000 --reload --reload-dir services/ingestion --reload-dir libs
 
   chat:
     build:
-      context: ./services/chat
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/chat
     ports:
       - "8009:8000"
     environment:
@@ -246,28 +273,34 @@ services:
       - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/chat:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/chat:/app/services/chat
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/chat --host 0.0.0.0 --port 8000 --reload --reload-dir services/chat --reload-dir libs
 
   simulator:
     build:
-      context: ./services/simulator
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/simulator
     ports:
       - "8010:8000"
     environment:
       - COORDINATOR_SERVICE_URL=http://coordinator:8000
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/simulator:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/simulator:/app/services/simulator
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/simulator --host 0.0.0.0 --port 8000 --reload --reload-dir services/simulator --reload-dir libs
 
   procurement:
     build:
-      context: ./services/procurement
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/procurement
     ports:
       - "8011:8000"
     environment:
@@ -277,27 +310,33 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/procurement:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/procurement:/app/services/procurement
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/procurement --host 0.0.0.0 --port 8000 --reload --reload-dir services/procurement --reload-dir libs
 
   component-tracker:
     build:
-      context: ./services/component-tracker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/component-tracker
     ports:
       - "8012:8000"
     environment:
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./services/component-tracker:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/component-tracker:/app/services/component-tracker
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/component-tracker --host 0.0.0.0 --port 8000 --reload --reload-dir services/component-tracker --reload-dir libs
 
   api-gateway:
     build:
-      context: ./apps/api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: apps/api-gateway
     ports:
       - "8000:8000"
     environment:
@@ -337,9 +376,10 @@ services:
       reviewer:
         condition: service_started
     volumes:
-      - ./apps/api-gateway:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./apps/api-gateway:/app/apps/api-gateway
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir apps/api-gateway --host 0.0.0.0 --port 8000 --reload --reload-dir apps/api-gateway --reload-dir libs
 
   frontend:
     build:

@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: coordinator
-        image: scirm/coordinator:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/coordinator:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:

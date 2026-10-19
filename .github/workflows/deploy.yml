@@ -1,23 +1,22 @@
 name: Deploy
 
+# Builds and pushes every image on version tags (or manual dispatch) and deploys
+# to staging. Production deployment is intentionally absent: there are no
+# production manifests in this repository yet (see infra/k8s/).
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: true
-        default: 'staging'
-        type: choice
-        options:
-          - staging
-          - production
+
+permissions:
+  contents: read
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Image names must be lowercase; github.repository may not be.
+  IMAGE_PREFIX: ghcr.io/devilsdev/scirm_monorepo
 
 jobs:
   build-and-push:
@@ -25,244 +24,141 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
-    
     strategy:
+      fail-fast: false
       matrix:
         service:
-          - name: api-gateway
-            context: .
-            dockerfile: ./apps/api-gateway/Dockerfile
-          - name: coordinator
-            context: .
-            dockerfile: ./services/coordinator/Dockerfile
-          - name: planner
-            context: .
-            dockerfile: ./services/planner/Dockerfile
-          - name: researcher
-            context: .
-            dockerfile: ./services/researcher/Dockerfile
-          - name: executor
-            context: .
-            dockerfile: ./services/executor/Dockerfile
-          - name: reviewer
-            context: .
-            dockerfile: ./services/reviewer/Dockerfile
-          - name: frontend
-            context: ./apps/frontend
-            dockerfile: ./apps/frontend/Dockerfile
-    
+          - { name: api-gateway, path: apps/api-gateway }
+          - { name: coordinator, path: services/coordinator }
+          - { name: planner, path: services/planner }
+          - { name: researcher, path: services/researcher, extra_pip: "weaviate-client==3.26.7" }
+          - { name: executor, path: services/executor }
+          - { name: reviewer, path: services/reviewer }
+          - { name: risk-scorer, path: services/risk-scorer }
+          - { name: discovery, path: services/discovery }
+          - { name: ingestion, path: services/ingestion }
+          - { name: chat, path: services/chat }
+          - { name: simulator, path: services/simulator }
+          - { name: procurement, path: services/procurement }
+          - { name: component-tracker, path: services/component-tracker }
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.name }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha
-    
-    - name: Build and push Docker image
-      id: build
-      uses: docker/build-push-action@v5
-      with:
-        context: ${{ matrix.service.context }}
-        file: ${{ matrix.service.dockerfile }}
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        platforms: linux/amd64,linux/arm64
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/service.Dockerfile
+          build-args: |
+            SERVICE_PATH=${{ matrix.service.path }}
+            EXTRA_PIP=${{ matrix.service.extra_pip }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}:${{ github.ref_name }}
+          cache-from: type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+
+  build-and-push-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/frontend
+          # Vite inlines these at build time; set the staging API URL as a repository variable.
+          build-args: |
+            VITE_API_URL=${{ vars.STAGING_API_URL }}
+            VITE_WS_URL=${{ vars.STAGING_WS_URL }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/frontend:${{ github.ref_name }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  scan-images:
+    runs-on: ubuntu-latest
+    needs: [build-and-push, build-and-push-frontend]
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api-gateway, coordinator, planner, researcher, executor, reviewer, risk-scorer,
+                  discovery, ingestion, chat, simulator, procurement, component-tracker, frontend]
+    steps:
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.28.0
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
 
   deploy-staging:
     runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.event.inputs.environment == 'staging' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-'))
+    needs: [build-and-push, build-and-push-frontend]
     environment: staging
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure kubectl
-      uses: azure/k8s-set-context@v3
-      with:
-        method: kubeconfig
-        kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
-    
-    - name: Deploy to staging
-      run: |
-        # Update image tags in Kubernetes manifests
-        export IMAGE_TAG=${{ github.sha }}
-        envsubst < infra/k8s/staging/kustomization.yaml.template > infra/k8s/staging/kustomization.yaml
-        
-        # Apply Kubernetes manifests
-        kubectl apply -k infra/k8s/staging/
-        
-        # Wait for rollout to complete
-        kubectl rollout status deployment/api-gateway -n scirm-staging --timeout=300s
-        kubectl rollout status deployment/coordinator -n scirm-staging --timeout=300s
-        kubectl rollout status deployment/planner -n scirm-staging --timeout=300s
-        kubectl rollout status deployment/researcher -n scirm-staging --timeout=300s
-        kubectl rollout status deployment/executor -n scirm-staging --timeout=300s
-        kubectl rollout status deployment/reviewer -n scirm-staging --timeout=300s
-        kubectl rollout status deployment/frontend -n scirm-staging --timeout=300s
-    
-    - name: Run smoke tests
-      run: |
-        # Wait for services to be ready
-        sleep 60
-        
-        # Get staging URL
-        STAGING_URL=$(kubectl get ingress scirm-ingress -n scirm-staging -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-        
-        # Run smoke tests
-        curl -f https://$STAGING_URL/health || exit 1
-        curl -f https://$STAGING_URL/api/health || exit 1
-        
-        echo "Staging deployment successful: https://$STAGING_URL"
+      - uses: actions/checkout@v4
+      - uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Apply manifests
+        # secrets.example.yml is a template; real secrets are created out of band.
+        run: |
+          kubectl apply -f infra/k8s/staging/all-services.yml
+          kubectl apply -f infra/k8s/staging/coordinator-deployment.yml
+      - name: Pin images to this build and wait for rollout
+        # Only these services have staging manifests so far; the other images are
+        # built and pushed but not deployed until their manifests exist.
+        run: |
+          for svc in api-gateway coordinator planner researcher executor reviewer frontend; do
+            kubectl -n scirm-staging set image "deployment/$svc" "$svc=${IMAGE_PREFIX}/$svc:${GITHUB_SHA}"
+          done
+          for svc in api-gateway coordinator planner researcher executor reviewer frontend; do
+            kubectl -n scirm-staging rollout status "deployment/$svc" --timeout=300s
+          done
+      - name: Smoke test
+        run: |
+          host=$(kubectl -n scirm-staging get svc api-gateway -o jsonpath='{.status.loadBalancer.ingress[0].hostname}{.status.loadBalancer.ingress[0].ip}')
+          test -n "$host" || { echo "api-gateway has no external address"; exit 1; }
+          curl -fsS --retry 10 --retry-delay 6 "http://$host/ready"
 
-  deploy-production:
+  release:
     runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.event.inputs.environment == 'production' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-'))
-    environment: production
-    
+    needs: deploy-staging
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure kubectl
-      uses: azure/k8s-set-context@v3
-      with:
-        method: kubeconfig
-        kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
-    
-    - name: Deploy to production
-      run: |
-        # Update image tags in Kubernetes manifests
-        export IMAGE_TAG=${{ github.sha }}
-        envsubst < infra/k8s/production/kustomization.yaml.template > infra/k8s/production/kustomization.yaml
-        
-        # Apply Kubernetes manifests
-        kubectl apply -k infra/k8s/production/
-        
-        # Wait for rollout to complete
-        kubectl rollout status deployment/api-gateway -n scirm-production --timeout=600s
-        kubectl rollout status deployment/coordinator -n scirm-production --timeout=600s
-        kubectl rollout status deployment/planner -n scirm-production --timeout=600s
-        kubectl rollout status deployment/researcher -n scirm-production --timeout=600s
-        kubectl rollout status deployment/executor -n scirm-production --timeout=600s
-        kubectl rollout status deployment/reviewer -n scirm-production --timeout=600s
-        kubectl rollout status deployment/frontend -n scirm-production --timeout=600s
-    
-    - name: Run production health checks
-      run: |
-        # Wait for services to be ready
-        sleep 120
-        
-        # Get production URL
-        PRODUCTION_URL=$(kubectl get ingress scirm-ingress -n scirm-production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-        
-        # Run comprehensive health checks
-        curl -f https://$PRODUCTION_URL/health || exit 1
-        curl -f https://$PRODUCTION_URL/api/health || exit 1
-        curl -f https://$PRODUCTION_URL/api/coordinator/health || exit 1
-        curl -f https://$PRODUCTION_URL/api/planner/health || exit 1
-        curl -f https://$PRODUCTION_URL/api/researcher/health || exit 1
-        curl -f https://$PRODUCTION_URL/api/executor/health || exit 1
-        curl -f https://$PRODUCTION_URL/api/reviewer/health || exit 1
-        
-        echo "Production deployment successful: https://$PRODUCTION_URL"
-    
-    - name: Create GitHub release
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v1
-      with:
-        generate_release_notes: true
-        files: |
-          CHANGELOG.md
-
-  notify-deployment:
-    runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production]
-    if: always()
-    
-    steps:
-    - name: Notify deployment status
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#deployments'
-        text: |
-          SCIRM Platform Deployment ${{ job.status }}
-          Environment: ${{ github.event.inputs.environment || 'production' }}
-          Version: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      if: always()
-
-  security-scan-images:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    
-    strategy:
-      matrix:
-        service: [api-gateway, coordinator, planner, researcher, executor, reviewer, frontend]
-    
-    steps:
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ github.sha }}
-        format: 'sarif'
-        output: 'trivy-${{ matrix.service }}.sarif'
-    
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: 'trivy-${{ matrix.service }}.sarif'
-
-  update-infrastructure:
-    runs-on: ubuntu-latest
-    needs: [deploy-production]
-    if: github.event.inputs.environment == 'production' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-'))
-    
-    steps:
-    - name: Update monitoring dashboards
-      run: |
-        # Update Grafana dashboards
-        curl -X POST \
-          -H "Authorization: Bearer ${{ secrets.GRAFANA_API_KEY }}" \
-          -H "Content-Type: application/json" \
-          -d @ops/monitoring/grafana-dashboard.json \
-          https://grafana.scirm.io/api/dashboards/db
-    
-    - name: Update documentation
-      run: |
-        # Trigger documentation rebuild
-        curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          https://api.github.com/repos/${{ github.repository }}/dispatches \
-          -d '{"event_type": "docs-rebuild"}'
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
