@@ -69,9 +69,10 @@ def apps():
     coordinator = _load("scirm_coordinator", "services/coordinator/main.py")
     procurement = _load("scirm_procurement", "services/procurement/main.py")
     chat = _load("scirm_chat", "services/chat/main.py")
+    ingestion = _load("scirm_ingestion", "services/ingestion/main.py")
     gateway = _load("scirm_gateway", "apps/api-gateway/main.py")
 
-    router = PortRouter({8001: coordinator.app, 8009: chat.app, 8011: procurement.app})
+    router = PortRouter({8001: coordinator.app, 8008: ingestion.app, 8009: chat.app, 8011: procurement.app})
     real_client = httpx.AsyncClient
 
     def routed_client(*args, **kwargs):
@@ -88,8 +89,13 @@ def apps():
 
     gateway.httpx = GatewayHttpx()
     chat._http = real_client(transport=router, timeout=15.0)
+    coordinator._http_client = real_client(transport=router, timeout=15.0)
+    # Public sources are served from recorded payloads, never the network.
+    sys.path.insert(0, str(ROOT / "tests"))
+    from intel_support import recorded_transport
+    ingestion.http_client_factory = lambda: real_client(transport=recorded_transport())
 
-    return {"gateway": gateway, "coordinator": coordinator, "router": router}
+    return {"gateway": gateway, "coordinator": coordinator, "ingestion": ingestion, "router": router}
 
 
 @pytest.fixture(scope="session")

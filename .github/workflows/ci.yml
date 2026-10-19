@@ -34,8 +34,8 @@ jobs:
       - name: Compile all Python sources
         run: python -m compileall -q libs services apps/api-gateway alembic
 
-      - name: Security and AI-trust regression tests
-        run: pytest tests/security tests/ai_trust -q
+      - name: Security, AI-trust and public-intelligence tests
+        run: pytest tests/security tests/ai_trust tests/intel -q
 
   postgres:
     name: Backend tests on PostgreSQL

@@ -1,0 +1,272 @@
+{
+ "meta": {
+  "results": {
+   "skip": 0,
+   "limit": 1000,
+   "total": 14
+  }
+ },
+ "results": [
+  {
+   "company_name": "Solco Healthcare US, LLC",
+   "generic_name": "Lisdexamfetamine Dimesylate Capsule",
+   "status": "Current",
+   "availability": "Limited Availability",
+   "update_type": "Reverified",
+   "initial_posting_date": "07/14/2023",
+   "update_date": "06/29/2026",
+   "package_ndc": "43547-603-10",
+   "therapeutic_category": [
+    "Psychiatry"
+   ],
+   "presentation": "Lisdexamfetamine Dimesylate, Capsule, 20 mg (NDC 43547-603-10)",
+   "openfda": {
+    "manufacturer_name": [
+     "Solco Healthcare US,LLC"
+    ]
+   }
+  },
+  {
+   "company_name": "Kindos Pharmaceuticals Co. Ltd.",
+   "generic_name": "Bupivacaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Limited Availability",
+   "update_type": "Revised",
+   "initial_posting_date": "02/20/2018",
+   "update_date": "05/05/2026",
+   "package_ndc": "71288-728-32",
+   "therapeutic_category": [
+    "Anesthesia"
+   ],
+   "presentation": "Bupivacaine Hydrochloride, Injection, 7.5 mg/1 mL (NDC 71288-728-32)",
+   "openfda": {}
+  },
+  {
+   "company_name": "Pfizer Inc.",
+   "generic_name": "Dacomitinib Tablet",
+   "status": "To Be Discontinued",
+   "availability": null,
+   "update_type": "New",
+   "initial_posting_date": "06/08/2026",
+   "update_date": "06/08/2026",
+   "package_ndc": "0069-0197-30",
+   "therapeutic_category": [
+    "Oncology"
+   ],
+   "presentation": "Vizimpro, Tablet, 15 mg (NDC 0069-0197-30)",
+   "openfda": {
+    "manufacturer_name": [
+     "Pfizer Laboratories Div Pfizer Inc"
+    ]
+   }
+  },
+  {
+   "company_name": "Teva Pharmaceuticals USA, Inc.",
+   "generic_name": "Tiagabine Hydrochloride Tablet",
+   "status": "To Be Discontinued",
+   "availability": null,
+   "update_type": "New",
+   "initial_posting_date": "04/15/2026",
+   "update_date": "04/15/2026",
+   "package_ndc": "0093-8072-56",
+   "therapeutic_category": [
+    "Neurology"
+   ],
+   "presentation": "Tiagabine Hydrochloride, Tablet, 12mg 30 count (NDC 0093-8072-56)",
+   "openfda": {
+    "manufacturer_name": [
+     "Teva Pharmaceuticals USA, Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Hospira, Inc., a Pfizer Company",
+   "generic_name": "Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Available",
+   "update_type": "Reverified",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/08/2026",
+   "package_ndc": "0409-4776-01",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Lidocaine Hydrochloride Preservative Free, Injection, 300 mg/20 mL (1.5%; 15 mg/mL) (NDC 0409-4776-01)",
+   "openfda": {
+    "manufacturer_name": [
+     "Hospira, Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Hospira, Inc., a Pfizer Company",
+   "generic_name": "Epinephrine Bitartrate, Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Limited Availability",
+   "update_type": "Revised",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/08/2026",
+   "package_ndc": "0409-3178-03",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Lidocaine Hydrochloride And Epinephrine, Injection, 500 mg/50 mL (1%; 1:100,000) (NDC 0409-3178-03)",
+   "openfda": {}
+  },
+  {
+   "company_name": "Hospira, Inc., a Pfizer Company",
+   "generic_name": "Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Available",
+   "update_type": "Reverified",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/08/2026",
+   "package_ndc": "0409-4713-32",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Lidocaine Hydrochloride Preservative Free, Injection, 20 mg/2 mL (1%; 10 mg/mL) (NDC 0409-4713-32)",
+   "openfda": {
+    "manufacturer_name": [
+     "Hospira, Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Hospira, Inc., a Pfizer Company",
+   "generic_name": "Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Available",
+   "update_type": "Reverified",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/08/2026",
+   "package_ndc": "0409-4713-02",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Lidocaine Hydrochloride Preservative Free, Injection, 50 mg/5 mL (1%; 10 mg/mL) (NDC 0409-4713-02)",
+   "openfda": {
+    "manufacturer_name": [
+     "Hospira, Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Hospira, Inc., a Pfizer Company",
+   "generic_name": "Epinephrine Bitartrate, Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Unavailable",
+   "update_type": "Revised",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/08/2026",
+   "package_ndc": "0409-3182-01",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Lidocaine Hydrochloride And Epinephrine, Injection, 400 mg/20 mL (2%; 1:100,000) (NDC 0409-3182-01)",
+   "openfda": {}
+  },
+  {
+   "company_name": "Hospira, Inc., a Pfizer Company",
+   "generic_name": "Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Available",
+   "update_type": "Reverified",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/08/2026",
+   "package_ndc": "0409-1323-05",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Lidocaine Hydrochloride Preservative Free In Plastic Container, Injection, 100 mg/5mL (2%,20 mg/1 mL) Syringes (NDC 0409-1323-05)",
+   "openfda": {
+    "manufacturer_name": [
+     "Hospira, Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Sun Pharmaceutical Industries, Inc.",
+   "generic_name": "Technetium TC-99M Pyrophosphate Kit Injection",
+   "status": "Current",
+   "availability": "Unavailable",
+   "update_type": "Revised",
+   "initial_posting_date": "12/27/2023",
+   "update_date": "09/18/2026",
+   "package_ndc": "45567-0060-1",
+   "therapeutic_category": [
+    "Medical Imaging"
+   ],
+   "presentation": "CIS-PYRO, Injection, 12 mg/10 mL (NDC 45567-0060-1)",
+   "openfda": {
+    "manufacturer_name": [
+     "Sun Pharmaceutical Industries, Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Fresenius Kabi USA, LLC",
+   "generic_name": "Lidocaine Hydrochloride Injection",
+   "status": "Current",
+   "availability": "Unavailable",
+   "update_type": "Reverified",
+   "initial_posting_date": "02/22/2012",
+   "update_date": "10/15/2026",
+   "package_ndc": "63323-496-97",
+   "therapeutic_category": [
+    "Anesthesia",
+    "Pediatric"
+   ],
+   "presentation": "Xylocaine, Injection, 20 mg/1 mL (NDC 63323-496-97)",
+   "openfda": {
+    "manufacturer_name": [
+     "Fresenius Kabi USA, LLC"
+    ]
+   }
+  },
+  {
+   "company_name": "Oryza Pharmaceuticals Inc.",
+   "generic_name": "Amphetamine Aspartate Monohydrate, Amphetamine Sulfate, Dextroamphetamine Saccharate, Dextroamphetamine Sulfate Tablet",
+   "status": "Current",
+   "availability": "Unavailable",
+   "update_type": "Reverified",
+   "initial_posting_date": "10/12/2022",
+   "update_date": "10/15/2026",
+   "package_ndc": "72516-012-01",
+   "therapeutic_category": [
+    "Psychiatry"
+   ],
+   "presentation": "Amphetamine Aspartate Monohydrate, Amphetamine Sulfate, Dextroamphetamine Saccharate, Dextroamphetamine Sulfate, Tablet, 5 mg; 5 mg; 5 mg; 5 mg (NDC 72516-012-01)",
+   "openfda": {
+    "manufacturer_name": [
+     "Oryza Pharmaceuticals Inc."
+    ]
+   }
+  },
+  {
+   "company_name": "Fresenius Kabi USA, LLC",
+   "generic_name": "Bumetanide Injection",
+   "status": "Resolved",
+   "availability": null,
+   "update_type": "Revised",
+   "initial_posting_date": "01/31/2018",
+   "update_date": "09/30/2026",
+   "package_ndc": "65219-572-10",
+   "therapeutic_category": [
+    "Cardiovascular"
+   ],
+   "presentation": "Bumetanide, Injection, .25 mg/1 mL (NDC 65219-572-10)",
+   "openfda": {
+    "manufacturer_name": [
+     "Fresenius Kabi USA, LLC"
+    ]
+   }
+  }
+ ]
+}

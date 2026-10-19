@@ -15,7 +15,7 @@ except refresh_candidates(), which iterates tenants one by one.
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 SEVERITIES = ("low", "medium", "high", "critical")
@@ -40,6 +40,23 @@ DEMO_SUPPLIERS: List[Dict[str, Any]] = [
     {"id": "c0000000-0000-0000-0000-000000000004", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-DELTA", "name": "Supplier Delta", "supplier_type": "sensor_components", "country_code": "JP", "region": "Asia Pacific", "risk_score": 28.0, "risk_tier": "low", "contact_name": "Yuki Tanaka", "contact_email": "yuki@supplier-delta.jp", "is_active": True},
     {"id": "c0000000-0000-0000-0000-000000000005", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-EPSILON", "name": "Supplier Epsilon", "supplier_type": "biocompatible_materials", "country_code": "US", "region": "North America", "risk_score": 55.0, "risk_tier": "medium", "contact_name": "Sarah Johnson", "contact_email": "sarah@supplier-epsilon.com", "is_active": True},
 ]
+# Demo suppliers named after real companies, so the demo tenant shows real public
+# records (FDA recalls and shortages) matched to them. The signals are genuine;
+# the supplier relationships, contacts and scores are not.
+_REAL_DEMO = [
+    ("c0000000-0000-0000-0000-000000000101", "DEMO-FRESENIUS", "Fresenius Kabi USA, LLC", "api_manufacturer", "US", "North America"),
+    ("c0000000-0000-0000-0000-000000000102", "DEMO-HOSPIRA", "Hospira, Inc.", "api_manufacturer", "US", "North America"),
+    ("c0000000-0000-0000-0000-000000000103", "DEMO-SUNPHARMA", "Sun Pharmaceutical Industries, Inc.", "api_manufacturer", "IN", "South Asia"),
+    ("c0000000-0000-0000-0000-000000000104", "DEMO-GLENMARK", "Glenmark Pharmaceuticals Inc., USA", "api_manufacturer", "IN", "South Asia"),
+    ("c0000000-0000-0000-0000-000000000105", "DEMO-BAXTER", "Baxter Healthcare Corporation", "packaging", "US", "North America"),
+    ("c0000000-0000-0000-0000-000000000106", "DEMO-GLAND", "Gland Pharma Limited", "api_manufacturer", "IN", "South Asia"),
+]
+DEMO_SUPPLIERS += [
+    {"id": sid, "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": code, "name": name,
+     "supplier_type": stype, "country_code": cc, "region": region, "risk_score": 50.0, "risk_tier": "medium",
+     "is_active": True, "demo_note": "Real company name for demonstration; matched signals are public records."}
+    for sid, code, name, stype, cc, region in _REAL_DEMO
+]
 DEMO_ORGS = [
     ("a0000000-0000-0000-0000-000000000001", "PharmaCorp International", "pharmaceutical"),
     ("a0000000-0000-0000-0000-000000000002", "MedTech Solutions", "medical_devices"),
@@ -60,6 +77,8 @@ class MemoryStore:
         self.events: List[Dict[str, Any]] = []
         self.impacts: List[Dict[str, Any]] = []
         self.audit: List[Dict[str, Any]] = []
+        self.signals: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self.source_runs: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
         return None
@@ -214,6 +233,45 @@ class MemoryStore:
     async def event_impacts(self, org: str, event_id: str) -> List[Dict[str, Any]]:
         return [i for i in self.impacts if i.get("event_id") == event_id and i.get("organization_id") == org]
 
+    # --- public signals (no tenant: public records) --------------------------
+    async def upsert_signals(self, signals: List[Dict[str, Any]]) -> int:
+        new = 0
+        for sig in signals:
+            key = (sig["source"], sig["external_id"])
+            if key in self.signals:
+                kept = {k: self.signals[key][k] for k in ("id", "first_seen_at")}
+                self.signals[key] = {**sig, **kept, "last_seen_at": _now()}
+            else:
+                self.signals[key] = {**sig, "id": str(uuid.uuid4()), "first_seen_at": _now(), "last_seen_at": _now()}
+                new += 1
+        return new
+
+    async def list_signals(self, source: Optional[str] = None, since: Optional[str] = None,
+                           limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
+        found = [s for s in self.signals.values()
+                 if (source is None or s["source"] == source) and (since is None or s["published_at"] >= since)]
+        found.sort(key=lambda s: (s["published_at"], s["external_id"]), reverse=True)
+        return found[:limit], len(found)
+
+    async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
+                                limit: int = 2000) -> List[Dict[str, Any]]:
+        keys_set, countries_set = set(keys), set(countries)
+        found = [s for s in self.signals.values()
+                 if (since is None or s["published_at"] >= since)
+                 and (keys_set & set(s.get("entity_keys") or [])
+                      or (s["signal_type"] == "disaster" and countries_set & set(s.get("country_codes") or [])))]
+        found.sort(key=lambda s: s["published_at"], reverse=True)
+        return found[:limit]
+
+    async def record_source_run(self, source: str, status: str, error: Optional[str], seen: int, new: int) -> None:
+        previous = self.source_runs.get(source, {})
+        self.source_runs[source] = {"source": source, "status": status, "error": error, "signals_seen": seen,
+                                    "signals_new": new, "last_run_at": _now(),
+                                    "last_success_at": _now() if status == "ok" else previous.get("last_success_at")}
+
+    async def list_source_runs(self) -> Dict[str, Dict[str, Any]]:
+        return dict(self.source_runs)
+
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
         self.audit.append({**entry, "organization_id": org, "created_at": _now()})
@@ -249,6 +307,11 @@ def _ts(value: Any) -> Optional[datetime]:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
     except ValueError:
         return None
+
+
+def _day(value: Any) -> Optional[date]:
+    """ISO date string -> date (asyncpg will not cast strings to date parameters)."""
+    return date.fromisoformat(value[:10]) if isinstance(value, str) and value else None
 
 
 def _iso(value: Any) -> Any:
@@ -648,6 +711,79 @@ class PostgresStore:
             row.pop("created_at", None)
             out.append({**details, **_jsonable(row), "organization_id": org})
         return out
+
+    # --- public signals (no tenant: public records, no RLS) -----------------
+    _SIGNAL_FIELDS = ("source", "external_id", "signal_type", "title", "summary", "severity", "entity_names",
+                      "entity_keys", "country_codes", "occurred_at", "published_at", "updated_at", "url")
+
+    @staticmethod
+    def _signal_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = _jsonable(row)
+        for k in ("occurred_at", "published_at", "updated_at"):
+            if isinstance(out.get(k), date):
+                out[k] = out[k].isoformat()
+        for k in ("entity_names", "entity_keys", "country_codes"):
+            out[k] = list(out.get(k) or [])
+        return out
+
+    async def upsert_signals(self, signals: List[Dict[str, Any]]) -> int:
+        from sqlalchemy import text
+        day = _day
+        new = 0
+        async with self._tx(None) as conn:
+            for sig in signals:
+                row = {**{k: sig.get(k) for k in self._SIGNAL_FIELDS},
+                       "summary": sig.get("summary") or "",
+                       "entity_names": list(sig.get("entity_names") or []),
+                       "entity_keys": list(sig.get("entity_keys") or []),
+                       "country_codes": list(sig.get("country_codes") or []),
+                       "occurred_at": day(sig.get("occurred_at")), "published_at": day(sig["published_at"]),
+                       "updated_at": day(sig.get("updated_at")), "raw": json.dumps(sig.get("raw") or {}, default=str)}
+                result = await conn.execute(text(
+                    "INSERT INTO public_signals (source, external_id, signal_type, title, summary, severity, entity_names, "
+                    "entity_keys, country_codes, occurred_at, published_at, updated_at, url, raw) VALUES (:source, "
+                    ":external_id, :signal_type, :title, :summary, :severity, :entity_names, :entity_keys, :country_codes, "
+                    ":occurred_at, :published_at, :updated_at, :url, CAST(:raw AS jsonb)) "
+                    "ON CONFLICT (source, external_id) DO UPDATE SET signal_type = EXCLUDED.signal_type, "
+                    "title = EXCLUDED.title, summary = EXCLUDED.summary, severity = EXCLUDED.severity, "
+                    "entity_names = EXCLUDED.entity_names, entity_keys = EXCLUDED.entity_keys, "
+                    "country_codes = EXCLUDED.country_codes, occurred_at = EXCLUDED.occurred_at, "
+                    "published_at = EXCLUDED.published_at, updated_at = EXCLUDED.updated_at, url = EXCLUDED.url, "
+                    "raw = EXCLUDED.raw, last_seen_at = now() RETURNING (xmax = 0) AS inserted"), row)
+                new += int(bool(result.scalar()))
+        return new
+
+    async def list_signals(self, source: Optional[str] = None, since: Optional[str] = None,
+                           limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
+        where = ("WHERE (CAST(:source AS text) IS NULL OR source = :source) "
+                 "AND (CAST(:since AS date) IS NULL OR published_at >= CAST(:since AS date))")
+        params = {"source": source, "since": _day(since), "limit": limit}
+        rows = await self._all(None, f"SELECT * FROM public_signals {where} "
+                                     f"ORDER BY published_at DESC, external_id DESC LIMIT :limit", params)
+        total = (await self._all(None, f"SELECT count(*) AS n FROM public_signals {where}", params))[0]["n"]
+        return [self._signal_row(r) for r in rows], total
+
+    async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
+                                limit: int = 2000) -> List[Dict[str, Any]]:
+        rows = await self._all(None, (
+            "SELECT * FROM public_signals WHERE (CAST(:since AS date) IS NULL OR published_at >= CAST(:since AS date)) "
+            "AND (entity_keys && CAST(:keys AS text[]) "
+            "OR (signal_type = 'disaster' AND country_codes && CAST(:countries AS varchar(3)[]))) "
+            "ORDER BY published_at DESC LIMIT :limit"),
+            {"keys": list(keys), "countries": list(countries), "since": _day(since), "limit": limit})
+        return [self._signal_row(r) for r in rows]
+
+    async def record_source_run(self, source: str, status: str, error: Optional[str], seen: int, new: int) -> None:
+        await self._exec(None, [(
+            "INSERT INTO public_sources (source, status, error, signals_seen, signals_new, last_run_at, last_success_at) "
+            "VALUES (:source, :status, :error, :seen, :new, now(), CASE WHEN CAST(:ok AS boolean) THEN now() END) "
+            "ON CONFLICT (source) DO UPDATE SET status = EXCLUDED.status, error = EXCLUDED.error, "
+            "signals_seen = EXCLUDED.signals_seen, signals_new = EXCLUDED.signals_new, last_run_at = now(), "
+            "last_success_at = COALESCE(EXCLUDED.last_success_at, public_sources.last_success_at)",
+            {"source": source, "status": status, "error": error, "seen": seen, "new": new, "ok": status == "ok"})])
+
+    async def list_source_runs(self) -> Dict[str, Dict[str, Any]]:
+        return {r["source"]: _jsonable(r) for r in await self._all(None, "SELECT * FROM public_sources")}
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:

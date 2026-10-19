@@ -2,12 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PlusIcon, PencilSquareIcon, TrashIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
-import { api, Supplier } from '../services/api';
+import { api, Supplier, SupplierSignalSummary } from '../services/api';
 import RadarChart from '../components/d3/RadarChart';
 import { Modal, ConfirmDialog } from '../components/ui';
 import SupplierForm from '../components/forms/SupplierForm';
 import CSVUpload from '../components/CSVUpload';
 import { useToast } from '../components/Toast';
+import SupplierSignals from '../components/SupplierSignals';
+import SeverityBadge from '../components/SeverityBadge';
 
 const tierColors: Record<string, string> = {
   low: 'bg-green-100 text-green-800',
@@ -45,6 +47,7 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [radarData, setRadarData] = useState<DimensionScore[]>([]);
   const [scoringLoading, setScoringLoading] = useState(false);
+  const [signalSummary, setSignalSummary] = useState<Record<string, SupplierSignalSummary> | null>(null);
   const { t } = useTranslation();
   const { addToast } = useToast();
 
@@ -64,6 +67,13 @@ export default function SuppliersPage() {
   }, [tierFilter]);
 
   useEffect(() => { fetchSuppliers(); }, [fetchSuppliers]);
+
+  // Public-record counts per supplier; the column shows a dash if matching is unavailable.
+  useEffect(() => {
+    api.getSignalsOverview(365)
+      .then((data) => setSignalSummary(Object.fromEntries(data.suppliers.map((r) => [r.supplier_id, r]))))
+      .catch(() => setSignalSummary(null));
+  }, [suppliers]);
 
   const handleSupplierClick = async (supplier: Supplier) => {
     setSelectedSupplier(supplier);
@@ -175,6 +185,7 @@ export default function SuppliersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRegion', 'Region')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskScore', 'Risk Score')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskTier', 'Risk Tier')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colPublicRecordsHint', 'FDA recalls and shortages naming this supplier in the last 12 months')}>{t('suppliers.colPublicRecords', 'Public Records (12 mo)')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colActions', 'Actions')}</th>
               </tr>
             </thead>
@@ -194,6 +205,16 @@ export default function SuppliersPage() {
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${tierColors[s.risk_tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
                       {t(`common.severity${s.risk_tier?.charAt(0).toUpperCase()}${s.risk_tier?.slice(1)}` as any, s.risk_tier)}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {signalSummary?.[s.id]?.incidents ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{signalSummary[s.id].incidents}</span>
+                        {signalSummary[s.id].worst_incident_severity && <SeverityBadge severity={signalSummary[s.id].worst_incident_severity!} />}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">{signalSummary ? '0' : '-'}</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -290,6 +311,12 @@ export default function SuppliersPage() {
           </>
         ) : (
           <p className="text-sm text-gray-400 text-center py-8">{t('common.noData', 'No data available')}</p>
+        )}
+        {selectedSupplier && (
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('signals.title', 'Public records')}</h2>
+            <SupplierSignals supplierId={selectedSupplier.id} />
+          </div>
         )}
       </Modal>
 
