@@ -134,7 +134,7 @@ class PlannerAgent:
                 "industry": organization.industry,
                 "analysis_timestamp": datetime.utcnow().isoformat(),
                 "entities_analyzed": len(request.entities),
-                "llm_enhanced": llm_client.is_configured(),
+                "llm_enhanced": False,  # set by the endpoint from actual LLM usage
             },
         )
 
@@ -353,7 +353,10 @@ async def ready():
 async def analyze_context(request: ContextAnalysisRequest):
     try:
         risk_request = RiskAssessmentRequest(**request.request)
-        return await planner_agent.analyze_context(risk_request)
+        with llm_client.track_usage() as llm_usage:
+            result = await planner_agent.analyze_context(risk_request)
+        result.metadata["llm_enhanced"] = llm_usage["calls"] > 0
+        return result
     except Exception as e:
         logger.error("Context analysis failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Context analysis failed: {str(e)}")

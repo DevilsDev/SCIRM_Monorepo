@@ -54,6 +54,7 @@ class DimensionScore(BaseModel):
     trend: str
     reasoning: str
     key_factors: List[str] = []
+    method: str = "rules"  # "llm" or "rules": how this score was actually produced
 
 
 class ScoreResponse(BaseModel):
@@ -82,6 +83,7 @@ async def _score_dimension(
                 trend=result.get("trend", "stable"),
                 reasoning=result.get("reasoning", ""),
                 key_factors=result.get("key_factors", []),
+                method="llm",
             )
         except Exception as exc:
             logger.warning("LLM scoring failed, using rules", dimension=dimension.value, error=str(exc))
@@ -144,7 +146,7 @@ async def score_supplier(request: ScoreRequest):
         dimension_scores=scores,
         composite_score=composite,
         assessed_at=datetime.utcnow().isoformat(),
-        llm_enhanced=llm_client.is_configured(),
+        llm_enhanced=any(s.method == "llm" for s in scores),
     )
 
 

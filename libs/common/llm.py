@@ -6,7 +6,9 @@ structured JSON output, and retry logic.
 
 import json
 import os
-from typing import Any, Dict, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Dict, Iterator, Optional
 
 import structlog
 
@@ -24,14 +26,47 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 
+# Per-request record of what the LLM actually did, so responses can report
+# "LLM used" truthfully instead of "an API key is configured".
+_usage: ContextVar[Optional[Dict[str, int]]] = ContextVar("llm_usage", default=None)
+
+
+@contextmanager
+def track_usage() -> Iterator[Dict[str, int]]:
+    """Count successful and failed LLM calls made inside this block."""
+    stats = {"calls": 0, "failures": 0}
+    token = _usage.set(stats)
+    try:
+        yield stats
+    finally:
+        _usage.reset(token)
+
+
+def _record(key: str) -> None:
+    stats = _usage.get()
+    if stats is not None:
+        stats[key] += 1
+
+
+# One client per provider: SDK clients hold connection pools and must be reused.
+_clients: Dict[str, Any] = {}
+
+
 def _get_openai_client():
-    from openai import AsyncOpenAI
-    return AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=LLM_TIMEOUT)
+    if "openai" not in _clients:
+        from openai import AsyncOpenAI
+        _clients["openai"] = AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=LLM_TIMEOUT)
+    return _clients["openai"]
 
 
 def _get_anthropic_client():
-    from anthropic import AsyncAnthropic
-    return AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=LLM_TIMEOUT)
+    if "anthropic" not in _clients:
+        from anthropic import AsyncAnthropic
+        _clients["anthropic"] = AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=LLM_TIMEOUT)
+    return _clients["anthropic"]
+
+
+_PROVIDER_KEYS = {"openai": lambda: OPENAI_API_KEY, "anthropic": lambda: ANTHROPIC_API_KEY}
 
 
 async def _call_openai(prompt: str, system: str, model: str) -> str:
@@ -78,11 +113,12 @@ async def generate(
         "anthropic": (_call_anthropic, model if "claude" in model else "claude-3-5-sonnet-20241022"),
     }
 
-    # Build ordered call list: primary first, then fallback
+    # Build ordered call list: primary first, then fallback — only providers with a key.
     order = [provider]
     fallback = "anthropic" if provider == "openai" else "openai"
     if providers.get(fallback):
         order.append(fallback)
+    order = [p for p in order if p in _PROVIDER_KEYS and _PROVIDER_KEYS[p]()]
 
     last_error = None
     for prov in order:
@@ -94,6 +130,7 @@ async def generate(
             try:
                 logger.info("LLM call", provider=prov, model=resolved_model, attempt=attempt)
                 result = await call_fn(prompt, system, resolved_model)
+                _record("calls")
                 return result
             except Exception as exc:
                 last_error = exc
@@ -105,6 +142,7 @@ async def generate(
                     error=str(exc),
                 )
 
+    _record("failures")
     logger.error("All LLM providers failed", error=str(last_error))
     raise RuntimeError(f"LLM generation failed after all retries: {last_error}")
 

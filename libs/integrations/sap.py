@@ -37,7 +37,10 @@ class SAPAdapter(ERPAdapter):
             logger.info("SAP not configured — using mock data")
             self.connected = False
             return False
-
+
+        # Close the previous client: connect() runs on every sync.
+        if self._client:
+            await self._client.aclose()
         self._client = httpx.AsyncClient(
             base_url=SAP_BASE_URL,
             auth=(SAP_USERNAME, SAP_PASSWORD),

@@ -9,11 +9,17 @@ import os
 import subprocess
 import sys
 
+from pathlib import Path
+
 import jwt as pyjwt
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from conftest import ORG_1, ORG_2, ROOT
+# Defined here rather than imported from conftest: sibling test folders each have
+# a conftest.py, and "from conftest import" would resolve to whichever loaded first.
+ROOT = Path(__file__).resolve().parents[2]
+ORG_1 = "a0000000-0000-0000-0000-000000000001"
+ORG_2 = "a0000000-0000-0000-0000-000000000002"
 
 
 def bearer(token: str) -> dict:

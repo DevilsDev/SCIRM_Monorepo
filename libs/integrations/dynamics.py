@@ -50,7 +50,10 @@ class DynamicsAdapter(ERPAdapter):
             return False
 
         try:
-            self._access_token = await self._get_token()
+            self._access_token = await self._get_token()
+            # Close the previous client: connect() runs on every sync.
+            if self._client:
+                await self._client.aclose()
             self._client = httpx.AsyncClient(
                 base_url=DYNAMICS_BASE_URL,
                 headers={
