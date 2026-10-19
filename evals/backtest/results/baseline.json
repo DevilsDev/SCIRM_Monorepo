@@ -1,0 +1,53 @@
+{
+  "question": "Class I recall published within 90 days of the cutoff, scored only from recalls published before it",
+  "snapshot_date": "2026-10-20",
+  "threshold": 1.846717,
+  "tune": {
+    "period": [
+      "2021-01-01",
+      "2022-12-01"
+    ],
+    "observations": 10351,
+    "firms": 637,
+    "class_i_outcomes": 135,
+    "base_rate": 0.013,
+    "flagged": 1035,
+    "flagged_share": 0.1,
+    "precision": 0.0551,
+    "recall": 0.4222,
+    "lift": 4.22,
+    "auc": 0.7488,
+    "median_warning_days": 33,
+    "new_problem_outcomes": 103,
+    "new_problem_recall": 0.2913,
+    "baseline_any_recall_last_year": {
+      "flagged_share": 0.4364,
+      "precision": 0.0239,
+      "recall": 0.8
+    }
+  },
+  "test": {
+    "period": [
+      "2023-01-01",
+      "2026-07-01"
+    ],
+    "observations": 16792,
+    "firms": 712,
+    "class_i_outcomes": 181,
+    "base_rate": 0.0108,
+    "flagged": 1650,
+    "flagged_share": 0.0983,
+    "precision": 0.0455,
+    "recall": 0.4144,
+    "lift": 4.22,
+    "auc": 0.6947,
+    "median_warning_days": 41,
+    "new_problem_outcomes": 160,
+    "new_problem_recall": 0.3375,
+    "baseline_any_recall_last_year": {
+      "flagged_share": 0.4319,
+      "precision": 0.0176,
+      "recall": 0.7072
+    }
+  }
+}
