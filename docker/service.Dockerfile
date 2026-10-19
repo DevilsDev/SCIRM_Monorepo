@@ -24,6 +24,10 @@ COPY requirements-service.txt ./
 RUN pip install -r requirements-service.txt ${EXTRA_PIP}
 
 COPY libs/ ./libs/
+# Migrations ship in every image so any of them can run scripts/db_setup.py as a one-off job.
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+COPY scripts/db_setup.py ./scripts/db_setup.py
 COPY ${SERVICE_PATH}/main.py ./${SERVICE_PATH}/main.py
 
 USER scirm

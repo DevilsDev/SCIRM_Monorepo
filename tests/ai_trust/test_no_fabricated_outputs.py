@@ -84,7 +84,7 @@ class TestCoordinatorDegradedResults:
         client, coordinator = self._client(services, router_factory, ["planner", "researcher", "reviewer"])
         response = client.post("/assess-risk", json=ASSESSMENT, headers={"X-Org-Id": ORG})
         assert response.status_code == 503
-        failed = [t for t in coordinator._tasks.values() if t.get("status") == "failed"]
+        failed = [t for t in coordinator.store.tasks.values() if t.get("status") == "failed"]
         assert failed, "the task must be recorded as failed, not completed"
 
     def test_unavailable_discovery_is_an_error_not_an_empty_list(self, services, router_factory):
