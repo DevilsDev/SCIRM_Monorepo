@@ -263,15 +263,6 @@ jobs:
         # Save metrics for badge generation
         echo "TOTAL_DOCS=$TOTAL_DOCS" >> $GITHUB_ENV
         echo "TOTAL_WORDS=$TOTAL_WORDS" >> $GITHUB_ENV
-    
-    - name: Update documentation badge
-      run: |
-        # Create a simple badge with documentation stats
-        curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d "{\"message\": \"${{ env.TOTAL_DOCS }} files, ${{ env.TOTAL_WORDS }} words\", \"color\": \"blue\"}" \
-          "https://img.shields.io/badge/docs-${{ env.TOTAL_DOCS }}%20files-blue"
 
   notify-docs-update:
     runs-on: ubuntu-latest
