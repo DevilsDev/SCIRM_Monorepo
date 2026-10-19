@@ -248,7 +248,7 @@ class MemoryStore:
             key = (sig["source"], sig["external_id"])
             if key in self.signals:
                 kept = {k: self.signals[key][k] for k in ("id", "first_seen_at")}
-                self.signals[key] = {**sig, **kept, "last_seen_at": _now()}
+                self.signals[key] = {**sig, **kept, "last_seen_at": _now(), "delisted_at": None}
             else:
                 self.signals[key] = {**sig, "id": str(uuid.uuid4()), "first_seen_at": _now(), "last_seen_at": _now()}
                 new += 1
@@ -256,8 +256,8 @@ class MemoryStore:
 
     async def list_signals(self, source: Optional[str] = None, since: Optional[str] = None,
                            limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
-        found = [s for s in self.signals.values()
-                 if (source is None or s["source"] == source) and (since is None or _activity(s) >= since)]
+        found = [s for s in self.signals.values() if not s.get("delisted_at")
+                 and (source is None or s["source"] == source) and (since is None or _activity(s) >= since)]
         found.sort(key=lambda s: (_activity(s), s["external_id"]), reverse=True)
         return found[:limit], len(found)
 
@@ -265,11 +265,20 @@ class MemoryStore:
                                 limit: int = 2000) -> List[Dict[str, Any]]:
         keys_set, countries_set = set(keys), set(countries)
         found = [s for s in self.signals.values()
-                 if (since is None or _activity(s) >= since)
+                 if not s.get("delisted_at") and (since is None or _activity(s) >= since)
                  and (keys_set & set(s.get("entity_keys") or [])
                       or (s["signal_type"] == "disaster" and countries_set & set(s.get("country_codes") or [])))]
         found.sort(key=_activity, reverse=True)
         return found[:limit]
+
+    async def retire_unseen(self, source: str, seen_ids: Iterable[str]) -> int:
+        """Mark this source's active signals that a full run did not see as delisted."""
+        seen, retired = set(seen_ids), 0
+        for (src, external_id), sig in self.signals.items():
+            if src == source and external_id not in seen and not sig.get("delisted_at"):
+                sig["delisted_at"] = _now()
+                retired += 1
+        return retired
 
     async def record_source_run(self, source: str, status: str, error: Optional[str], seen: int, new: int) -> None:
         previous = self.source_runs.get(source, {})
@@ -759,13 +768,14 @@ class PostgresStore:
                     "entity_names = EXCLUDED.entity_names, entity_keys = EXCLUDED.entity_keys, "
                     "country_codes = EXCLUDED.country_codes, occurred_at = EXCLUDED.occurred_at, "
                     "published_at = EXCLUDED.published_at, updated_at = EXCLUDED.updated_at, url = EXCLUDED.url, "
-                    "raw = EXCLUDED.raw, last_seen_at = now() RETURNING (xmax = 0) AS inserted"), row)
+                    "raw = EXCLUDED.raw, last_seen_at = now(), delisted_at = NULL "
+                    "RETURNING (xmax = 0) AS inserted"), row)
                 new += int(bool(result.scalar()))
         return new
 
     async def list_signals(self, source: Optional[str] = None, since: Optional[str] = None,
                            limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
-        where = ("WHERE (CAST(:source AS text) IS NULL OR source = :source) "
+        where = ("WHERE delisted_at IS NULL AND (CAST(:source AS text) IS NULL OR source = :source) "
                  "AND (CAST(:since AS date) IS NULL OR COALESCE(updated_at, published_at) >= CAST(:since AS date))")
         params = {"source": source, "since": _day(since), "limit": limit}
         rows = await self._all(None, f"SELECT * FROM public_signals {where} "
@@ -776,13 +786,21 @@ class PostgresStore:
     async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
                                 limit: int = 2000) -> List[Dict[str, Any]]:
         rows = await self._all(None, (
-            "SELECT * FROM public_signals WHERE (CAST(:since AS date) IS NULL "
+            "SELECT * FROM public_signals WHERE delisted_at IS NULL AND (CAST(:since AS date) IS NULL "
             "OR COALESCE(updated_at, published_at) >= CAST(:since AS date)) "
             "AND (entity_keys && CAST(:keys AS text[]) "
             "OR (signal_type = 'disaster' AND country_codes && CAST(:countries AS varchar(3)[]))) "
             "ORDER BY COALESCE(updated_at, published_at) DESC LIMIT :limit"),
             {"keys": list(keys), "countries": list(countries), "since": _day(since), "limit": limit})
         return [self._signal_row(r) for r in rows]
+
+    async def retire_unseen(self, source: str, seen_ids: Iterable[str]) -> int:
+        """Mark this source's active signals that a full run did not see as delisted."""
+        rows = await self._all(None, (
+            "UPDATE public_signals SET delisted_at = now() WHERE source = :source AND delisted_at IS NULL "
+            "AND NOT (external_id = ANY(CAST(:ids AS text[]))) RETURNING id"),
+            {"source": source, "ids": list(seen_ids)})
+        return len(rows)
 
     async def record_source_run(self, source: str, status: str, error: Optional[str], seen: int, new: int) -> None:
         await self._exec(None, [(

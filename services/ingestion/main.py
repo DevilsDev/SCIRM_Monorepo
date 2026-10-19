@@ -32,6 +32,10 @@ logger = structlog.get_logger()
 INGESTION_INTERVAL = int(os.getenv("INGESTION_INTERVAL_MINUTES", "60"))
 INGESTION_AUTO = os.getenv("INGESTION_AUTO", "false").lower() == "true"
 LOOKBACK_DAYS = int(os.getenv("INGESTION_LOOKBACK_DAYS", "90"))
+# A current-list source returning fewer than this share of its previous entries is
+# treated as a failed fetch (e.g. FDA changed its page), not as mass delisting.
+SNAPSHOT_MIN_RATIO = float(os.getenv("INGESTION_SNAPSHOT_MIN_RATIO", "0.5"))
+MATCH_CANDIDATE_LIMIT = int(os.getenv("MATCH_CANDIDATE_LIMIT", "20000"))
 
 store = create_store()
 # Replaced in tests with a client on a mock transport.
@@ -81,17 +85,28 @@ async def ready():
 async def run_ingestion(only: Optional[List[str]] = None) -> IngestResult:
     async with http_client_factory() as client:
         results = await sources.collect(client, LOOKBACK_DAYS, only=only)
+    previous_runs = await store.list_source_runs()
     summary: Dict[str, Dict[str, Any]] = {}
     total_new = 0
     for result in results:
         new = await store.upsert_signals(result.signals) if result.status == "ok" else 0
         total_new += new
+        retired = 0
+        if result.status == "ok" and result.source in sources.SNAPSHOT_SOURCES:
+            # A current list: whatever FDA no longer lists is resolved or lifted. Retire it,
+            # unless the list shrank so much that the fetch itself is the likelier fault.
+            before = int((previous_runs.get(result.source) or {}).get("signals_seen") or 0)
+            if not result.signals or (before and len(result.signals) < before * SNAPSHOT_MIN_RATIO):
+                result.status = "error"
+                result.error = f"list shrank from {before} to {len(result.signals)} entries; nothing retired"
+            else:
+                retired = await store.retire_unseen(result.source, [s["external_id"] for s in result.signals])
         await store.record_source_run(result.source, result.status, result.error, len(result.signals), new)
         summary[result.source] = {"status": result.status, "error": result.error,
-                                  "signals": len(result.signals), "new": new}
+                                  "signals": len(result.signals), "new": new, "delisted": retired}
         log = logger.info if result.status == "ok" else logger.warning
         log("Source ingested", source=result.source, status=result.status, error=result.error,
-            signals=len(result.signals), new=new)
+            signals=len(result.signals), new=new, delisted=retired)
     return IngestResult(documents_ingested=total_new, sources_queried=[r.source for r in results], sources=summary,
                         timestamp=datetime.now(timezone.utc).isoformat())
 
@@ -160,9 +175,9 @@ def _watch(incidents: List[Dict[str, Any]]) -> Dict[str, Any]:
     events: Dict[str, Dict[str, Any]] = {}
     for m in incidents:
         signal = m["signal"]
-        # Own-name matches only: the back-test identifies firms by name, so a subsidiary's
-        # recall ("Hospira, a Pfizer company") does not raise the parent's score.
-        if signal.get("signal_type") != "recall" or m["match_type"] == "parent_company":
+        # Exact normalized-name matches only: that is how the back-test identifies firms, so
+        # neither a similar name nor a subsidiary ("Hospira, a Pfizer company") raises the score.
+        if signal.get("signal_type") != "recall" or m["match_type"] != "name_exact":
             continue
         raw = signal.get("raw") or {}
         key = str(raw.get("event_id") or signal.get("external_id"))
@@ -189,7 +204,7 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
     if request.since_days:
         since = (datetime.now(timezone.utc).date() - timedelta(days=request.since_days)).isoformat()
     countries = index["countries"] if request.include_exposure else []
-    candidates = await store.signal_candidates(index["keys"], countries, since=since)
+    candidates = await store.signal_candidates(index["keys"], countries, since=since, limit=MATCH_CANDIDATE_LIMIT)
     matches = matching.match_all(request.suppliers, candidates, min_confidence=0.0)
     out, totals = {}, {}
     for supplier_id, found in matches.items():
@@ -201,7 +216,12 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
         out[supplier_id] = [{**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")},
                              "signal": _as_document(m["signal"])}
                             for m in incidents[: request.limit_per_supplier] + exposures[: request.limit_per_supplier]]
-    return {"matches": out, "totals": totals, "candidates_considered": len(candidates)}
+    truncated = len(candidates) >= MATCH_CANDIDATE_LIMIT
+    if truncated:
+        logger.warning("Match candidates truncated", limit=MATCH_CANDIDATE_LIMIT, suppliers=len(request.suppliers))
+    # Truncation drops the oldest activity first; callers should say counts may be incomplete.
+    return {"matches": out, "totals": totals, "candidates_considered": len(candidates),
+            "candidates_truncated": truncated}
 
 
 if __name__ == "__main__":

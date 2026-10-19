@@ -231,7 +231,7 @@ export default function SuppliersPage() {
                         {signalSummary[s.id].watch && (
                           <span
                             className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800"
-                            title={t('suppliers.watchHint', 'Recent FDA recalls at a level that, in back-tests on 2023-2026 data, came before about 1 in 3 serious recalls of listed drugs by 30+ days. Most watched suppliers do not go on to have one.')}
+                            title={t('suppliers.watchHint', 'Recent FDA recalls at a level that, in back-tests on 2023-2026 data, came 30+ days before about 4 in 10 serious (Class I) recalls at firms with FDA history. Most watched suppliers do not go on to have one.')}
                           >
                             {t('suppliers.watch', 'Watch')}
                           </span>

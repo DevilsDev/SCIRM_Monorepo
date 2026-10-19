@@ -48,7 +48,9 @@
           "recall": 0.4085,
           "recall_all_events": 0.2,
           "new_problem_events": 61,
-          "new_problem_recall": 0.3115
+          "new_problem_recall": 0.3115,
+          "no_history_listed_products": 15,
+          "no_history_unlisted_products": 59
         },
         "lead_60d": {
           "lead_days": 60,
@@ -58,7 +60,9 @@
           "recall": 0.3939,
           "recall_all_events": 0.1844,
           "new_problem_events": 57,
-          "new_problem_recall": 0.2982
+          "new_problem_recall": 0.2982,
+          "no_history_listed_products": 15,
+          "no_history_unlisted_products": 60
         }
       },
       "events_listed_products": {
@@ -70,7 +74,9 @@
           "recall": 0.4286,
           "recall_all_events": 0.3281,
           "new_problem_events": 44,
-          "new_problem_recall": 0.3636
+          "new_problem_recall": 0.3636,
+          "no_history_listed_products": 15,
+          "no_history_unlisted_products": 0
         },
         "lead_60d": {
           "lead_days": 60,
@@ -80,7 +86,9 @@
           "recall": 0.3958,
           "recall_all_events": 0.3016,
           "new_problem_events": 43,
-          "new_problem_recall": 0.3256
+          "new_problem_recall": 0.3256,
+          "no_history_listed_products": 15,
+          "no_history_unlisted_products": 0
         }
       }
     },
@@ -131,7 +139,9 @@
           "recall": 0.4189,
           "recall_all_events": 0.2138,
           "new_problem_events": 64,
-          "new_problem_recall": 0.3281
+          "new_problem_recall": 0.3281,
+          "no_history_listed_products": 14,
+          "no_history_unlisted_products": 57
         },
         "lead_60d": {
           "lead_days": 60,
@@ -141,7 +151,9 @@
           "recall": 0.4058,
           "recall_all_events": 0.1986,
           "new_problem_events": 60,
-          "new_problem_recall": 0.3167
+          "new_problem_recall": 0.3167,
+          "no_history_listed_products": 14,
+          "no_history_unlisted_products": 58
         }
       },
       "events_listed_products": {
@@ -153,7 +165,9 @@
           "recall": 0.44,
           "recall_all_events": 0.3438,
           "new_problem_events": 45,
-          "new_problem_recall": 0.3778
+          "new_problem_recall": 0.3778,
+          "no_history_listed_products": 14,
+          "no_history_unlisted_products": 0
         },
         "lead_60d": {
           "lead_days": 60,
@@ -163,7 +177,9 @@
           "recall": 0.4082,
           "recall_all_events": 0.3175,
           "new_problem_events": 44,
-          "new_problem_recall": 0.3409
+          "new_problem_recall": 0.3409,
+          "no_history_listed_products": 14,
+          "no_history_unlisted_products": 0
         }
       }
     }

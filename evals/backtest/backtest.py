@@ -212,6 +212,7 @@ def event_level(firms: Dict[str, List[Event]], threshold: float, start: date, en
     `listed_only` keeps recalls of FDA-listed drug products: what pharma buyers source.
     Most other Class I "drug" recalls are tainted supplements sold online."""
     total = with_history = flagged = new_total = new_flagged = 0
+    no_history_listed = no_history_unlisted = 0
     for events in firms.values():
         for e in events:
             if e.kind != "recall" or e.classification != "Class I" or not (start <= e.published < end):
@@ -222,7 +223,11 @@ def event_level(firms: Dict[str, List[Event]], threshold: float, start: date, en
             cutoff = last_month_start_before(e.published - timedelta(days=lead_days))
             past = _window(events, kinds, cutoff)
             if not past:
-                continue  # no history at the cutoff: the firm could not be scored
+                # No history at the cutoff: the firm cannot be scored. Unlisted products here
+                # are mostly supplements sold as drugs online, not pharma suppliers.
+                no_history_listed += e.listed
+                no_history_unlisted += not e.listed
+                continue
             with_history += 1
             score = _score(past, cutoff, kinds)
             hit = score >= threshold and score > 0
@@ -233,7 +238,8 @@ def event_level(firms: Dict[str, List[Event]], threshold: float, start: date, en
                 new_flagged += hit
     return {"lead_days": lead_days, "class_i_events": total, "events_with_history": with_history,
             "flagged": flagged, "recall": _share(flagged, with_history), "recall_all_events": _share(flagged, total),
-            "new_problem_events": new_total, "new_problem_recall": _share(new_flagged, new_total)}
+            "new_problem_events": new_total, "new_problem_recall": _share(new_flagged, new_total),
+            "no_history_listed_products": no_history_listed, "no_history_unlisted_products": no_history_unlisted}
 
 
 def run_variant(firms: Dict[str, List[Event]], kinds: Tuple[str, ...], snapshot_date: date) -> dict:
@@ -253,7 +259,9 @@ def run_variant(firms: Dict[str, List[Event]], kinds: Tuple[str, ...], snapshot_
         # Headline: distinct Class I events, each judged once at a fixed lead before publication.
         "events": {f"lead_{lead}d": event_level(firms, threshold, TEST_START + timedelta(days=lead), snapshot_date,
                                                 lead, kinds) for lead in LEADS},
-        # Supply-chain scope, added after diagnosing that most unscorable events were tainted supplements.
+        # Diagnostic only: recalls openFDA links to a listed product (NDC). Not a clean
+        # "pharma supplier" scope: it also drops real manufacturers' recalls that openFDA
+        # did not link (e.g. Novartis, Pfizer, Baxter), so it is not a headline.
         "events_listed_products": {
             f"lead_{lead}d": event_level(firms, threshold, TEST_START + timedelta(days=lead), snapshot_date, lead,
                                          kinds, listed_only=True) for lead in LEADS},
@@ -283,12 +291,13 @@ def report(result: dict) -> str:
     for name, v in result["variants"].items():
         t = v["test"]
         lines += ["", f"[{name}]"]
-        for scope, label in (("events", "all Class I"), ("events_listed_products", "listed products")):
-            for e in v[scope].values():
-                lines.append(
-                    f"  {label:16} {e['lead_days']}d ahead: {e['class_i_events']} events; {e['events_with_history']} at "
-                    f"firms with history, {e['flagged']} flagged ({e['recall']:.1%}). Overall {e['recall_all_events']:.1%}. "
-                    f"New problems: {e['new_problem_recall']:.1%} of {e['new_problem_events']}")
+        for e in v["events"].values():
+            lines.append(
+                f"  {e['lead_days']}d ahead: {e['class_i_events']} Class I events. {e['events_with_history']} at firms with "
+                f"FDA history: {e['flagged']} flagged ({e['recall']:.1%}); new problems {e['new_problem_recall']:.1%} of "
+                f"{e['new_problem_events']}. {e['class_i_events'] - e['events_with_history']} at firms with no history "
+                f"({e['no_history_unlisted_products']} unlisted products, {e['no_history_listed_products']} listed drugs). "
+                f"Overall {e['recall_all_events']:.1%}")
         lines.append(
             f"  per firm-month: {t['firms']} firms, {t['flags_per_month']} flags/month ({t['flagged_share']:.1%}), "
             f"precision {t['precision']:.1%} ({t['lift']}x base rate {t['base_rate']:.1%}), AUC {t['auc']:.3f}")

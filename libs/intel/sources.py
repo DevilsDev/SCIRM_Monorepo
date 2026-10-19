@@ -401,6 +401,10 @@ async def fetch_import_alerts(client: httpx.AsyncClient, since: date, until: dat
         page = await client.get(url)
         page.raise_for_status()
         signals.extend(parse_import_alert(page.text, alert["number"], alert["title"], url))
+    # Still listed as of this run: the activity date, so long-standing listings (some from
+    # 2009) are not hidden by "last 12 months" filters. published_at keeps the listing date.
+    for s in signals:
+        s["updated_at"] = until.isoformat()
     return SourceResult("fda_import_alerts", signals)
 
 
@@ -433,6 +437,8 @@ SOURCES: Dict[str, Callable] = {
     "fda_import_alerts": fetch_import_alerts,
     "gdacs": fetch_gdacs,
 }
+# Sources published as current lists (no history): entries missing from a run are delisted.
+SNAPSHOT_SOURCES = frozenset({"fda_shortages", "fda_import_alerts"})
 SOURCE_LABELS = {"fda_recalls": "FDA drug recalls", "fda_shortages": "FDA drug shortages",
                  "fda_warning_letters": "FDA warning letters", "fda_import_alerts": "FDA import alerts",
                  "gdacs": "GDACS disaster alerts"}

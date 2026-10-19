@@ -167,11 +167,70 @@ class TestWatch:
         serious = [self.recall(recent, "Class I", "e1")]
         assert service._watch(serious)["watch"] is True
         assert service._watch([self.recall(recent, "Class III", "e2")])["watch"] is False
-        assert service._watch([self.recall(recent, "Class I", "e3", match_type="parent_company")]) == \
-            {"recall_score": 0.0, "watch": False}
+        for weaker in ("parent_company", "name_contains", "name_similar"):
+            assert service._watch([self.recall(recent, "Class I", "e3", match_type=weaker)]) == \
+                {"recall_score": 0.0, "watch": False}
 
     def test_other_record_types_do_not_score(self, service):
         from datetime import date
         letter = {"match_type": "name_exact", "kind": "incident", "confidence": 0.95,
                   "signal": {"signal_type": "warning_letter", "published_at": date.today().isoformat(), "raw": {}}}
         assert service._watch([letter])["recall_score"] == 0.0
+
+
+class TestDelisting:
+    """Shortages and import alerts are current lists: what FDA drops must stop showing."""
+
+    def shortages_without(self, company_prefix):
+        import json
+        from intel_support import fixture
+
+        body = fixture("fda_shortages.json")
+        body["results"] = [r for r in body["results"] if not r["company_name"].startswith(company_prefix)]
+
+        def handler(request):
+            if request.url.path.endswith("/shortages.json"):
+                return httpx.Response(200, json=body)
+            return recorded_transport().handle_request(request)
+
+        return httpx.MockTransport(handler)
+
+    def hospira_shortages(self, client):
+        docs = client.get("/documents", params={"source": "fda_shortages", "since_days": 36500, "limit": 500},
+                          headers=HEADERS).json()["documents"]
+        return [d for d in docs if d["entity_names"][0].startswith("Hospira")]
+
+    def test_entries_fda_no_longer_lists_are_delisted(self, client, service):
+        client.post("/ingest", headers=HEADERS)
+        assert self.hospira_shortages(client)
+        service.set_transport(self.shortages_without("Hospira"))
+        result = client.post("/ingest", headers=HEADERS).json()["sources"]["fda_shortages"]
+        assert result["status"] == "ok" and result["delisted"] > 0
+        assert self.hospira_shortages(client) == []
+        matches = client.post("/match", json={"suppliers": [{"id": "h", "name": "Hospira, Inc."}]},
+                              headers=HEADERS).json()["matches"]["h"]
+        assert not any(m["signal"]["source"] == "fda_shortages" for m in matches)
+
+    def test_relisting_restores_an_entry(self, client, service):
+        client.post("/ingest", headers=HEADERS)
+        service.set_transport(self.shortages_without("Hospira"))
+        client.post("/ingest", headers=HEADERS)
+        service.set_transport(recorded_transport())
+        client.post("/ingest", headers=HEADERS)
+        assert self.hospira_shortages(client)
+
+    def test_a_list_that_collapses_is_an_error_and_retires_nothing(self, client, service):
+        client.post("/ingest", headers=HEADERS)
+        before = len(self.hospira_shortages(client))
+        service.set_transport(self.shortages_without(""))  # every entry gone: a broken fetch, not mass delisting
+        result = client.post("/ingest", headers=HEADERS).json()["sources"]["fda_shortages"]
+        assert result["status"] == "error" and "nothing retired" in result["error"]
+        assert len(self.hospira_shortages(client)) == before
+
+    def test_event_sources_are_never_delisted(self, client, service):
+        client.post("/ingest", headers=HEADERS)
+        service.set_transport(recorded_transport({"api.fda.gov": 404}))  # "no matches" for recalls
+        result = client.post("/ingest", headers=HEADERS).json()["sources"]["fda_recalls"]
+        assert result["delisted"] == 0
+        recalls = client.get("/documents", params={"source": "fda_recalls", "since_days": 36500}, headers=HEADERS).json()
+        assert recalls["documents"]

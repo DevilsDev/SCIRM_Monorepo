@@ -19,7 +19,7 @@ LOOKBACK_DAYS = 365
 # Recall-history score at or above which a supplier is flagged "watch". This is the
 # threshold the back-test froze on 2022 (top 10% of firms) and measured on 2023 onward;
 # tests/intel/test_intel_backtest.py fails if the two drift apart. Warning letters are
-# shown but not scored: in the back-test they added one flagged event in 64 while
+# shown but not scored: in the back-test they added two flagged events in 145 while
 # adding two thirds more flags.
 WATCH_THRESHOLD = 1.90677
 _SEVERITY_ORDER = ["Class III", "Class II", "Class I"]
