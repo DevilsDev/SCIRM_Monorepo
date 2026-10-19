@@ -130,16 +130,18 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Migrate the database before anything rolls out
+        # Applying manifests can itself start a rollout, so this runs first. It only
+        # needs the namespace and scirm-secrets, both created out of band.
+        run: |
+          kubectl -n scirm-staging delete job db-migrate --ignore-not-found
+          sed "s|coordinator:latest|coordinator:${GITHUB_SHA}|" infra/k8s/staging/db-migrate-job.yml | kubectl apply -f -
+          kubectl -n scirm-staging wait --for=condition=complete job/db-migrate --timeout=300s             || { kubectl -n scirm-staging logs job/db-migrate; exit 1; }
       - name: Apply manifests
         # secrets.example.yml is a template; real secrets are created out of band.
         run: |
           kubectl apply -f infra/k8s/staging/all-services.yml
           kubectl apply -f infra/k8s/staging/coordinator-deployment.yml
-      - name: Migrate the database before any new code serves traffic
-        run: |
-          kubectl -n scirm-staging delete job db-migrate --ignore-not-found
-          sed "s|coordinator:latest|coordinator:${GITHUB_SHA}|" infra/k8s/staging/db-migrate-job.yml | kubectl apply -f -
-          kubectl -n scirm-staging wait --for=condition=complete job/db-migrate --timeout=300s             || { kubectl -n scirm-staging logs job/db-migrate; exit 1; }
       - name: Pin images to this build and wait for rollout
         # Only these services have staging manifests so far; the other images are
         # built and pushed but not deployed until their manifests exist.
