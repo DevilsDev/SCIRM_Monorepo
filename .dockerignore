@@ -1,0 +1,21 @@
+# Keep the build context small and free of secrets.
+.git
+.github
+.claude
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/node_modules
+apps/frontend/dist
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+infra/k8s/staging/secrets.yml
+infra/nginx/certs
+docs
+tests
+ops
+compliance
+security

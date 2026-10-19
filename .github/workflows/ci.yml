@@ -64,3 +64,57 @@ jobs:
 
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high
+
+  images:
+    name: Build image (${{ matrix.service.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: api-gateway, path: apps/api-gateway }
+          - { name: coordinator, path: services/coordinator }
+          - { name: planner, path: services/planner }
+          - { name: researcher, path: services/researcher, extra_pip: "weaviate-client==3.26.7" }
+          - { name: executor, path: services/executor }
+          - { name: reviewer, path: services/reviewer }
+          - { name: risk-scorer, path: services/risk-scorer }
+          - { name: discovery, path: services/discovery }
+          - { name: ingestion, path: services/ingestion }
+          - { name: chat, path: services/chat }
+          - { name: simulator, path: services/simulator }
+          - { name: procurement, path: services/procurement }
+          - { name: component-tracker, path: services/component-tracker }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: >
+          docker build -f docker/service.Dockerfile
+          --build-arg SERVICE_PATH=${{ matrix.service.path }}
+          --build-arg "EXTRA_PIP=${{ matrix.service.extra_pip }}"
+          -t scirm/${{ matrix.service.name }}:ci .
+      - name: Start the container and check it serves /ready as a non-root user
+        run: |
+          docker run -d --name svc -e ENVIRONMENT=test -p 8000:8000 scirm/${{ matrix.service.name }}:ci
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/ready && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/ready || { docker logs svc; exit 1; }
+          test "$(docker exec svc id -u)" = "10001"
+
+  frontend-image:
+    name: Build image (frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t scirm/frontend:ci apps/frontend
+      - name: Serve index.html and fall back for client-side routes
+        run: |
+          docker run -d --name web -p 8080:8080 scirm/frontend:ci
+          sleep 2
+          curl -fsS http://127.0.0.1:8080/ | grep -qi "<div id=\"root\""
+          curl -fsS http://127.0.0.1:8080/risks/123 | grep -qi "<div id=\"root\""

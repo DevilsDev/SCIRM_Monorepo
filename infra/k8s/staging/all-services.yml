@@ -26,7 +26,7 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: planner
-        image: scirm/planner:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/planner:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -105,7 +105,7 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: researcher
-        image: scirm/researcher:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/researcher:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -184,7 +184,7 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: executor
-        image: scirm/executor:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/executor:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -261,7 +261,7 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: reviewer
-        image: scirm/reviewer:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/reviewer:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -338,7 +338,7 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: api-gateway
-        image: scirm/api-gateway:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/api-gateway:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -429,16 +429,11 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: scirm/frontend:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/frontend:latest  # deploy.yml pins the release tag
         ports:
-        - containerPort: 3000
-        env:
-        - name: REACT_APP_API_URL
-          value: "http://api-gateway"
-        - name: REACT_APP_WS_URL
-          value: "ws://api-gateway"
-        - name: NODE_ENV
-          value: "production"
+        # Static bundle served by unprivileged nginx. API URLs are build-time
+        # (VITE_API_URL / VITE_WS_URL build args), not runtime env.
+        - containerPort: 8080
         resources:
           requests:
             memory: "128Mi"
@@ -449,13 +444,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 3000
+            port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /
-            port: 3000
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
 ---
@@ -469,5 +464,5 @@ spec:
     app: frontend
   ports:
   - port: 80
-    targetPort: 3000
+    targetPort: 8080
   type: LoadBalancer
