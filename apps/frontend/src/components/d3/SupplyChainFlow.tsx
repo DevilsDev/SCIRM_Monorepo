@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { useTranslation } from 'react-i18next';
-import { getThemeColors, isDarkMode } from './theme';
+import { getThemeColors, isDarkMode, esc } from './theme';
 
 interface FlowNode {
   id: string;
@@ -155,7 +155,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         .attr('opacity', 0)
         .on('mouseover', function (event) {
           d3.select(this).attr('opacity', 0.9).attr('stroke-width', strokeW + 2);
-          tooltip.style('opacity', '1').html(`<strong>${supplier.label}</strong> → <strong>${target.label}</strong><br/>Risk: ${supplier.risk_score || '?'}/100`)
+          tooltip.style('opacity', '1').html(`<strong>${esc(supplier.label)}</strong> → <strong>${esc(target.label)}</strong><br/>Risk: ${esc(supplier.risk_score || '?')}/100`)
             .style('left', `${event.pageX + 12}px`).style('top', `${event.pageY - 30}px`);
         })
         .on('mousemove', (event) => tooltip.style('left', `${event.pageX + 12}px`).style('top', `${event.pageY - 30}px`))
@@ -211,7 +211,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
         d3.select(this).select('circle:nth-child(2)').transition().duration(150).attr('r', 28);
         const tierLabel = node.risk_tier ? t(`common.severity${node.risk_tier.charAt(0).toUpperCase()}${node.risk_tier.slice(1)}`, node.risk_tier) : '?';
         tooltip.style('opacity', '1')
-          .html(`<strong>${node.label}</strong><br/>${node.supplier_type || 'supplier'}<br/>${node.country_code || ''} ${node.region || ''}<br/>${t('supplyChain.riskScore', 'Risk: {{score}}/100', { score: node.risk_score || '?' })} (${tierLabel})`)
+          .html(`<strong>${esc(node.label)}</strong><br/>${esc(node.supplier_type || 'supplier')}<br/>${esc(node.country_code || '')} ${esc(node.region || '')}<br/>${esc(t('supplyChain.riskScore', 'Risk: {{score}}/100', { score: node.risk_score || '?' }))} (${esc(tierLabel)})`)
           .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
       })
       .on('mouseout', function () {
@@ -266,7 +266,7 @@ export default function SupplyChainFlow({ nodes, edges, height = 520 }: SupplyCh
       nodeG.on('mouseover', function (event) {
         d3.select(this).select('circle').transition().duration(150).attr('r', radius + 4);
         tooltip.style('opacity', '1')
-          .html(`<strong class="capitalize">${risk.label}</strong><br/>${t('supplyChain.risks', '{{count}} risks', { count: risk.count })}<br/>${t('supplyChain.worstSeverity', 'Worst severity')}: <span style="color:${rColor}">${sevLabel}</span>`)
+          .html(`<strong class="capitalize">${esc(risk.label)}</strong><br/>${esc(t('supplyChain.risks', '{{count}} risks', { count: risk.count }))}<br/>${esc(t('supplyChain.worstSeverity', 'Worst severity'))}: <span style="color:${esc(rColor)}">${esc(sevLabel)}</span>`)
           .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
       })
       .on('mouseout', function () {

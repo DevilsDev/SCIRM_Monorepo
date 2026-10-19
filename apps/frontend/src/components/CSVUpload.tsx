@@ -182,7 +182,7 @@ export default function CSVUpload({ onUpload, expectedColumns, entityLabel }: CS
           disabled={uploading}
           className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
         >
-          {uploading ? t('common.loading', 'Loading...') : t('csv.import', 'Import {{count}} {{entity}}', { count: preview.length + '+', entity: entityLabel })}
+          {uploading ? t('common.loading', 'Loading...') : t('csv.import', 'Import {{count}}+ {{entity}}', { count: preview.length, entity: entityLabel })}
         </button>
       )}
     </div>

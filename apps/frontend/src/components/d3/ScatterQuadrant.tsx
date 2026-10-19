@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { getThemeColors } from './theme';
+import { getThemeColors, esc } from './theme';
 
 interface ScatterPoint {
   x: number;
@@ -110,7 +110,7 @@ export default function ScatterQuadrant({ data, height = 360 }: ScatterQuadrantP
       .on('mouseover', function (event, d: any) {
         d3.select(this).transition().duration(150).attr('r', 12);
         tooltip.style('opacity', '1')
-          .html(`<strong>${d.name}</strong><br/>Cost: $${d.x.toLocaleString()}<br/>Impact: ${d.y.toFixed(1)}<br/>Priority: ${d.priority}`)
+          .html(`<strong>${esc(d.name)}</strong><br/>Cost: $${esc(d.x.toLocaleString())}<br/>Impact: ${esc(d.y.toFixed(1))}<br/>Priority: ${esc(d.priority)}`)
           .style('left', `${event.pageX + 12}px`)
           .style('top', `${event.pageY - 40}px`);
       })

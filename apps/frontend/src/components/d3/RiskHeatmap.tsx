@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { useTranslation } from 'react-i18next';
-import { getThemeColors } from './theme';
+import { getThemeColors, esc } from './theme';
 
 interface HeatmapCell {
   category: string;
@@ -90,7 +90,7 @@ export default function RiskHeatmap({ data, height = 220 }: RiskHeatmapProps) {
       .on('mouseover', function (event, d: any) {
         d3.select(this).attr('stroke', '#111827').attr('stroke-width', 2);
         tooltip.style('opacity', '1')
-          .html(`<strong class="capitalize">${d.category}</strong> × <strong class="capitalize">${d.severity}</strong><br/>${d.value} risk${d.value !== 1 ? 's' : ''}`)
+          .html(`<strong class="capitalize">${esc(d.category)}</strong> × <strong class="capitalize">${esc(d.severity)}</strong><br/>${esc(d.value)} risk${esc(d.value !== 1 ? 's' : '')}`)
           .style('left', `${event.pageX + 12}px`)
           .style('top', `${event.pageY - 28}px`);
       })

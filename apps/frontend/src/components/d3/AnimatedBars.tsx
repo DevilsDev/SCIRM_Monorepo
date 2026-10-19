@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { getThemeColors } from './theme';
+import { getThemeColors, esc } from './theme';
 
 interface BarData {
   name: string;
@@ -96,7 +96,7 @@ export default function AnimatedBars({ data, height = 300, colorField, valueLabe
       .on('mouseover', function (event, d: any) {
         d3.select(this).attr('opacity', 0.8);
         tooltip.style('opacity', '1')
-          .html(`<strong class="capitalize">${d.name}</strong><br/>${d.value}${valueLabel}`)
+          .html(`<strong class="capitalize">${esc(d.name)}</strong><br/>${esc(d.value)}${esc(valueLabel)}`)
           .style('left', `${event.pageX + 12}px`)
           .style('top', `${event.pageY - 28}px`);
       })

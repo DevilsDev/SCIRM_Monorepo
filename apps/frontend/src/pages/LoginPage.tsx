@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
-  const lockTimer = useRef<NodeJS.Timeout | null>(null);
+  const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Where to redirect after login (saved by ProtectedRoute)
   const redirectTo = (location.state as any)?.from || '/dashboard';
@@ -122,7 +122,7 @@ export default function LoginPage() {
 
           {import.meta.env.DEV && (
             <p className="text-xs text-gray-400 text-center mt-2">
-              {t('auth.devCredentials', 'Dev: sarah.chen@pharmacorp.com / scirm-dev-2026')}
+              {t('auth.devCredentials', 'Dev mode: demo account password is printed in the api-gateway console')}
             </p>
           )}
         </div>
