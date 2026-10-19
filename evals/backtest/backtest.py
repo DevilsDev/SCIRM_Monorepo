@@ -28,7 +28,6 @@ from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from statistics import median
 from typing import Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -160,7 +159,6 @@ def evaluate(rows: List[dict], threshold: float) -> dict:
         "recall": round(len(hits) / len(positives), 4) if positives else 0.0,
         "lift": round(precision / base, 2) if base else None,
         "auc": round(auc(rows), 4),
-        "median_warning_days": median(r["warning_days"] for r in hits) if hits else None,
         "new_problem_outcomes": len(new_problems),
         "new_problem_recall": round(sum(1 for r in new_problems if r["score"] >= threshold and r["score"] > 0)
                                     / len(new_problems), 4) if new_problems else 0.0,
@@ -170,6 +168,40 @@ def evaluate(rows: List[dict], threshold: float) -> dict:
             "recall": round(len(any_hits) / len(positives), 4) if positives else 0.0,
         },
     }
+
+
+def last_month_start_before(day: date) -> date:
+    return date(day.year, day.month, 1)
+
+
+def event_level(firms: Dict[str, List[Event]], threshold: float, start: date, end: date, lead_days: int) -> dict:
+    """Per distinct Class I event published in [start, end): was the firm flagged at the
+    last monthly cutoff at least `lead_days` before FDA published it?"""
+    total = with_history = flagged = new_total = new_flagged = 0
+    for events in firms.values():
+        dates = [e.published for e in events]
+        for e in events:
+            if e.classification != "Class I" or not (start <= e.published < end):
+                continue
+            total += 1
+            cutoff = last_month_start_before(e.published - timedelta(days=lead_days))
+            lo = bisect_left(dates, cutoff - timedelta(days=365 * UNIVERSE_YEARS))
+            hi = bisect_left(dates, cutoff)
+            if lo == hi:
+                continue  # no recall history at the cutoff: the firm could not be scored
+            with_history += 1
+            past = events[lo:hi]
+            score = scoring.recall_history_score(
+                [{"published": p.published, "classification": p.classification} for p in past], cutoff)
+            hit = score >= threshold and score > 0
+            flagged += hit
+            if not any(p.classification == "Class I" and p.published >= cutoff - timedelta(days=RECENT_DAYS) for p in past):
+                new_total += 1
+                new_flagged += hit
+    share = lambda a, b: round(a / b, 4) if b else 0.0
+    return {"lead_days": lead_days, "class_i_events": total, "events_with_history": with_history,
+            "flagged": flagged, "recall": share(flagged, with_history), "recall_all_events": share(flagged, total),
+            "new_problem_events": new_total, "new_problem_recall": share(new_flagged, new_total)}
 
 
 def run(records: Optional[List[dict]] = None, snapshot_date: Optional[date] = None) -> dict:
@@ -182,6 +214,10 @@ def run(records: Optional[List[dict]] = None, snapshot_date: Optional[date] = No
     tune_rows = observations(firms, months(*TUNE))
     test_rows = observations(firms, months(TEST_START, last_cutoff))
     threshold = threshold_for_share(tune_rows, FLAG_SHARE)
+    # Events must leave room for the lead before the first test cutoff.
+    event_end = snapshot_date or date.today()
+    events = {f"lead_{lead}d": event_level(firms, threshold, TEST_START + timedelta(days=lead), event_end, lead)
+              for lead in (30, 60)}
     return {
         "question": f"Class I recall published within {HORIZON_DAYS} days of the cutoff, "
                     f"scored only from recalls published before it",
@@ -190,28 +226,37 @@ def run(records: Optional[List[dict]] = None, snapshot_date: Optional[date] = No
         "tune": {"period": [TUNE[0].isoformat(), TUNE[1].isoformat()], **evaluate(tune_rows, threshold)},
         "test": {"period": [TEST_START.isoformat(), months(TEST_START, last_cutoff)[-1].isoformat()],
                  **evaluate(test_rows, threshold)},
+        # Headline: distinct Class I events, each judged once at a fixed lead before publication.
+        "events": events,
     }
 
 
 def report(result: dict) -> str:
     t = result["test"]
     b = t["baseline_any_recall_last_year"]
-    return "\n".join([
-        f"Back-test: {result['question']}",
-        f"Data: openFDA recall snapshot of {result['snapshot_date']}; test cutoffs {t['period'][0]} to {t['period'][1]}",
-        f"Universe: {t['firms']} firms with a recall in the prior {UNIVERSE_YEARS} years, "
-        f"{t['observations']} firm-months, {t['class_i_outcomes']} with a Class I recall in the next {HORIZON_DAYS} days",
-        f"Base rate: {t['base_rate']:.1%}",
-        f"Score threshold (frozen from 2021-22): {result['threshold']:.3f} -> flags {t['flagged_share']:.1%} of firm-months",
-        f"  precision {t['precision']:.1%}  recall {t['recall']:.1%}  lift {t['lift']}x  AUC {t['auc']:.3f}  "
-        f"median warning {t['median_warning_days']} days",
-        f"  {t['new_problem_outcomes']} of the {t['class_i_outcomes']} outcomes were at firms with no Class I recall "
-        f"in the prior {RECENT_DAYS} days; recall on those: {t['new_problem_recall']:.1%}",
-        f"Tuning period ({result['tune']['period'][0]}..{result['tune']['period'][1]}): precision {result['tune']['precision']:.1%}, "
-        f"recall {result['tune']['recall']:.1%}, AUC {result['tune']['auc']:.3f}",
-        f"Baseline 'any recall in the last year': flags {b['flagged_share']:.1%}, "
-        f"precision {b['precision']:.1%}, recall {b['recall']:.1%}",
-    ])
+    lines = [
+        f"Back-test: was a firm flagged before its Class I recall, using only recalls published earlier?",
+        f"Data: openFDA recall snapshot of {result['snapshot_date']}; threshold frozen from 2021-22 "
+        f"({result['threshold']:.3f}, top {FLAG_SHARE:.0%} of firms); results from 2023 on",
+        "",
+        "Per Class I recall event (headline):",
+    ]
+    for key, e in result["events"].items():
+        lines.append(
+            f"  {e['lead_days']} days ahead: {e['class_i_events']} Class I events; {e['events_with_history']} at firms with "
+            f"recall history, of which {e['flagged']} flagged ({e['recall']:.1%}); the other "
+            f"{e['class_i_events'] - e['events_with_history']} at firms with no history (cannot be scored). "
+            f"Overall {e['recall_all_events']:.1%}. New problems (no Class I in prior {RECENT_DAYS} days): "
+            f"{e['new_problem_recall']:.1%} of {e['new_problem_events']}")
+    lines += [
+        "",
+        f"Per firm-month ({t['observations']} firm-months, {t['firms']} firms; outcome = Class I recall in the next "
+        f"{HORIZON_DAYS} days, base rate {t['base_rate']:.1%}):",
+        f"  flags {t['flagged_share']:.1%}; precision {t['precision']:.1%} ({t['lift']}x base rate); AUC {t['auc']:.3f} "
+        f"(tuning period {result['tune']['auc']:.3f})",
+        f"  baseline 'any recall in the last year': flags {b['flagged_share']:.1%}, precision {b['precision']:.1%}",
+    ]
+    return "\n".join(lines)
 
 
 def main():

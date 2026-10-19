@@ -100,11 +100,14 @@ def result():
 def test_committed_snapshot_result(result):
     """Regression guard on the committed data. If this fails after a scoring change,
     the change made the product worse at its main job; refreshed data may move it slightly."""
-    test = result["test"]
+    test, event = result["test"], result["events"]["lead_30d"]
     assert test["period"][0] == "2023-01-01"
-    assert test["auc"] >= 0.65
-    assert test["lift"] >= 3.0
-    assert test["recall"] >= 0.35
+    # Headline: distinct Class I events, judged 30 days before FDA published them.
+    assert event["class_i_events"] >= 100
+    assert event["recall"] >= 0.33            # among firms with recall history
+    assert event["recall_all_events"] >= 0.15  # among all serious recalls
+    # Secondary, per firm-month.
+    assert test["auc"] >= 0.65 and test["lift"] >= 3.0
     assert test["flagged_share"] <= 0.15
     print("\n" + backtest.report(result))
 
@@ -112,3 +115,21 @@ def test_committed_snapshot_result(result):
 def test_threshold_comes_from_the_tuning_period_only(result):
     tune_rows = backtest.observations(backtest.build_events(backtest.load()[1]), backtest.months(*backtest.TUNE))
     assert result["threshold"] == backtest.threshold_for_share(tune_rows, backtest.FLAG_SHARE)
+
+
+def test_each_event_is_judged_once_at_a_fixed_lead():
+    """Event-level recall must count an event once, at the last cutoff >= lead days before publication."""
+    history = backtest.Event(date(2023, 1, 10), "Class II")
+    event = backtest.Event(date(2024, 3, 20), "Class I")
+    firms = {"acme": [history, event]}
+    # Cutoff for a 30-day lead: 2024-02-01 (last month start on or before 2024-02-19). History is 2023-01-10:
+    # in the 3-year universe but outside the 365-day scoring window, so the score is 0 -> not flagged.
+    result = backtest.event_level(firms, threshold=0.1, start=date(2024, 1, 1), end=date(2025, 1, 1), lead_days=30)
+    assert (result["class_i_events"], result["events_with_history"], result["flagged"]) == (1, 1, 0)
+    recent = {"acme": [backtest.Event(date(2024, 1, 15), "Class II"), event]}
+    result = backtest.event_level(recent, threshold=0.1, start=date(2024, 1, 1), end=date(2025, 1, 1), lead_days=30)
+    assert result["flagged"] == 1 and result["new_problem_events"] == 1
+    # A recall published after the cutoff (inside the lead) must not count.
+    late = {"acme": [backtest.Event(date(2023, 1, 10), "Class II"), backtest.Event(date(2024, 3, 1), "Class II"), event]}
+    result = backtest.event_level(late, threshold=0.1, start=date(2024, 1, 1), end=date(2025, 1, 1), lead_days=30)
+    assert result["flagged"] == 0

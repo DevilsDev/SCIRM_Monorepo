@@ -611,7 +611,8 @@ async def _match_signals(org_id: str, suppliers: List[Dict[str, Any]], **options
             async with httpx.AsyncClient(timeout=AGENT_TIMEOUT) as client:
                 response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
-        return response.json()["matches"]
+        body = response.json()
+        return {"matches": body["matches"], "totals": body.get("totals", {})}
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.warning("Signal matching unavailable", error=type(exc).__name__)
         raise HTTPException(status_code=503, detail="Public signal matching is unavailable")
@@ -627,9 +628,14 @@ async def supplier_signals(supplier_id: str, since_days: Optional[int] = None, m
                            org_id: str = Depends(tenant_org)):
     """Public records naming this supplier (incidents) or affecting its country (exposures)."""
     supplier = await _get_org_supplier(org_id, supplier_id)
-    matches = await _match_signals(org_id, [supplier], since_days=since_days, min_confidence=min_confidence)
-    return {"supplier_id": supplier["id"], "supplier_name": supplier.get("name"),
-            **_split(matches.get(str(supplier["id"]), []))}
+    result = await _match_signals(org_id, [supplier], since_days=since_days, min_confidence=min_confidence)
+    sid = str(supplier["id"])
+    totals = result["totals"].get(sid, {})
+    parts = _split(result["matches"].get(sid, []))
+    return {"supplier_id": supplier["id"], "supplier_name": supplier.get("name"), **parts,
+            # The lists are capped; these are the full counts.
+            "incident_total": totals.get("incidents", len(parts["incidents"])),
+            "exposure_total": totals.get("exposures", len(parts["exposures"]))}
 
 
 _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
@@ -639,14 +645,16 @@ _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 async def signals_overview(since_days: Optional[int] = 365, org_id: str = Depends(tenant_org)):
     """Per supplier: how many public incidents and exposures, and the worst severity."""
     suppliers, _ = await store.list_suppliers(org_id)
-    matches = await _match_signals(org_id, suppliers, since_days=since_days, limit_per_supplier=500)
+    result = await _match_signals(org_id, suppliers, since_days=since_days, limit_per_supplier=500)
     rows = []
     for s in suppliers:
-        parts = _split(matches.get(str(s["id"]), []))
+        sid = str(s["id"])
+        parts = _split(result["matches"].get(sid, []))
         incidents = parts["incidents"]
+        totals = result["totals"].get(sid, {})
         rows.append({
             "supplier_id": s["id"], "supplier_name": s.get("name"), "country_code": s.get("country_code"),
-            "incidents": len(incidents), "exposures": len(parts["exposures"]),
+            "incidents": totals.get("incidents", len(incidents)), "exposures": totals.get("exposures", len(parts["exposures"])),
             "worst_incident_severity": max((m["signal"]["severity"] for m in incidents),
                                            key=lambda v: _SEVERITY_RANK.get(v, 0), default=None),
             "latest_incident_published_at": max((m["signal"]["published_at"] or "" for m in incidents), default=None),

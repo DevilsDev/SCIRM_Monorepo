@@ -77,8 +77,9 @@ export default function SuppliersPage() {
 
   const handleSupplierClick = async (supplier: Supplier) => {
     setSelectedSupplier(supplier);
-    setScoringLoading(true);
     setRadarData([]);
+    if (supplier.demo_note) return; // real company in the demo: show public records only, no heuristic profile
+    setScoringLoading(true);
     try {
       const result = await api.scoreSupplierRisk(supplier.name, {
         country_code: supplier.country_code,
@@ -196,16 +197,32 @@ export default function SuppliersPage() {
                   className="hover:bg-blue-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
                   onClick={() => handleSupplierClick(s)}
                 >
-                  <td className="px-6 py-4 text-sm font-medium text-blue-600">{s.name}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-blue-600">
+                    {s.name}
+                    {s.demo_note && (
+                      <span title={s.demo_note} className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                        {t('suppliers.demo', 'Demo')}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">{s.supplier_code}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 capitalize">{s.supplier_type.replace('_', ' ')}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{s.country_code} {s.region}</td>
-                  <td className="px-6 py-4"><RiskScoreBar score={s.risk_score} /></td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${tierColors[s.risk_tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
-                      {t(`common.severity${s.risk_tier?.charAt(0).toUpperCase()}${s.risk_tier?.slice(1)}` as any, s.risk_tier)}
-                    </span>
-                  </td>
+                  {s.demo_note ? (
+                    // A real company in the demo tenant: never show a made-up rating of it.
+                    <td colSpan={2} className="px-6 py-4 text-xs text-gray-400" title={s.demo_note}>
+                      {t('suppliers.notScored', 'Not scored (demo supplier); see public records')}
+                    </td>
+                  ) : (
+                    <>
+                      <td className="px-6 py-4"><RiskScoreBar score={s.risk_score} /></td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${tierColors[s.risk_tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
+                          {t(`common.severity${s.risk_tier?.charAt(0).toUpperCase()}${s.risk_tier?.slice(1)}` as any, s.risk_tier)}
+                        </span>
+                      </td>
+                    </>
+                  )}
                   <td className="px-6 py-4">
                     {signalSummary?.[s.id]?.incidents ? (
                       <div className="flex items-center gap-2">
@@ -309,6 +326,8 @@ export default function SuppliersPage() {
               ))}
             </div>
           </>
+        ) : selectedSupplier?.demo_note ? (
+          <p className="text-xs text-gray-400 py-2">{selectedSupplier.demo_note}</p>
         ) : (
           <p className="text-sm text-gray-400 text-center py-8">{t('common.noData', 'No data available')}</p>
         )}

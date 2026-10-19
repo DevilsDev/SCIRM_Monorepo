@@ -17,7 +17,6 @@
     "recall": 0.4222,
     "lift": 4.22,
     "auc": 0.7488,
-    "median_warning_days": 33,
     "new_problem_outcomes": 103,
     "new_problem_recall": 0.2913,
     "baseline_any_recall_last_year": {
@@ -41,13 +40,34 @@
     "recall": 0.4144,
     "lift": 4.22,
     "auc": 0.6947,
-    "median_warning_days": 41,
     "new_problem_outcomes": 160,
     "new_problem_recall": 0.3375,
     "baseline_any_recall_last_year": {
       "flagged_share": 0.4319,
       "precision": 0.0176,
       "recall": 0.7072
+    }
+  },
+  "events": {
+    "lead_30d": {
+      "lead_days": 30,
+      "class_i_events": 145,
+      "events_with_history": 71,
+      "flagged": 29,
+      "recall": 0.4085,
+      "recall_all_events": 0.2,
+      "new_problem_events": 61,
+      "new_problem_recall": 0.3115
+    },
+    "lead_60d": {
+      "lead_days": 60,
+      "class_i_events": 141,
+      "events_with_history": 66,
+      "flagged": 26,
+      "recall": 0.3939,
+      "recall_all_events": 0.1844,
+      "new_problem_events": 57,
+      "new_problem_recall": 0.2982
     }
   }
 }

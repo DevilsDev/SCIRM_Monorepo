@@ -136,7 +136,8 @@ def _as_document(signal: Dict[str, Any]) -> Dict[str, Any]:
 @app.get("/documents")
 async def list_documents(source: Optional[str] = None, limit: int = 50, since_days: int = 30,
                          org_id: str = Depends(tenant_org)):
-    """Recent public signals, newest by publication date first."""
+    """Public signals with activity in the window (publication, or the last FDA update of a
+    still-listed shortage), most recent activity first."""
     since = (datetime.now(timezone.utc).date() - timedelta(days=max(1, since_days))).isoformat()
     signals, total = await store.list_signals(source=source, since=since, limit=max(1, min(limit, 500)))
     return {"documents": [_as_document(s) for s in signals], "total": total}
@@ -166,12 +167,17 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
     countries = index["countries"] if request.include_exposure else []
     candidates = await store.signal_candidates(index["keys"], countries, since=since)
     matches = matching.match_all(request.suppliers, candidates, min_confidence=0.0)
-    out = {}
+    out, totals = {}, {}
     for supplier_id, found in matches.items():
         kept = [m for m in found if m["kind"] == "exposure" or m["confidence"] >= request.min_confidence]
+        incidents = [m for m in kept if m["kind"] == "incident"]
+        exposures = [m for m in kept if m["kind"] == "exposure"]
+        totals[supplier_id] = {"incidents": len(incidents), "exposures": len(exposures)}
+        # The limit applies to each kind, so exposures never crowd out incidents.
         out[supplier_id] = [{**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")},
-                             "signal": _as_document(m["signal"])} for m in kept[: request.limit_per_supplier]]
-    return {"matches": out, "candidates_considered": len(candidates)}
+                             "signal": _as_document(m["signal"])}
+                            for m in incidents[: request.limit_per_supplier] + exposures[: request.limit_per_supplier]]
+    return {"matches": out, "totals": totals, "candidates_considered": len(candidates)}
 
 
 if __name__ == "__main__":

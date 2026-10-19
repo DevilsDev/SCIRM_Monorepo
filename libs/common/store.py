@@ -24,6 +24,14 @@ _ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 _IS_DEV = _ENVIRONMENT in {"development", "dev", "local", "test"}
 
 
+def _activity(signal: Dict[str, Any]) -> str:
+    """Date of a signal's latest public activity. For a recall this is its publication;
+    for a still-listed shortage, the last FDA update. Feeds and "last 12 months"
+    filters use it so an ongoing shortage posted years ago is not hidden. Point-in-time
+    logic (the back-test) uses published_at instead."""
+    return signal.get("updated_at") or signal["published_at"]
+
+
 def _now() -> str:
     return datetime.utcnow().isoformat()
 
@@ -249,18 +257,18 @@ class MemoryStore:
     async def list_signals(self, source: Optional[str] = None, since: Optional[str] = None,
                            limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
         found = [s for s in self.signals.values()
-                 if (source is None or s["source"] == source) and (since is None or s["published_at"] >= since)]
-        found.sort(key=lambda s: (s["published_at"], s["external_id"]), reverse=True)
+                 if (source is None or s["source"] == source) and (since is None or _activity(s) >= since)]
+        found.sort(key=lambda s: (_activity(s), s["external_id"]), reverse=True)
         return found[:limit], len(found)
 
     async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
                                 limit: int = 2000) -> List[Dict[str, Any]]:
         keys_set, countries_set = set(keys), set(countries)
         found = [s for s in self.signals.values()
-                 if (since is None or s["published_at"] >= since)
+                 if (since is None or _activity(s) >= since)
                  and (keys_set & set(s.get("entity_keys") or [])
                       or (s["signal_type"] == "disaster" and countries_set & set(s.get("country_codes") or [])))]
-        found.sort(key=lambda s: s["published_at"], reverse=True)
+        found.sort(key=_activity, reverse=True)
         return found[:limit]
 
     async def record_source_run(self, source: str, status: str, error: Optional[str], seen: int, new: int) -> None:
@@ -756,20 +764,21 @@ class PostgresStore:
     async def list_signals(self, source: Optional[str] = None, since: Optional[str] = None,
                            limit: int = 50) -> Tuple[List[Dict[str, Any]], int]:
         where = ("WHERE (CAST(:source AS text) IS NULL OR source = :source) "
-                 "AND (CAST(:since AS date) IS NULL OR published_at >= CAST(:since AS date))")
+                 "AND (CAST(:since AS date) IS NULL OR COALESCE(updated_at, published_at) >= CAST(:since AS date))")
         params = {"source": source, "since": _day(since), "limit": limit}
         rows = await self._all(None, f"SELECT * FROM public_signals {where} "
-                                     f"ORDER BY published_at DESC, external_id DESC LIMIT :limit", params)
+                                     f"ORDER BY COALESCE(updated_at, published_at) DESC, external_id DESC LIMIT :limit", params)
         total = (await self._all(None, f"SELECT count(*) AS n FROM public_signals {where}", params))[0]["n"]
         return [self._signal_row(r) for r in rows], total
 
     async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
                                 limit: int = 2000) -> List[Dict[str, Any]]:
         rows = await self._all(None, (
-            "SELECT * FROM public_signals WHERE (CAST(:since AS date) IS NULL OR published_at >= CAST(:since AS date)) "
+            "SELECT * FROM public_signals WHERE (CAST(:since AS date) IS NULL "
+            "OR COALESCE(updated_at, published_at) >= CAST(:since AS date)) "
             "AND (entity_keys && CAST(:keys AS text[]) "
             "OR (signal_type = 'disaster' AND country_codes && CAST(:countries AS varchar(3)[]))) "
-            "ORDER BY published_at DESC LIMIT :limit"),
+            "ORDER BY COALESCE(updated_at, published_at) DESC LIMIT :limit"),
             {"keys": list(keys), "countries": list(countries), "since": _day(since), "limit": limit})
         return [self._signal_row(r) for r in rows]
 

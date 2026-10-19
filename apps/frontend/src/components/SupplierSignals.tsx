@@ -30,6 +30,7 @@ function SignalRow({ m }: { m: SignalMatch }) {
         <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{s.source_label}</span>
         <span className="text-[10px] text-gray-400">
           {t('signals.published', 'Published {{date}}', { date: s.published_at })}
+          {s.updated_at && s.updated_at !== s.published_at && ` · ${t('signals.lastUpdated', 'updated {{date}}', { date: s.updated_at })}`}
         </span>
       </div>
       <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{s.title}</p>
@@ -71,7 +72,9 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
     <div className="space-y-4">
       <section>
         <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-          {t('signals.incidents', 'Records naming this supplier')} ({data.incidents.length})
+          {t('signals.incidents', 'Records naming this supplier')} ({data.incidents.length < data.incident_total
+            ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.incidents.length, total: data.incident_total })
+            : data.incident_total})
         </h3>
         {data.incidents.length === 0 ? (
           <p className="text-xs text-gray-400 mt-2">
@@ -86,7 +89,9 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
       {data.exposures.length > 0 && (
         <section>
           <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-            {t('signals.exposures', 'Possible exposure: disasters in its country')} ({data.exposures.length})
+            {t('signals.exposures', 'Possible exposure: disasters in its country')} ({data.exposures.length < data.exposure_total
+              ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.exposures.length, total: data.exposure_total })
+              : data.exposure_total})
           </h3>
           <p className="text-[10px] text-gray-400 mt-1">
             {t('signals.exposureNote', 'These alerts cover the whole country; they do not mean this supplier is affected.')}

@@ -75,6 +75,8 @@ export interface Supplier {
   contact_name?: string;
   contact_email?: string;
   is_active: boolean;
+  /** Set on demo suppliers named after real companies: their score is a placeholder. */
+  demo_note?: string;
 }
 
 export interface Alert {
@@ -148,6 +150,8 @@ export interface SupplierSignals {
   supplier_name: string;
   incidents: SignalMatch[];
   exposures: SignalMatch[];
+  incident_total: number;
+  exposure_total: number;
 }
 
 export interface SupplierSignalSummary {

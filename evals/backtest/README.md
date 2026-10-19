@@ -25,22 +25,31 @@ python evals/backtest/fetch_data.py          # refresh the snapshot from openFDA
 
 ## Baseline (snapshot 2026-10-20, rule `libs/intel/scoring.py`)
 
-| | Result |
-|---|---|
-| Firms / firm-months | 712 / 16,792 |
-| Base rate (Class I recall in next 90 days) | 1.1% |
-| Flagged | 9.8% of firm-months |
-| Precision (flag followed by a Class I recall) | 4.5% (4.2x the base rate) |
-| Recall (Class I recalls flagged beforehand) | 41.4% |
-| Recall on firms with no Class I recall in the prior 180 days | 33.8% |
-| AUC | 0.695 (tuning period: 0.749) |
-| Median warning | 41 days |
-| Baseline "any recall in the last year" | flags 43%, precision 1.8%, recall 71% |
+**Headline: distinct Class I recall events from 2023 on**, each judged once at the
+last monthly cutoff at least 30 days (or 60) before FDA published it.
 
-**What this means:** recall history alone flags 1 firm in 10 and catches about 4 in
-10 serious recalls, roughly six weeks ahead. Most flags (about 95%) are not
-followed by a Class I recall within 90 days. Treat a flag as "watch this
-supplier", not as a prediction. Later signals, such as warning letters, import
-alerts and the AI evidence work, have to beat these numbers to earn their place.
+| | 30 days ahead | 60 days ahead |
+|---|---|---|
+| Class I recall events | 145 | 141 |
+| at firms with any recall history (scorable) | 71 | 66 |
+| flagged, among scorable | **29 (41%)** | 26 (39%) |
+| flagged, among all events | **20%** | 18% |
+| "new problems" (no Class I in prior 180 days), flagged | 31% of 61 | 30% of 57 |
+
+**Per firm-month (secondary):** 712 firms and 16,792 firm-months, with a 1.1% base
+rate of a Class I recall in the next 90 days. The rule flags 9.8% of them at 4.5%
+precision (4.2x the base rate), with AUC 0.70 (0.75 in the tuning period). The
+naive baseline "any recall in the last year" flags 43% at 1.8% precision.
+
+**What this means:**
+- **Coverage is the main limit.** Half of all serious recalls happen at firms with
+  no FDA recall history, so a recall-history signal cannot see them. Flagging
+  those needs other sources (warning letters, import alerts, inspections, news).
+- **Among firms it can see,** it flags about 4 in 10 serious recalls at least a
+  month before FDA publishes them, while flagging 1 firm in 10.
+- **Precision is low.** About 95% of flags are not followed by a Class I recall
+  within 90 days. A flag means "watch this supplier", not a prediction.
+- Later signals and the AI evidence work have to beat these numbers, above all
+  "flagged, among all events", to earn their place.
 
 `results/baseline.json` holds the full result.

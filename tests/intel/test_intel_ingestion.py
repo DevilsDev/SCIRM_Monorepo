@@ -63,7 +63,8 @@ def test_feed_keeps_its_shape_and_adds_provenance(client):
     for d in docs:
         assert {"id", "source", "title", "content", "severity", "region", "ingested_at"} <= set(d)
         assert d["published_at"] and d["source_label"] and d["is_demo"] is False
-    assert [d["published_at"] for d in docs] == sorted((d["published_at"] for d in docs), reverse=True)
+    activity = [d["updated_at"] or d["published_at"] for d in docs]
+    assert activity == sorted(activity, reverse=True), "most recent activity first"
     recalls = client.get("/documents", params={"source": "fda_recalls", "since_days": 3650}, headers=HEADERS).json()
     assert recalls["documents"] and all(d["source"] == "fda_recalls" for d in recalls["documents"])
 
@@ -119,3 +120,25 @@ def test_match_honours_the_confidence_threshold(client):
 def test_endpoints_require_the_tenant_header(client):
     assert client.post("/ingest").status_code == 401
     assert client.post("/match", json={"suppliers": []}).status_code == 401
+
+
+def test_a_long_running_shortage_counts_as_recent_activity():
+    """A shortage first posted in 2012 but still listed (updated this month) is current;
+    filtering it out by its posting date would hide an ongoing problem."""
+    import asyncio
+    from libs.common.store import MemoryStore
+
+    store = MemoryStore(seed_demo=False)
+    old_but_current = {"source": "fda_shortages", "external_id": "x", "signal_type": "shortage", "title": "Shortage: X",
+                       "severity": "high", "entity_names": ["Hospira, Inc."], "entity_keys": ["hospira"],
+                       "country_codes": [], "published_at": "2012-02-22", "updated_at": "2026-10-08"}
+    stale_recall = {**old_but_current, "source": "fda_recalls", "external_id": "y", "signal_type": "recall",
+                    "published_at": "2024-01-01", "updated_at": "2024-01-01"}
+
+    async def check():
+        await store.upsert_signals([old_but_current, stale_recall])
+        recent, _ = await store.list_signals(since="2026-09-20")
+        candidates = await store.signal_candidates(["hospira"], [], since="2026-09-20")
+        return [s["external_id"] for s in recent], [s["external_id"] for s in candidates]
+
+    assert asyncio.run(check()) == (["x"], ["x"])
