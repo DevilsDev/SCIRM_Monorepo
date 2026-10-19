@@ -1,0 +1,117 @@
+{
+ "draw": 1,
+ "recordsTotal": 11,
+ "recordsFiltered": 11,
+ "data": [
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-09-23T04:00:00Z\">09/23/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/jiangmen-shuizirun-sanitary-articles-co-ltd-722974-09232026\">Jiangmen Shuizirun Sanitary Articles Co., Ltd. </a>",
+   "Center for Drug Evaluation and Research (CDER)",
+   "CGMP/Finished Pharmaceuticals/Adulterated",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-10-02T04:00:00Z\">10/02/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/hanlim-pharm-co-ltd-734782-10022026\">Hanlim Pharm Co., Ltd.</a>",
+   "Center for Drug Evaluation and Research (CDER)",
+   "CGMP/Finished Pharmaceuticals/Adulterated",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-10-06T04:00:00Z\">10/06/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/eurofins-sf-analytical-laboratories-inc-736056-10062026\">Eurofins SF Analytical Laboratories, Inc.</a>",
+   "Center for Drug Evaluation and Research (CDER)",
+   "CGMP/Finished Pharmaceuticals/Adulterated",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-08-05T04:00:00Z\">08/05/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/lewis-sausage-company-inc-717432-08052026\">Lewis Sausage Company Inc. </a>",
+   "Center for Veterinary Medicine",
+   "CGMP/Food for Animals/Prepared, Packed or Held Under Insanitary Conditions/Adulterated",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-10-02T04:00:00Z\">10/02/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/originalccouk-739334-10022026\">originalc.co.uk</a>",
+   "Center for Tobacco Products",
+   "Family Smoking Prevention and Tobacco Control Act/Adulterated/Misbranded",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-10-02T04:00:00Z\">10/02/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/john-nicole-santos-dairy-735859-10022026\">John &amp; Nicole Santos Dairy</a>",
+   "Center for Veterinary Medicine",
+   "New Animal Drug/Adulterated",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-10-06T04:00:00Z\">10/06/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/lovelace-biomedical-research-institute-725136-10062026\">Lovelace Biomedical Research Institute</a>",
+   "Center for Drug Evaluation and Research (CDER)",
+   "Good Laboratory Practice (GLP) for Nonclinical Laboratory Studies",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-10-05T04:00:00Z\">10/05/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/silgan-dispensing-systems-734538-10052026\">Silgan Dispensing Systems</a>",
+   "Center for Drug Evaluation and Research (CDER)",
+   "CGMP/Finished Pharmaceuticals/Adulterated/Unapproved New Drug",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-09-29T04:00:00Z\">09/29/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/dreyers-grand-ice-cream-inc-727644-09292026\">Dreyer\u2019s Grand Ice Cream, Inc. </a>",
+   "Human Foods Program",
+   "CGMP/Food/Prepared, Packed or Held Under Insanitary Conditions/Adulterated",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-13T04:00:00Z\">10/13/2026</time>\n",
+   "<time datetime=\"2026-09-09T04:00:00Z\">09/09/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/moda-food-llc-727800-09092026\">Moda Food LLC</a>",
+   "Office of Inspections and Investigations",
+   "Foreign Supplier Verification Program (FSVP)",
+   "",
+   "",
+   ""
+  ],
+  [
+   "<time datetime=\"2026-10-06T04:00:00Z\">10/06/2026</time>\n",
+   "<time datetime=\"2026-09-22T04:00:00Z\">09/22/2026</time>\n",
+   "<a href=\"/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/unilam-co-ltd-738562-09222026\">Unilam Co., LTD </a>",
+   "Center for Devices and Radiological Health",
+   "CGMP/QSR/Medical Devices/Adulterated",
+   "",
+   "",
+   ""
+  ]
+ ]
+}

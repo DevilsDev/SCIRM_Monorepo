@@ -1,73 +1,171 @@
 {
-  "question": "Class I recall published within 90 days of the cutoff, scored only from recalls published before it",
+  "question": "Class I recall published after the cutoff, scored only from events published before it",
   "snapshot_date": "2026-10-20",
-  "threshold": 1.846717,
-  "tune": {
-    "period": [
-      "2021-01-01",
-      "2022-12-01"
-    ],
-    "observations": 10351,
-    "firms": 637,
-    "class_i_outcomes": 135,
-    "base_rate": 0.013,
-    "flagged": 1035,
-    "flagged_share": 0.1,
-    "precision": 0.0551,
-    "recall": 0.4222,
-    "lift": 4.22,
-    "auc": 0.7488,
-    "new_problem_outcomes": 103,
-    "new_problem_recall": 0.2913,
-    "baseline_any_recall_last_year": {
-      "flagged_share": 0.4364,
-      "precision": 0.0239,
-      "recall": 0.8
-    }
-  },
-  "test": {
-    "period": [
-      "2023-01-01",
-      "2026-07-01"
-    ],
-    "observations": 16792,
-    "firms": 712,
-    "class_i_outcomes": 181,
-    "base_rate": 0.0108,
-    "flagged": 1650,
-    "flagged_share": 0.0983,
-    "precision": 0.0455,
-    "recall": 0.4144,
-    "lift": 4.22,
-    "auc": 0.6947,
-    "new_problem_outcomes": 160,
-    "new_problem_recall": 0.3375,
-    "baseline_any_recall_last_year": {
-      "flagged_share": 0.4319,
-      "precision": 0.0176,
-      "recall": 0.7072
-    }
-  },
-  "events": {
-    "lead_30d": {
-      "lead_days": 30,
-      "class_i_events": 145,
-      "events_with_history": 71,
-      "flagged": 29,
-      "recall": 0.4085,
-      "recall_all_events": 0.2,
-      "new_problem_events": 61,
-      "new_problem_recall": 0.3115
+  "variants": {
+    "recalls": {
+      "kinds": [
+        "recall"
+      ],
+      "threshold": 1.90677,
+      "tune": {
+        "period": [
+          "2022-01-01",
+          "2022-12-01"
+        ],
+        "observations": 5137,
+        "firms": 513,
+        "class_i_outcomes": 70,
+        "base_rate": 0.0136,
+        "flagged": 513,
+        "flagged_share": 0.0999,
+        "flags_per_month": 42.8,
+        "precision": 0.0663,
+        "lift": 4.86,
+        "auc": 0.7462
+      },
+      "test": {
+        "period": [
+          "2023-01-01",
+          "2026-07-01"
+        ],
+        "observations": 16792,
+        "firms": 712,
+        "class_i_outcomes": 181,
+        "base_rate": 0.0108,
+        "flagged": 1590,
+        "flagged_share": 0.0947,
+        "flags_per_month": 37.0,
+        "precision": 0.0465,
+        "lift": 4.32,
+        "auc": 0.6947
+      },
+      "events": {
+        "lead_30d": {
+          "lead_days": 30,
+          "class_i_events": 145,
+          "events_with_history": 71,
+          "flagged": 29,
+          "recall": 0.4085,
+          "recall_all_events": 0.2,
+          "new_problem_events": 61,
+          "new_problem_recall": 0.3115
+        },
+        "lead_60d": {
+          "lead_days": 60,
+          "class_i_events": 141,
+          "events_with_history": 66,
+          "flagged": 26,
+          "recall": 0.3939,
+          "recall_all_events": 0.1844,
+          "new_problem_events": 57,
+          "new_problem_recall": 0.2982
+        }
+      },
+      "events_listed_products": {
+        "lead_30d": {
+          "lead_days": 30,
+          "class_i_events": 64,
+          "events_with_history": 49,
+          "flagged": 21,
+          "recall": 0.4286,
+          "recall_all_events": 0.3281,
+          "new_problem_events": 44,
+          "new_problem_recall": 0.3636
+        },
+        "lead_60d": {
+          "lead_days": 60,
+          "class_i_events": 63,
+          "events_with_history": 48,
+          "flagged": 19,
+          "recall": 0.3958,
+          "recall_all_events": 0.3016,
+          "new_problem_events": 43,
+          "new_problem_recall": 0.3256
+        }
+      }
     },
-    "lead_60d": {
-      "lead_days": 60,
-      "class_i_events": 141,
-      "events_with_history": 66,
-      "flagged": 26,
-      "recall": 0.3939,
-      "recall_all_events": 0.1844,
-      "new_problem_events": 57,
-      "new_problem_recall": 0.2982
+    "recalls+letters": {
+      "kinds": [
+        "recall",
+        "warning_letter"
+      ],
+      "threshold": 1.701334,
+      "tune": {
+        "period": [
+          "2022-01-01",
+          "2022-12-01"
+        ],
+        "observations": 7502,
+        "firms": 773,
+        "class_i_outcomes": 72,
+        "base_rate": 0.0096,
+        "flagged": 751,
+        "flagged_share": 0.1001,
+        "flags_per_month": 62.6,
+        "precision": 0.0493,
+        "lift": 5.13,
+        "auc": 0.7296
+      },
+      "test": {
+        "period": [
+          "2023-01-01",
+          "2026-07-01"
+        ],
+        "observations": 36323,
+        "firms": 1725,
+        "class_i_outcomes": 190,
+        "base_rate": 0.0052,
+        "flagged": 2636,
+        "flagged_share": 0.0726,
+        "flags_per_month": 61.3,
+        "precision": 0.0307,
+        "lift": 5.87,
+        "auc": 0.7254
+      },
+      "events": {
+        "lead_30d": {
+          "lead_days": 30,
+          "class_i_events": 145,
+          "events_with_history": 74,
+          "flagged": 31,
+          "recall": 0.4189,
+          "recall_all_events": 0.2138,
+          "new_problem_events": 64,
+          "new_problem_recall": 0.3281
+        },
+        "lead_60d": {
+          "lead_days": 60,
+          "class_i_events": 141,
+          "events_with_history": 69,
+          "flagged": 28,
+          "recall": 0.4058,
+          "recall_all_events": 0.1986,
+          "new_problem_events": 60,
+          "new_problem_recall": 0.3167
+        }
+      },
+      "events_listed_products": {
+        "lead_30d": {
+          "lead_days": 30,
+          "class_i_events": 64,
+          "events_with_history": 50,
+          "flagged": 22,
+          "recall": 0.44,
+          "recall_all_events": 0.3438,
+          "new_problem_events": 45,
+          "new_problem_recall": 0.3778
+        },
+        "lead_60d": {
+          "lead_days": 60,
+          "class_i_events": 63,
+          "events_with_history": 49,
+          "flagged": 20,
+          "recall": 0.4082,
+          "recall_all_events": 0.3175,
+          "new_problem_events": 44,
+          "new_problem_recall": 0.3409
+        }
+      }
     }
   }
 }

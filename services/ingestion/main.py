@@ -25,7 +25,7 @@ from libs.common.monitoring import setup_monitoring
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import tenant_org
-from libs.intel import matching, sources
+from libs.intel import matching, scoring, sources
 
 logger = structlog.get_logger()
 
@@ -153,6 +153,30 @@ async def list_sources(org_id: str = Depends(tenant_org)):
     return {"sources": status, "available": list(sources.SOURCES), "total_documents": total}
 
 
+def _watch(incidents: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """The back-tested recall-history score of a supplier from its matched recalls,
+    one entry per FDA recall event, and whether it reaches the watch threshold."""
+    from datetime import date
+    events: Dict[str, Dict[str, Any]] = {}
+    for m in incidents:
+        signal = m["signal"]
+        # Own-name matches only: the back-test identifies firms by name, so a subsidiary's
+        # recall ("Hospira, a Pfizer company") does not raise the parent's score.
+        if signal.get("signal_type") != "recall" or m["match_type"] == "parent_company":
+            continue
+        raw = signal.get("raw") or {}
+        key = str(raw.get("event_id") or signal.get("external_id"))
+        published = date.fromisoformat(str(signal["published_at"])[:10])
+        entry = events.setdefault(key, {"published": published, "classes": []})
+        entry["published"] = min(entry["published"], published)
+        entry["classes"].append(raw.get("classification"))
+    today = datetime.now(timezone.utc).date()
+    score = scoring.recall_history_score(
+        [{"published": e["published"], "classification": scoring.most_severe(e["classes"])} for e in events.values()],
+        today)
+    return {"recall_score": score, "watch": score >= scoring.WATCH_THRESHOLD and score > 0}
+
+
 @app.post("/match")
 async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_org)):
     """Public signals that concern the given suppliers.
@@ -172,7 +196,7 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
         kept = [m for m in found if m["kind"] == "exposure" or m["confidence"] >= request.min_confidence]
         incidents = [m for m in kept if m["kind"] == "incident"]
         exposures = [m for m in kept if m["kind"] == "exposure"]
-        totals[supplier_id] = {"incidents": len(incidents), "exposures": len(exposures)}
+        totals[supplier_id] = {"incidents": len(incidents), "exposures": len(exposures), **_watch(incidents)}
         # The limit applies to each kind, so exposures never crowd out incidents.
         out[supplier_id] = [{**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")},
                              "signal": _as_document(m["signal"])}

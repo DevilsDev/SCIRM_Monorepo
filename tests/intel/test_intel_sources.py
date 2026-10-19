@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from libs.intel import sources  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tests"))
-from intel_support import fixture, recorded_transport  # noqa: E402
+from intel_support import fixture, fixture_text, recorded_transport  # noqa: E402
 
 
 class TestRecalls:
@@ -101,6 +101,88 @@ class TestGdacs:
         assert all(s["signal_type"] == "disaster" and s["entity_names"] == [] for s in signals)
 
 
+class TestWarningLetters:
+    @pytest.fixture(scope="class")
+    def rows(self):
+        return fixture("warning_letters.json")["data"]
+
+    @pytest.fixture(scope="class")
+    def signals(self, rows):
+        return [s for s in map(sources.parse_warning_letter, rows) if s]
+
+    def test_tobacco_letters_are_left_out(self, rows, signals):
+        tobacco = [r for r in rows if "Tobacco" in r[3]]
+        assert tobacco and len(signals) == len(rows) - len(tobacco)
+        assert not any("Tobacco" in s["raw"]["office"] for s in signals)
+
+    def test_published_is_the_posting_date_not_the_letter_date(self, signals):
+        for s in signals:
+            assert s["published_at"] == s["raw"]["posted_date"]
+            assert s["occurred_at"] <= s["published_at"]
+        assert any(s["occurred_at"] < s["published_at"] for s in signals)
+
+    def test_severity_and_product_area(self, signals):
+        for s in signals:
+            assert s["severity"] == ("high" if "cgmp" in s["raw"]["subject"].lower() else "medium")
+        areas = {s["raw"]["product_area"] for s in signals}
+        assert {"drugs", "food"} <= areas
+
+    def test_company_url_and_keys(self, signals):
+        s = signals[0]
+        assert s["url"].startswith("https://www.fda.gov/") and s["entity_names"] and s["entity_keys"]
+        assert s["signal_type"] == "warning_letter"
+
+    @pytest.mark.parametrize("office, subject, area", [
+        ("Center for Drug Evaluation and Research (CDER)", "CGMP/Finished Pharmaceuticals/Adulterated", "drugs"),
+        ("Division of Pharmaceutical Quality Operations IV", "CGMP/Active Pharmaceutical Ingredient", "drugs"),
+        ("Center for Biologics Evaluation and Research (CBER)", "Deviations", "biologics"),
+        ("Center for Devices and Radiological Health", "CGMP/QSR/Medical Devices", "devices"),
+        ("Human Foods Program", "CGMP/Food/Adulterated", "food"),
+        ("Division of West Coast Imports", "Foreign Supplier Verification Program (FSVP)", "food"),
+        ("Office of Inspections and Investigations", "CGMP/Finished Pharmaceuticals/Adulterated", "drugs"),
+        ("Center for Veterinary Medicine", "New Animal Drug", "veterinary"),
+    ])
+    def test_product_area(self, office, subject, area):
+        assert sources.product_area(office, subject) == area
+
+
+class TestImportAlerts:
+    def test_index_rows(self):
+        rows = sources.parse_import_alert_index(fixture_text("import_alert_list.html"))
+        assert [r["number"] for r in rows] == ["16-02", "66-40", "89-08"]
+        assert rows[1]["page"] == "importalert_189.html" and "GMP" in rows[1]["title"]
+
+    def test_red_list_firms_with_their_own_dates_and_countries(self):
+        signals = sources.parse_import_alert(fixture_text("import_alert_66_40.html"), "66-40",
+                                             "Drugs From Firms Which Have Not Met Drug GMPs", "https://x")
+        firms = {s["entity_names"][0]: s for s in signals}
+        assert "Aruba Aloe Balm N.V." in firms
+        aruba = firms["Aruba Aloe Balm N.V."]
+        assert aruba["country_codes"] == ["AW"] and aruba["published_at"] == "2024-04-15"
+        assert all(s["severity"] == "high" and s["signal_type"] == "import_alert" for s in signals)
+
+    def test_green_list_firms_are_not_listed(self):
+        page = (fixture_text("import_alert_66_40.html").replace("</body></html>", "") +
+                '<a name="GreenFirm"></a><div class="center"><h4>INDIA</h4></div>'
+                '<div class="div-info"><div class="div-name floatleft">Exempt Good Standing Ltd</div>'
+                '<div class="div-name floatright">Date Published : 01/02/2026</div><div class="clear">Mumbai</div>'
+                '</div></body></html>')
+        names = {s["entity_names"][0] for s in sources.parse_import_alert(page, "66-40", "GMP", "u")}
+        assert "Exempt Good Standing Ltd" not in names and "Aruba Aloe Balm N.V." in names
+
+    def test_non_gmp_alerts_are_medium(self):
+        [one] = sources.parse_import_alert(fixture_text("import_alert_66_40.html"), "66-41",
+                                           "Unapproved New Drugs Promoted In The U.S.", "u")[-1:]
+        assert one["severity"] == "medium"
+
+    def test_only_drug_device_and_biologic_alerts_are_fetched(self):
+        async def go():
+            async with httpx.AsyncClient(transport=recorded_transport()) as client:
+                return await sources.fetch_import_alerts(client, date(2020, 1, 1), date(2026, 10, 20))
+        result = asyncio.run(go())
+        assert {s["raw"]["alert"] for s in result.signals} == {"66-40"}  # 16-02 (food) skipped; 89-08 page empty
+
+
 class TestCollect:
     def run(self, transport):
         async def go():
@@ -110,7 +192,7 @@ class TestCollect:
 
     def test_all_sources_ok_on_recorded_data(self):
         results = self.run(recorded_transport())
-        assert set(results) == {"fda_recalls", "fda_shortages", "gdacs"}
+        assert set(results) == set(sources.SOURCES)
         assert all(r.status == "ok" and r.signals for r in results.values())
 
     def test_a_failing_source_is_reported_and_others_still_run(self):

@@ -100,36 +100,74 @@ def result():
 def test_committed_snapshot_result(result):
     """Regression guard on the committed data. If this fails after a scoring change,
     the change made the product worse at its main job; refreshed data may move it slightly."""
-    test, event = result["test"], result["events"]["lead_30d"]
+    baseline = result["variants"]["recalls"]
+    test, event = baseline["test"], baseline["events"]["lead_30d"]
+    listed = baseline["events_listed_products"]["lead_30d"]
     assert test["period"][0] == "2023-01-01"
     # Headline: distinct Class I events, judged 30 days before FDA published them.
     assert event["class_i_events"] >= 100
     assert event["recall"] >= 0.33            # among firms with recall history
     assert event["recall_all_events"] >= 0.15  # among all serious recalls
+    # Supply-chain scope: recalls of FDA-listed drug products.
+    assert listed["class_i_events"] >= 50 and listed["recall_all_events"] >= 0.28
     # Secondary, per firm-month.
     assert test["auc"] >= 0.65 and test["lift"] >= 3.0
     assert test["flagged_share"] <= 0.15
+    # Adding warning letters must not make the headline worse.
+    letters = result["variants"]["recalls+letters"]["events"]["lead_30d"]
+    assert letters["recall_all_events"] >= event["recall_all_events"]
     print("\n" + backtest.report(result))
 
 
 def test_threshold_comes_from_the_tuning_period_only(result):
-    tune_rows = backtest.observations(backtest.build_events(backtest.load()[1]), backtest.months(*backtest.TUNE))
-    assert result["threshold"] == backtest.threshold_for_share(tune_rows, backtest.FLAG_SHARE)
+    _, records, letters = backtest.load()
+    firms = backtest.build_events(records, letters)
+    for name, kinds in backtest.VARIANTS.items():
+        tune_rows = backtest.observations(firms, backtest.months(*backtest.TUNE), kinds)
+        assert result["variants"][name]["threshold"] == backtest.threshold_for_share(tune_rows, backtest.FLAG_SHARE)
+
+
+def test_product_watch_threshold_is_the_back_tested_one(result):
+    """The product flags suppliers with the threshold the back-test measured, not a hand-tuned one."""
+    assert scoring.WATCH_THRESHOLD == result["variants"]["recalls"]["threshold"]
 
 
 def test_each_event_is_judged_once_at_a_fixed_lead():
     """Event-level recall must count an event once, at the last cutoff >= lead days before publication."""
-    history = backtest.Event(date(2023, 1, 10), "Class II")
-    event = backtest.Event(date(2024, 3, 20), "Class I")
+    history = backtest.Event(date(2023, 1, 10), classification="Class II")
+    event = backtest.Event(date(2024, 3, 20), classification="Class I")
     firms = {"acme": [history, event]}
     # Cutoff for a 30-day lead: 2024-02-01 (last month start on or before 2024-02-19). History is 2023-01-10:
     # in the 3-year universe but outside the 365-day scoring window, so the score is 0 -> not flagged.
     result = backtest.event_level(firms, threshold=0.1, start=date(2024, 1, 1), end=date(2025, 1, 1), lead_days=30)
     assert (result["class_i_events"], result["events_with_history"], result["flagged"]) == (1, 1, 0)
-    recent = {"acme": [backtest.Event(date(2024, 1, 15), "Class II"), event]}
+    recent = {"acme": [backtest.Event(date(2024, 1, 15), classification="Class II"), event]}
     result = backtest.event_level(recent, threshold=0.1, start=date(2024, 1, 1), end=date(2025, 1, 1), lead_days=30)
     assert result["flagged"] == 1 and result["new_problem_events"] == 1
     # A recall published after the cutoff (inside the lead) must not count.
-    late = {"acme": [backtest.Event(date(2023, 1, 10), "Class II"), backtest.Event(date(2024, 3, 1), "Class II"), event]}
+    late = {"acme": [backtest.Event(date(2023, 1, 10), classification="Class II"),
+                     backtest.Event(date(2024, 3, 1), classification="Class II"), event]}
     result = backtest.event_level(late, threshold=0.1, start=date(2024, 1, 1), end=date(2025, 1, 1), lead_days=30)
     assert result["flagged"] == 0
+
+
+class TestWarningLetters:
+    def test_letters_count_from_their_posting_date(self):
+        letter = {"company": "Acme Pharma Inc.", "posted_date": "2024-06-15", "letter_issue_date": "2024-05-01",
+                  "severity": "high", "product_area": "drugs"}
+        firms = backtest.build_events([record(report="20230801", event="h")], [letter])
+        [row] = backtest.observations(firms, [T], ("recall", "warning_letter"))
+        [recalls_only] = backtest.observations(firms, [T], ("recall",))
+        assert row["score"] == recalls_only["score"], "a letter posted after the cutoff must not count"
+
+    def test_food_and_device_letters_are_left_out_of_the_drug_back_test(self):
+        food = {"company": "Acme Pharma Inc.", "posted_date": "2024-05-01", "severity": "high", "product_area": "food"}
+        firms = backtest.build_events([record(report="20230801", event="h")], [food])
+        assert [e.kind for e in firms["acme pharma"]] == ["recall"]
+
+    def test_a_letter_alone_puts_a_firm_in_the_letters_universe(self):
+        letter = {"company": "Acme Pharma Inc.", "posted_date": "2024-05-01", "severity": "high", "product_area": "drugs"}
+        firms = backtest.build_events([], [letter])
+        assert backtest.observations(firms, [T], ("recall",)) == []
+        [row] = backtest.observations(firms, [T], ("recall", "warning_letter"))
+        assert row["score"] > 0

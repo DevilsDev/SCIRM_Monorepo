@@ -161,6 +161,9 @@ export interface SupplierSignalSummary {
   exposures: number;
   worst_incident_severity: string | null;
   latest_incident_published_at: string | null;
+  /** Back-tested recall-history flag (evals/backtest): "watch this supplier", not a prediction. */
+  watch: boolean;
+  recall_score: number | null;
 }
 
 export interface PublicSourceStatus {

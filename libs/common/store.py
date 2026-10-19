@@ -732,6 +732,8 @@ class PostgresStore:
                 out[k] = out[k].isoformat()
         for k in ("entity_names", "entity_keys", "country_codes"):
             out[k] = list(out.get(k) or [])
+        if isinstance(out.get("raw"), str):  # asyncpg returns jsonb as text
+            out["raw"] = json.loads(out["raw"])
         return out
 
     async def upsert_signals(self, signals: List[Dict[str, Any]]) -> int:

@@ -97,7 +97,7 @@ def parse_recall(r: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         occurred_at=_ymd(r.get("recall_initiation_date")) or published,
         published_at=published,
         url=f'{OPENFDA}/drug/enforcement.json?search=recall_number:"{number}"',
-        raw={k: r.get(k) for k in ("recall_number", "classification", "recalling_firm", "reason_for_recall",
+        raw={k: r.get(k) for k in ("recall_number", "event_id", "classification", "recalling_firm", "reason_for_recall",
                                    "status", "product_description", "product_quantity", "country",
                                    "recall_initiation_date", "center_classification_date", "report_date",
                                    "voluntary_mandated", "distribution_pattern")},
@@ -212,6 +212,198 @@ async def fetch_gdacs(client: httpx.AsyncClient, since: date, until: date) -> So
     return SourceResult("gdacs", [s for s in map(parse_gdacs, features) if s])
 
 
+# --- FDA warning letters ----------------------------------------------------
+
+WARNING_LETTERS = "https://www.fda.gov/datatables/views/ajax"
+WARNING_LETTERS_VIEW = {
+    "view_display_id": "warning_letter_solr_block", "view_name": "warning_letter_solr_index",
+    "view_path": "/inspections-compliance-enforcement-and-criminal-investigations/compliance-actions-and-activities/warning-letters",
+    "search_api_fulltext": "", "field_letter_issue_datetime": "All", "draw": "1",
+}
+# Not relevant to drug, biologic or device supply chains.
+WARNING_LETTER_EXCLUDED_OFFICES = ("Center for Tobacco Products",)
+
+
+def _text(html: str) -> str:
+    import html as html_lib
+    return re.sub(r"\s+", " ", html_lib.unescape(re.sub(r"<[^>]+>", " ", html or ""))).strip()
+
+
+def _time_attr(html: str) -> Optional[str]:
+    found = re.search(r'datetime="(\d{4}-\d{2}-\d{2})', html or "")
+    return found.group(1) if found else None
+
+
+def product_area(office: str, subject: str) -> str:
+    """drugs | biologics | devices | food | veterinary | other, from the issuing office,
+    or from the subject for import and field offices that cover several areas."""
+    o, s = office.lower(), subject.lower()
+    if "drug evaluation" in o or "pharmaceutical quality" in o:
+        return "drugs"
+    if "biologics" in o:
+        return "biologics"
+    if "devices" in o:
+        return "devices"
+    if "veterinary" in o:
+        return "veterinary"
+    if "food" in o:
+        return "food"
+    if any(k in s for k in ("pharmaceutical", "drug", "compounding", "api ")):
+        return "drugs"
+    if any(k in s for k in ("device", "quality system", "ide)", "(ide")):
+        return "devices"
+    if any(k in s for k in ("fsvp", "haccp", "food", "seafood", "juice", "dietary")):
+        return "food"
+    return "other"
+
+
+def parse_warning_letter(row: List[str]) -> Optional[Dict[str, Any]]:
+    """One row of FDA's warning-letter index: [posted, letter issued, company link, office, subject, ...]."""
+    if len(row) < 5:
+        return None
+    posted, issued = _time_attr(row[0]), _time_attr(row[1])
+    link = re.search(r'href="([^"]+)"', row[2] or "")
+    company, office, subject = _text(row[2]), _text(row[3]), _text(row[4])
+    if not (posted and company and link):
+        return None
+    if any(office.startswith(x) for x in WARNING_LETTER_EXCLUDED_OFFICES):
+        return None
+    url = link.group(1) if link.group(1).startswith("http") else f"https://www.fda.gov{link.group(1)}"
+    return _signal(
+        source="fda_warning_letters", external_id=url.rstrip("/").rsplit("/", 1)[-1], signal_type="warning_letter",
+        title=f"FDA warning letter: {subject or 'see letter'}",
+        summary=f"{company}: warning letter from {office}" + (f" dated {issued}" if issued else "") + ".",
+        # A manufacturing-practice (CGMP) finding bears directly on supply; marketing violations less so.
+        severity="high" if "cgmp" in subject.lower() else "medium",
+        entity_names=[company], country_codes=[],
+        # FDA posts letters weeks after issuing them; the posting date is when it became public.
+        occurred_at=issued or posted, published_at=posted,
+        url=url,
+        raw={"company": company, "office": office, "subject": subject, "letter_issue_date": issued, "posted_date": posted,
+             "product_area": product_area(office, subject)},
+    )
+
+
+async def fetch_warning_letters(client: httpx.AsyncClient, since: date, until: date) -> SourceResult:
+    signals: List[Dict[str, Any]] = []
+    start, page = 0, 500
+    while True:
+        response = await client.get(WARNING_LETTERS, params={**WARNING_LETTERS_VIEW, "start": start, "length": page},
+                                    headers={"X-Requested-With": "XMLHttpRequest"})
+        response.raise_for_status()
+        body = response.json()
+        rows = body.get("data") or []
+        parsed = [s for s in map(parse_warning_letter, rows) if s]
+        signals.extend(s for s in parsed if s["published_at"] >= since.isoformat())
+        oldest = min((_time_attr(r[0]) or "9999" for r in rows), default="0000")
+        start += len(rows)
+        # Newest first: stop once a page reaches back past the window.
+        if not rows or oldest < since.isoformat() or start >= int(body.get("recordsTotal") or 0):
+            return SourceResult("fda_warning_letters", signals)
+
+
+# --- FDA import alerts (detention without physical examination) -------------
+
+IMPORT_ALERTS = "https://www.accessdata.fda.gov/cms_ia/"
+# 57: biologics, 66: drugs, 89: devices.
+IMPORT_ALERT_SERIES = ("57-", "66-", "89-")
+IMPORT_ALERT_COUNTRIES = {**COUNTRY_CODES, "korea, republic of (south)": "KR", "china (mainland)": "CN",
+                          "united states of america": "US", "hong kong": "HK", "russia": "RU", "russian federation": "RU",
+                          "united arab emirates": "AE", "egypt": "EG", "sri lanka": "LK", "nepal": "NP", "jordan": "JO",
+                          "argentina": "AR", "colombia": "CO", "chile": "CL", "peru": "PE", "south africa": "ZA",
+                          "nigeria": "NG", "kenya": "KE", "armenia": "AM", "ukraine": "UA", "romania": "RO",
+                          "bulgaria": "BG", "lithuania": "LT", "latvia": "LV", "estonia": "EE", "slovakia": "SK",
+                          "serbia": "RS", "new zealand": "NZ", "philippines": "PH", "dominican republic": "DO",
+                          "guatemala": "GT", "costa rica": "CR", "el salvador": "SV", "honduras": "HN", "aruba": "AW",
+                          "lebanon": "LB", "saudi arabia": "SA", "iran": "IR", "luxembourg": "LU", "cyprus": "CY",
+                          "malta": "MT", "iceland": "IS", "bahamas": "BS", "jamaica": "JM", "ecuador": "EC",
+                          "uruguay": "UY", "venezuela": "VE", "ghana": "GH", "morocco": "MA", "tunisia": "TN",
+                          "hong kong sar": "HK", "dominican republic (the)": "DO", "ivory coast": "CI",
+                          "british virgin islands": "VG", "vanuatu": "VU", "panama": "PA", "trinidad & tobago": "TT",
+                          "curacao": "CW", "dominica": "DM", "saint lucia": "LC", "guyana": "GY", "togo": "TG",
+                          "gibraltar": "GI", "azerbaijan": "AZ", "belize": "BZ", "macau": "MO", "macao": "MO",
+                          "netherlands (the)": "NL", "philippines (the)": "PH", "united kingdom of great britain and "
+                          "northern ireland (the)": "GB", "united states of america (the)": "US", "georgia": "GE",
+                          "kazakhstan": "KZ", "uzbekistan": "UZ", "belarus": "BY", "moldova": "MD", "albania": "AL",
+                          "north macedonia": "MK", "bosnia and herzegovina": "BA", "montenegro": "ME", "qatar": "QA",
+                          "kuwait": "KW", "bahrain": "BH", "oman": "OM", "ethiopia": "ET", "uganda": "UG",
+                          "tanzania": "TZ", "cameroon": "CM", "senegal": "SN", "haiti": "HT", "barbados": "BB",
+                          "nicaragua": "NI", "paraguay": "PY", "bolivia": "BO", "cambodia": "KH", "laos": "LA",
+                          "myanmar": "MM", "mongolia": "MN", "fiji": "FJ", "samoa": "WS", "tonga": "TO"}
+
+
+def parse_import_alert_index(html: str) -> List[Dict[str, str]]:
+    """Rows of FDA's import alert list: number, type, last update, page and title."""
+    rows = []
+    for number, kind, updated, page, title in re.findall(
+            r"<tr>\s*<td>([^<]+)</td>\s*<td>([^<]*)</td>\s*<td>([^<]*)</td>\s*<td><a href=\"(importalert_\d+\.html)\">(.*?)</a>",
+            html, flags=re.S):
+        rows.append({"number": number.strip(), "type": kind.strip(), "updated": updated.strip(), "page": page,
+                     "title": _text(title).strip('"“”� ')})
+    return rows
+
+
+def parse_import_alert(html: str, number: str, title: str, url: str) -> List[Dict[str, Any]]:
+    """Firms on an alert's Red List, each published on its own date.
+
+    Only the Red List counts: firms there are detained at the border. Green List
+    firms are exempt (in good standing) and are skipped."""
+    start = html.find('name="RedFirm"')
+    if start < 0:
+        return []
+    end = len(html)
+    # Section anchors only: the phrase "Green List" also appears in alert texts.
+    for marker in ('name="GreenFirm"', 'name="YellowFirm"'):
+        pos = html.find(marker, start)
+        if pos >= 0:
+            end = min(end, pos)
+    section = html[start:end]
+    signals = []
+    country = None
+    for match in re.finditer(r'<div class="center"><h4>([^<]+)</h4>|<div class="div-info">(.*?)</div>\s*</div>',
+                             section, flags=re.S):
+        if match.group(1):
+            country = _text(match.group(1))
+            continue
+        block = match.group(2)
+        name = re.search(r'<div class="div-name floatleft">(.*?)</div>', block, flags=re.S)
+        published = re.search(r"Date Published\s*:\s*(\d{2}/\d{2}/\d{4})", block)
+        if not (name and published):
+            continue
+        firm = _text(name.group(1))
+        code = IMPORT_ALERT_COUNTRIES.get((country or "").lower())
+        published_at = _mdy(published.group(1))
+        signals.append(_signal(
+            source="fda_import_alerts",
+            external_id=hashlib.sha1(f"{number}|{firm}|{country}".lower().encode()).hexdigest()[:20],
+            signal_type="import_alert",
+            title=f"FDA import alert {number}: {title}"[:300],
+            summary=f"{firm} ({country.title() if country else 'country not stated'}) is on the Red List of import "
+                    f"alert {number}: its products may be detained at the US border without examination.",
+            # Manufacturing-practice (GMP) alerts bear on a firm's ability to supply; others
+            # (e.g. unapproved products marketed in the US) are a weaker supplier signal.
+            severity="high" if "gmp" in title.lower() or "good manufacturing" in title.lower() else "medium",
+            entity_names=[firm], country_codes=[code] if code else [],
+            occurred_at=published_at, published_at=published_at,
+            url=url, raw={"alert": number, "alert_title": title, "firm": firm, "country": country},
+        ))
+    return signals
+
+
+async def fetch_import_alerts(client: httpx.AsyncClient, since: date, until: date) -> SourceResult:
+    # A current snapshot: firms leave the Red List when FDA removes them, so every run reads it whole.
+    index = await client.get(f"{IMPORT_ALERTS}ialist.html")
+    index.raise_for_status()
+    alerts = [a for a in parse_import_alert_index(index.text) if a["number"].startswith(IMPORT_ALERT_SERIES)]
+    signals: List[Dict[str, Any]] = []
+    for alert in alerts:
+        url = f"{IMPORT_ALERTS}{alert['page']}"
+        page = await client.get(url)
+        page.raise_for_status()
+        signals.extend(parse_import_alert(page.text, alert["number"], alert["title"], url))
+    return SourceResult("fda_import_alerts", signals)
+
+
 # --- shared -------------------------------------------------------------------
 
 async def _openfda_all(client: httpx.AsyncClient, path: str, search: str) -> List[Dict[str, Any]]:
@@ -237,9 +429,12 @@ async def _openfda_all(client: httpx.AsyncClient, path: str, search: str) -> Lis
 SOURCES: Dict[str, Callable] = {
     "fda_recalls": fetch_recalls,
     "fda_shortages": fetch_shortages,
+    "fda_warning_letters": fetch_warning_letters,
+    "fda_import_alerts": fetch_import_alerts,
     "gdacs": fetch_gdacs,
 }
 SOURCE_LABELS = {"fda_recalls": "FDA drug recalls", "fda_shortages": "FDA drug shortages",
+                 "fda_warning_letters": "FDA warning letters", "fda_import_alerts": "FDA import alerts",
                  "gdacs": "GDACS disaster alerts"}
 
 

@@ -228,6 +228,14 @@ export default function SuppliersPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{signalSummary[s.id].incidents}</span>
                         {signalSummary[s.id].worst_incident_severity && <SeverityBadge severity={signalSummary[s.id].worst_incident_severity!} />}
+                        {signalSummary[s.id].watch && (
+                          <span
+                            className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800"
+                            title={t('suppliers.watchHint', 'Recent FDA recalls at a level that, in back-tests on 2023-2026 data, came before about 1 in 3 serious recalls of listed drugs by 30+ days. Most watched suppliers do not go on to have one.')}
+                          >
+                            {t('suppliers.watch', 'Watch')}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <span className="text-sm text-gray-400">{signalSummary ? '0' : '-'}</span>

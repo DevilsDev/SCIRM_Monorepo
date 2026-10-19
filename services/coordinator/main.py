@@ -655,6 +655,8 @@ async def signals_overview(since_days: Optional[int] = 365, org_id: str = Depend
         rows.append({
             "supplier_id": s["id"], "supplier_name": s.get("name"), "country_code": s.get("country_code"),
             "incidents": totals.get("incidents", len(incidents)), "exposures": totals.get("exposures", len(parts["exposures"])),
+            # Back-tested recall-history flag (evals/backtest): "watch", not a prediction.
+            "watch": bool(totals.get("watch")), "recall_score": totals.get("recall_score"),
             "worst_incident_severity": max((m["signal"]["severity"] for m in incidents),
                                            key=lambda v: _SEVERITY_RANK.get(v, 0), default=None),
             "latest_incident_published_at": max((m["signal"]["published_at"] or "" for m in incidents), default=None),

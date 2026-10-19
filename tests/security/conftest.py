@@ -94,6 +94,7 @@ def apps():
     sys.path.insert(0, str(ROOT / "tests"))
     from intel_support import recorded_transport
     ingestion.http_client_factory = lambda: real_client(transport=recorded_transport())
+    ingestion.LOOKBACK_DAYS = 36500  # recorded payloads have fixed dates
 
     return {"gateway": gateway, "coordinator": coordinator, "ingestion": ingestion, "router": router}
 

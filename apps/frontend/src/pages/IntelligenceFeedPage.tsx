@@ -6,6 +6,8 @@ import SeverityBadge from '../components/SeverityBadge';
 const SOURCE_COLORS: Record<string, string> = {
   fda_recalls: 'bg-red-100 text-red-800',
   fda_shortages: 'bg-purple-100 text-purple-800',
+  fda_warning_letters: 'bg-orange-100 text-orange-800',
+  fda_import_alerts: 'bg-amber-100 text-amber-800',
   gdacs: 'bg-cyan-100 text-cyan-800',
 };
 
@@ -59,7 +61,7 @@ export default function IntelligenceFeedPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('intelligence.title', 'Intelligence Feed')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('intelligence.subtitlePublic', 'Public records from the FDA (drug recalls and shortages) and GDACS (disaster alerts), newest first')}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('intelligence.subtitlePublic', 'Public records from the FDA (recalls, shortages, warning letters, import alerts) and GDACS (disaster alerts), most recent first')}</p>
         </div>
         <button
           onClick={handleIngest}

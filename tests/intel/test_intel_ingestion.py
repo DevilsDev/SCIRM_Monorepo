@@ -39,6 +39,8 @@ def service(monkeypatch):
     module = load_ingestion()
     transport = {"value": recorded_transport()}
     monkeypatch.setattr(module, "http_client_factory", lambda: httpx.AsyncClient(transport=transport["value"]))
+    # Recorded payloads have fixed dates; a long window keeps them in range whenever the tests run.
+    monkeypatch.setattr(module, "LOOKBACK_DAYS", 36500)
     module.set_transport = lambda t: transport.__setitem__("value", t)
     return module
 
@@ -70,7 +72,8 @@ def test_feed_keeps_its_shape_and_adds_provenance(client):
 
 
 def test_failed_sources_are_reported_and_nothing_is_invented(client, service):
-    service.set_transport(recorded_transport({"api.fda.gov": 503, "www.gdacs.org": 503}))
+    service.set_transport(recorded_transport({h: 503 for h in ("api.fda.gov", "www.gdacs.org", "www.fda.gov",
+                                                               "www.accessdata.fda.gov")}))
     result = client.post("/ingest", headers=HEADERS).json()
     assert result["documents_ingested"] == 0
     status = client.get("/sources", headers=HEADERS).json()
@@ -142,3 +145,33 @@ def test_a_long_running_shortage_counts_as_recent_activity():
         return [s["external_id"] for s in recent], [s["external_id"] for s in candidates]
 
     assert asyncio.run(check()) == (["x"], ["x"])
+
+
+class TestWatch:
+    """The supplier watch flag is the back-tested recall-history rule (libs/intel/scoring.py)."""
+
+    def recall(self, published, cls, event, match_type="name_exact", number=None):
+        return {"match_type": match_type, "kind": "incident", "confidence": 0.95,
+                "signal": {"signal_type": "recall", "published_at": published, "external_id": number or event,
+                           "raw": {"event_id": event, "classification": cls}}}
+
+    def test_one_event_counts_once_however_many_products(self, service):
+        from datetime import date, timedelta
+        recent = (date.today() - timedelta(days=20)).isoformat()
+        batch = [self.recall(recent, "Class II", "e1", number=f"D-{i}") for i in range(12)]
+        assert service._watch(batch)["recall_score"] == service._watch(batch[:1])["recall_score"]
+
+    def test_threshold_and_parent_company_matches(self, service):
+        from datetime import date, timedelta
+        recent = (date.today() - timedelta(days=20)).isoformat()
+        serious = [self.recall(recent, "Class I", "e1")]
+        assert service._watch(serious)["watch"] is True
+        assert service._watch([self.recall(recent, "Class III", "e2")])["watch"] is False
+        assert service._watch([self.recall(recent, "Class I", "e3", match_type="parent_company")]) == \
+            {"recall_score": 0.0, "watch": False}
+
+    def test_other_record_types_do_not_score(self, service):
+        from datetime import date
+        letter = {"match_type": "name_exact", "kind": "incident", "confidence": 0.95,
+                  "signal": {"signal_type": "warning_letter", "published_at": date.today().isoformat(), "raw": {}}}
+        assert service._watch([letter])["recall_score"] == 0.0
