@@ -9,7 +9,14 @@ import uuid
 import jwt as pyjwt
 import pytest
 
-from conftest import ORG_1, ORG_2, bearer
+# Defined here, not imported from conftest: with several test folders collected
+# together, "conftest" can resolve to another folder's module.
+ORG_1 = "a0000000-0000-0000-0000-000000000001"
+ORG_2 = "a0000000-0000-0000-0000-000000000002"
+
+
+def bearer(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
 
 
 def claims(tokens):
