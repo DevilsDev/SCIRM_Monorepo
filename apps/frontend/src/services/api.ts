@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isAuthRequest, Session } from './session';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -10,11 +11,18 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Tokens and 401 handling (see services/session.ts). The refresh call uses a bare
+// axios request so it never passes back through these interceptors.
+export const session = new Session(window.localStorage, async (refreshToken) => {
+  const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, { refresh_token: refreshToken },
+    { timeout: 15000 });
+  return response.data.access_token as string;
+});
+
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
+    const token = session.accessToken;
+    if (token && !isAuthRequest(config.url)) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -22,17 +30,29 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && original && !isAuthRequest(original.url) && !original._retried) {
+      const fresh = await session.handleUnauthorized();
+      if (fresh) {
+        original._retried = true;
+        original.headers.Authorization = `Bearer ${fresh}`;
+        return apiClient(original);
+      }
     }
     return Promise.reject(error);
   }
 );
+
+export interface LoginResponse {
+  access_token?: string;
+  refresh_token?: string;
+  token_type: string;
+  mfa_required?: boolean;
+  mfa_token?: string;
+}
 
 export interface Risk {
   id: string;
@@ -209,8 +229,14 @@ export interface PublicSourceStatus {
 
 export const api = {
   // Authentication
-  async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
+  /** Either tokens, or (with MFA on) mfa_required plus a short-lived mfa_token for verifyMfa. */
+  async login(email: string, password: string): Promise<LoginResponse> {
     const response = await apiClient.post('/api/v1/auth/login', { email, password });
+    return response.data;
+  },
+
+  async verifyMfa(mfaToken: string, totpCode: string): Promise<LoginResponse> {
+    const response = await apiClient.post('/api/v1/auth/mfa/verify', { mfa_token: mfaToken, totp_code: totpCode });
     return response.data;
   },
 
@@ -472,7 +498,7 @@ export const api = {
 
     // The gateway requires the access token as the first message (never in the URL).
     ws.onopen = () => {
-      ws.send(JSON.stringify({ token: localStorage.getItem('auth_token') || '' }));
+      ws.send(JSON.stringify({ token: session.accessToken || '' }));
     };
 
     ws.onmessage = (event) => {
