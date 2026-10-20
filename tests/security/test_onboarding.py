@@ -147,3 +147,19 @@ class TestMembers:
         stored = asyncio.run(apps["gateway"].audit_store.find_login_user(email))
         assert stored and stored["organization_id"] not in (ORG_1, ORG_2) and stored["is_active"]
         assert login(email, "a-good-password").status_code == 200
+
+
+def test_access_tokens_are_short_lived_and_refresh_tokens_long(sarah):
+    """Deactivation takes effect at the next refresh, so access tokens must be short-lived."""
+    access = pyjwt.decode(sarah["access_token"], options={"verify_signature": False})
+    refresh = pyjwt.decode(sarah["refresh_token"], options={"verify_signature": False})
+    assert access["exp"] - access["iat"] == 60 * 60
+    assert refresh["exp"] - refresh["iat"] == 30 * 24 * 60 * 60
+
+
+def test_demo_accounts_are_listed_read_only_in_development(client, sarah, lisa):
+    org1 = client.get("/api/v1/org/members", headers=bearer(sarah["access_token"])).json()["members"]
+    demo = [m for m in org1 if m.get("demo")]
+    assert {m["email"] for m in demo} == {"sarah.chen@pharmacorp.com", "marcus.rodriguez@pharmacorp.com"}
+    org2 = client.get("/api/v1/org/members", headers=bearer(lisa["access_token"])).json()["members"]
+    assert "sarah.chen@pharmacorp.com" not in {m["email"] for m in org2}

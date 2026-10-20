@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/Toast';
 import Toggle from '../components/Toggle';
 import { Slider } from '../components/ui';
+import TeamSettings from '../components/TeamSettings';
 
 function AlertThresholds() {
   const { t } = useTranslation();
@@ -168,6 +169,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <TeamSettings />
 
       {/* Appearance */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

@@ -230,6 +230,38 @@ export interface ScanResult {
   html: string;
 }
 
+export type Role = 'admin' | 'analyst' | 'viewer' | 'auditor';
+export const ROLES: Role[] = ['admin', 'analyst', 'viewer', 'auditor'];
+
+export interface TeamMember {
+  id: string;
+  email: string;
+  name: string;
+  roles: Role[];
+  is_active: boolean;
+  mfa_enabled: boolean;
+  created_at: string | null;
+  last_login_at: string | null;
+  /** Built-in development account: listed, not editable. */
+  demo?: boolean;
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  roles: Role[];
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  created_at: string;
+  expires_at: string;
+}
+
+export interface InvitationPreview {
+  organization_name: string;
+  email: string;
+  roles: Role[];
+  expires_at: string;
+}
+
 export interface PublicSourceStatus {
   label: string;
   status: 'ok' | 'error' | 'rate_limited' | 'never_run';
@@ -254,6 +286,36 @@ export const api = {
   // Supplier scan: the list is processed in memory and not stored.
   async scanSuppliers(csv: string, preparedFor = ''): Promise<ScanResult> {
     return (await apiClient.post('/api/v1/scan', { csv, prepared_for: preparedFor }, { timeout: 120000 })).data;
+  },
+
+  // Team (Settings > Team)
+  async listMembers(): Promise<{ members: TeamMember[] }> {
+    return (await apiClient.get('/api/v1/org/members')).data;
+  },
+
+  async updateMember(id: string, changes: { roles?: Role[]; is_active?: boolean }): Promise<TeamMember> {
+    return (await apiClient.patch(`/api/v1/org/members/${encodeURIComponent(id)}`, changes)).data;
+  },
+
+  async listInvitations(): Promise<{ invitations: Invitation[] }> {
+    return (await apiClient.get('/api/v1/org/invitations')).data;
+  },
+
+  async createInvitation(email: string, roles: Role[]): Promise<{ invitation: Invitation; invite_url: string; note: string }> {
+    return (await apiClient.post('/api/v1/org/invitations', { email, roles })).data;
+  },
+
+  async revokeInvitation(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/org/invitations/${encodeURIComponent(id)}`);
+  },
+
+  // Invitations (public). The token goes in the body, never the URL path.
+  async lookupInvitation(token: string): Promise<InvitationPreview> {
+    return (await apiClient.post('/api/v1/invitations/lookup', { token })).data;
+  },
+
+  async acceptInvitation(token: string, name: string, password: string): Promise<LoginResponse> {
+    return (await apiClient.post('/api/v1/invitations/accept', { token, name, password })).data;
   },
 
   // Registration

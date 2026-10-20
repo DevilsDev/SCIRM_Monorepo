@@ -394,7 +394,12 @@ def _password_ok(password: str) -> None:
 @app.get("/api/v1/org/members")
 async def list_members(token: str = Depends(security)):
     user = await verify_token(token.credentials)
-    return {"members": await audit_store.list_members(user.organization_id)}
+    members = await audit_store.list_members(user.organization_id)
+    # Development only: the built-in demo accounts are not stored, so list them read-only.
+    demo = [{"id": info["id"], "email": email, "name": info["name"], "roles": info["roles"], "is_active": True,
+             "mfa_enabled": bool(info.get("mfa_secret")), "created_at": None, "last_login_at": None, "demo": True}
+            for email, info in DEV_USERS.items() if info["org_id"] == user.organization_id]
+    return {"members": demo + members}
 
 
 @app.patch("/api/v1/org/members/{member_id}")

@@ -47,7 +47,11 @@ elif len(_default_secret) < 32 and not IS_DEV:
 
 SECRET_KEY = _default_secret
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+# Short-lived access tokens: the frontend refreshes them silently with the 30-day refresh
+# token, and refresh rejects deactivated accounts, so deactivation takes effect within this
+# window. JWT_EXPIRATION_HOURS is still honoured if set explicitly.
+ACCESS_TOKEN_EXPIRE_MINUTES = (int(os.environ["JWT_EXPIRATION_HOURS"]) * 60 if os.getenv("JWT_EXPIRATION_HOURS")
+                               else int(os.getenv("JWT_EXPIRATION_MINUTES", "60")))
 MFA_ENABLED = os.getenv("MFA_ENABLED", "false").lower() == "true"
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "")
 
@@ -99,7 +103,7 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     to_encode.setdefault("type", TOKEN_TYPE_ACCESS)
-    expire = datetime.utcnow() + (expires_delta or timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS))
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

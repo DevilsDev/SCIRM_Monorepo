@@ -19,7 +19,8 @@ export interface TokenStorage {
 
 const ACCESS_KEY = 'auth_token';
 const REFRESH_KEY = 'refresh_token';
-const AUTH_PATHS = ['/api/v1/auth/login', '/api/v1/auth/signup', '/api/v1/auth/mfa/verify', '/api/v1/auth/refresh'];
+const AUTH_PATHS = ['/api/v1/auth/login', '/api/v1/auth/signup', '/api/v1/auth/mfa/verify', '/api/v1/auth/refresh',
+  '/api/v1/invitations/lookup', '/api/v1/invitations/accept'];
 
 export interface JwtUser {
   id: string;
