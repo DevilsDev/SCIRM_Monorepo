@@ -67,6 +67,22 @@ one record into a false statement, for example reordering who did what to whom
 using only words from that record. That needs an LLM reviewer, planned for when a
 model is configured.
 
+### Set C: the yardstick for vector search
+
+**Set C** (`questions_c.json`, 45 questions, 31 suppliers not in A or B) was written
+before vector search was tuned and leans on paraphrase keyword search can't
+handle: lay descriptions of defects ("bits floating in it"), FDA actions described
+indirectly ("stuck at US customs"), and British spelling.
+
+**Keyword-only baseline on set C (2026-10-20, PostgreSQL):**
+- recall@10 **0.62**
+- MRR **0.58**
+- "Nothing matches" correct: 8 of 10
+
+Hybrid search (`--vectors`, once Bedrock access exists) must beat this, without
+tuning on set C. Calibrate `EMBED_MAX_DISTANCE` on A and B. Nobody has inspected
+set C's misses, and nobody should until the vector result is recorded.
+
 ## Known weaknesses (from set B, not fixed, so B stays honest)
 
 - **Vocabulary gaps:** "a different tablet found in the bottle" is read as a
