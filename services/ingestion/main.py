@@ -172,6 +172,21 @@ async def trigger_ingestion(org_id: str = Depends(tenant_org)):
     return await run_ingestion()
 
 
+def _match_entry(m: Dict[str, Any]) -> Dict[str, Any]:
+    return {**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")}, "signal": _as_document(m["signal"])}
+
+
+def _event_entry(group: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """One event: its most severe record, plus every record (product) it covers."""
+    entry = _match_entry(group[0])
+    if len(group) > 1:
+        entry["records"] = [{"id": m["signal"].get("id"), "external_id": m["signal"].get("external_id"),
+                             "product": str((m["signal"].get("raw") or {}).get("product_description") or "")[:200],
+                             "severity": m["signal"]["severity"], "url": m["signal"].get("url")}
+                            for m in group]
+    return entry
+
+
 def _as_document(signal: Dict[str, Any]) -> Dict[str, Any]:
     """A signal in the shape the intelligence feed has always returned, plus provenance."""
     return {
@@ -240,11 +255,14 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
         kept = [m for m in found if m["kind"] == "exposure" or m["confidence"] >= request.min_confidence]
         incidents = [m for m in kept if m["kind"] == "incident"]
         exposures = [m for m in kept if m["kind"] == "exposure"]
-        totals[supplier_id] = {"incidents": len(incidents), "exposures": len(exposures), **_watch(incidents)}
+        # Incidents are counted and listed per event: one FDA recall event is often a dozen
+        # recall numbers (one per strength or pack), which would otherwise read as a dozen problems.
+        events = matching.group_events(incidents)
+        totals[supplier_id] = {"incidents": len(events), "incident_records": len(incidents),
+                               "exposures": len(exposures), **_watch(incidents)}
         # The limit applies to each kind, so exposures never crowd out incidents.
-        out[supplier_id] = [{**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")},
-                             "signal": _as_document(m["signal"])}
-                            for m in incidents[: request.limit_per_supplier] + exposures[: request.limit_per_supplier]]
+        out[supplier_id] = ([_event_entry(group) for group in events[: request.limit_per_supplier]]
+                            + [_match_entry(m) for m in exposures[: request.limit_per_supplier]])
     truncated = len(candidates) >= MATCH_CANDIDATE_LIMIT
     if truncated:
         logger.warning("Match candidates truncated", limit=MATCH_CANDIDATE_LIMIT, suppliers=len(request.suppliers))

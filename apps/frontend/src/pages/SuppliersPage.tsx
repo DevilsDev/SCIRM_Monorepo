@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PlusIcon, PencilSquareIcon, TrashIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { api, Supplier, SupplierSignalSummary } from '../services/api';
-import RadarChart from '../components/d3/RadarChart';
 import { Modal, ConfirmDialog } from '../components/ui';
 import SupplierForm from '../components/forms/SupplierForm';
 import CSVUpload from '../components/CSVUpload';
@@ -31,23 +30,12 @@ function RiskScoreBar({ score }: { score: number }) {
   );
 }
 
-interface DimensionScore {
-  dimension: string;
-  label: string;
-  score: number;
-  confidence: number;
-  trend: string;
-  reasoning: string;
-}
-
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tierFilter, setTierFilter] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [radarData, setRadarData] = useState<DimensionScore[]>([]);
-  const [scoringLoading, setScoringLoading] = useState(false);
   const [signalSummary, setSignalSummary] = useState<Record<string, SupplierSignalSummary> | null>(null);
   const { t } = useTranslation();
   const { addToast } = useToast();
@@ -76,25 +64,9 @@ export default function SuppliersPage() {
       .catch(() => setSignalSummary(null));
   }, [suppliers]);
 
-  const handleSupplierClick = async (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    setRadarData([]);
-    if (supplier.demo_note) return; // real company in the demo: show public records only, no heuristic profile
-    setScoringLoading(true);
-    try {
-      const result = await api.scoreSupplierRisk(supplier.name, {
-        country_code: supplier.country_code,
-        region: supplier.region,
-        risk_score: supplier.risk_score,
-        supplier_type: supplier.supplier_type,
-      });
-      setRadarData(result.dimension_scores || []);
-    } catch {
-      setRadarData([]);
-    } finally {
-      setScoringLoading(false);
-    }
-  };
+  // The panel shows evidence (public records, cited answers) only. A rule-based
+  // "risk profile" was removed: it produced the same numbers for every unassessed supplier.
+  const handleSupplierClick = (supplier: Supplier) => setSelectedSupplier(supplier);
 
   const handleCreateSupplier = async (values: any) => {
     await api.createSupplier(values);
@@ -128,7 +100,7 @@ export default function SuppliersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('suppliers.title', 'Suppliers')}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('suppliers.tracked', '{{count}} suppliers tracked', { count: suppliers.length })} — {t('suppliers.clickForProfile', 'click a supplier for 7-dimension risk profile')}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('suppliers.tracked', '{{count}} suppliers tracked', { count: suppliers.length })} — {t('suppliers.clickForRecords', 'click a supplier for its public records')}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -193,7 +165,7 @@ export default function SuppliersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRegion', 'Region')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskScore', 'Risk Score')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskTier', 'Risk Tier')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colPublicRecordsHint', 'FDA recalls and shortages naming this supplier in the last 12 months')}>{t('suppliers.colPublicRecords', 'Public Records (12 mo)')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colPublicRecordsHint', 'FDA events naming this supplier in the last 12 months (a recall covering several products counts once)')}>{t('suppliers.colPublicRecords', 'Public Events (12 mo)')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colActions', 'Actions')}</th>
               </tr>
             </thead>
@@ -211,21 +183,28 @@ export default function SuppliersPage() {
                         {t('suppliers.demo', 'Demo')}
                       </span>
                     )}
+                    {!s.is_active && (
+                      <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        {t('suppliers.inactive', 'Inactive')}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 font-mono">{s.supplier_code}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 capitalize">{s.supplier_type.replace('_', ' ')}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{s.country_code} {s.region}</td>
-                  {s.demo_note ? (
-                    // A real company in the demo tenant: never show a made-up rating of it.
+                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{[s.country_code, s.region].filter(Boolean).join(' ')}</td>
+                  {s.demo_note || s.risk_score === null ? (
+                    // Never show a rating nobody made: demo suppliers and unassessed ones are not scored.
                     <td colSpan={2} className="px-6 py-4 text-xs text-gray-400" title={s.demo_note}>
-                      {t('suppliers.notScored', 'Not scored (demo supplier); see public records')}
+                      {s.demo_note
+                        ? t('suppliers.notScored', 'Not scored (demo supplier); see public records')
+                        : t('suppliers.notAssessed', 'Not assessed; see public records')}
                     </td>
                   ) : (
                     <>
                       <td className="px-6 py-4"><RiskScoreBar score={s.risk_score} /></td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${tierColors[s.risk_tier] || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
-                          {t(`common.severity${s.risk_tier?.charAt(0).toUpperCase()}${s.risk_tier?.slice(1)}` as any, s.risk_tier)}
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${(s.risk_tier && tierColors[s.risk_tier]) || 'bg-gray-100 dark:bg-gray-700 text-gray-800'}`}>
+                          {t(`common.severity${s.risk_tier?.charAt(0).toUpperCase()}${s.risk_tier?.slice(1)}` as any, s.risk_tier ?? '')}
                         </span>
                       </td>
                     </>
@@ -316,38 +295,11 @@ export default function SuppliersPage() {
         open={!!selectedSupplier}
         onClose={() => setSelectedSupplier(null)}
         title={selectedSupplier?.name}
-        description={selectedSupplier ? `${t('suppliers.riskProfile', '7-Dimension Risk Profile')} — ${selectedSupplier.country_code} ${selectedSupplier.region}` : ''}
+        description={selectedSupplier ? [selectedSupplier.country_code, selectedSupplier.region].filter(Boolean).join(' · ') : ''}
       >
-        {scoringLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <p className="text-sm text-gray-400">{t('suppliers.scoring', 'Scoring across 7 dimensions...')}</p>
-          </div>
-        ) : radarData.length > 0 ? (
-          <>
-            <div className="flex justify-center">
-              <RadarChart data={radarData} size={280} />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {radarData.map((d) => (
-                <div key={d.dimension} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{d.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold ${d.score > 65 ? 'text-red-600' : d.score > 40 ? 'text-yellow-600' : 'text-green-600'}`}>
-                      {d.score.toFixed(0)}
-                    </span>
-                    <span className="text-[9px] text-gray-400 capitalize">{d.trend}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : selectedSupplier?.demo_note ? (
-          <p className="text-xs text-gray-400 py-2">{selectedSupplier.demo_note}</p>
-        ) : (
-          <p className="text-sm text-gray-400 text-center py-8">{t('common.noData', 'No data available')}</p>
-        )}
+        {selectedSupplier?.demo_note && <p className="text-xs text-gray-400 pb-2">{selectedSupplier.demo_note}</p>}
         {selectedSupplier && (
-          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('ask.title', 'Ask about this supplier')}</h2>
             <SupplierAsk supplierId={selectedSupplier.id} />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white mt-6 mb-2">{t('signals.title', 'Public records')}</h2>

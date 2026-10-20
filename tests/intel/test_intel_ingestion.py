@@ -246,3 +246,29 @@ def test_evidence_ask_cites_records_and_scopes_empty_answers(client):
                           headers=HEADERS).json()
     assert unknown["status"] == "no_records" and "does not mean nothing happened" in unknown["note"]
     assert client.post("/evidence/ask", json={"question": "Any recalls?", "supplier": sun}).status_code == 401
+
+
+def test_match_counts_a_recall_event_once_and_lists_its_products(client, service):
+    """One FDA recall event is often one recall number per strength: it is one incident."""
+    import asyncio
+    from libs.intel import matching
+    names = ["Example Generics Inc."]
+
+    def recall(number, event, product, severity="high"):
+        return {"source": "fda_recalls", "external_id": number, "signal_type": "recall", "severity": severity,
+                "title": "Class II recall: EXAMPLETINIB", "summary": "Subpotent Drug.", "published_at": "2026-09-02",
+                "entity_names": names, "entity_keys": sorted(matching.entity_keys(names)), "country_codes": ["US"],
+                "raw": {"event_id": event, "classification": "Class II", "product_description": product}}
+
+    signals = [recall(f"D-{i}-2026", "E-1", f"Exampletinib {i * 25} mcg") for i in range(1, 13)]
+    signals.append(recall("D-99-2026", "E-2", "Other product", severity="critical"))
+    asyncio.run(service.store.upsert_signals(signals))
+    body = client.post("/match", json={"suppliers": [{"id": "x", "name": "Example Generics Inc."}],
+                                       "include_exposure": False}, headers=HEADERS).json()
+    assert body["totals"]["x"]["incidents"] == 2 and body["totals"]["x"]["incident_records"] == 13
+    entries = body["matches"]["x"]
+    assert len(entries) == 2
+    grouped = next(e for e in entries if e.get("records"))
+    assert len(grouped["records"]) == 12 and grouped["records"][0]["product"].startswith("Exampletinib")
+    single = next(e for e in entries if not e.get("records"))
+    assert single["signal"]["severity"] == "critical"

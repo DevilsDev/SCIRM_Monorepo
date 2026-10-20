@@ -389,7 +389,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
       - DEV_PASSWORD=${DEV_PASSWORD:-}
       - ENVIRONMENT=development
-      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000
       - LOG_LEVEL=DEBUG
     depends_on:
       migrate:

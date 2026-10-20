@@ -35,6 +35,21 @@ function SignalRow({ m }: { m: SignalMatch }) {
       </div>
       <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{s.title}</p>
       <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{s.content}</p>
+      {m.records && m.records.length > 1 && (
+        <details className="mt-1">
+          <summary className="text-[11px] text-gray-500 cursor-pointer">
+            {t('signals.eventRecords', 'One recall event covering {{count}} products', { count: m.records.length })}
+          </summary>
+          <ul className="mt-1 pl-4 list-disc text-[11px] text-gray-500 dark:text-gray-400 space-y-0.5">
+            {m.records.map((r) => (
+              <li key={r.id}>
+                <span className="font-mono">{r.external_id}</span> {r.product}
+                {r.url && <> · <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{t('signals.source', 'source')}</a></>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="flex items-center gap-3 mt-1">
         <span className="text-[10px] text-gray-500 dark:text-gray-400">{matchReason(m, t as any)}</span>
         {s.url && (
@@ -72,9 +87,10 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
     <div className="space-y-4">
       <section>
         <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-          {t('signals.incidents', 'Records naming this supplier')} ({data.incidents.length < data.incident_total
+          {t('signals.incidentEvents', 'Events naming this supplier')} ({data.incidents.length < data.incident_total
             ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.incidents.length, total: data.incident_total })
-            : data.incident_total})
+            : data.incident_total}{data.incident_records && data.incident_records > data.incident_total
+            ? `; ${t('signals.recordCount', '{{count}} FDA records', { count: data.incident_records })}` : ''})
         </h3>
         {data.incidents.length === 0 ? (
           <p className="text-xs text-gray-400 mt-2">

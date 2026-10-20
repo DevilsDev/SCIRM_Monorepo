@@ -169,7 +169,7 @@ export default function LoginPage() {
 
           {import.meta.env.DEV && (
             <p className="text-xs text-gray-400 text-center mt-2">
-              {t('auth.devCredentials', 'Dev mode: demo account password is printed in the api-gateway console')}
+              {t('auth.devCredentials', 'Dev mode: demo accounts use DEV_PASSWORD, or the password printed in the api-gateway log')}
             </p>
           )}
         </div>

@@ -71,7 +71,7 @@
     "passwordMedium": "Media",
     "passwordStrong": "Fuerte",
     "passwordTooShortLabel": "Demasiado corta",
-    "devCredentials": "Dev mode — check console for test credentials"
+    "devCredentials": "Dev mode: demo accounts use DEV_PASSWORD, or the password printed in the api-gateway log"
   },
   "risks": {
     "title": "Resumen de Riesgos",

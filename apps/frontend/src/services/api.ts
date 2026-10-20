@@ -90,12 +90,13 @@ export interface Supplier {
   supplier_type: string;
   country_code: string;
   region: string;
-  risk_score: number;
-  risk_tier: string;
+  /** Null until an assessment has scored the supplier. */
+  risk_score: number | null;
+  risk_tier: string | null;
   contact_name?: string;
   contact_email?: string;
   is_active: boolean;
-  /** Set on demo suppliers named after real companies: their score is a placeholder. */
+  /** Set on demo suppliers (fictional, or named after real companies). */
   demo_note?: string;
 }
 
@@ -163,6 +164,8 @@ export interface SignalMatch {
   kind: 'incident' | 'exposure';
   matched_on: string;
   signal: PublicSignal;
+  /** When one event covers several records (an FDA recall per product strength or pack). */
+  records?: Array<{ id: string; external_id: string; product: string; severity: string; url: string | null }>;
 }
 
 export interface SupplierSignals {
@@ -170,7 +173,9 @@ export interface SupplierSignals {
   supplier_name: string;
   incidents: SignalMatch[];
   exposures: SignalMatch[];
+  /** Events naming the supplier; incident_records counts the records they cover. */
   incident_total: number;
+  incident_records?: number;
   exposure_total: number;
 }
 

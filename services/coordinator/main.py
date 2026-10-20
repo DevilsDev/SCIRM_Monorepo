@@ -565,34 +565,54 @@ async def get_recommendations_for_risk(risk_id: str, org_id: str = Depends(tenan
 # Supplier Management (in-memory for dev, DB in production)
 # ---------------------------------------------------------------------------
 
+def _presented(supplier: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """A supplier as the API shows it. A risk score or tier is only shown once an
+    assessment recorded one (risk_assessed_at); otherwise the stored values are
+    placeholders (defaults or demo seed data) and must not read as a rating."""
+    if supplier is None:
+        return None
+    out = dict(supplier)
+    if not out.get("risk_assessed_at"):
+        out["risk_score"] = None
+        out["risk_tier"] = None
+    return out
+
+
 @app.get("/suppliers")
 async def list_suppliers(risk_tier: str = None, limit: int = 50, org_id: str = Depends(tenant_org)):
     """List suppliers with optional filters."""
-    suppliers, total = await store.list_suppliers(org_id, risk_tier=risk_tier, limit=limit)
-    return {"suppliers": suppliers, "total": total}
+    suppliers, total = await store.list_suppliers(org_id)
+    shown = [_presented(s) for s in suppliers]
+    if risk_tier:
+        shown = [s for s in shown if s["risk_tier"] == risk_tier]
+        total = len(shown)
+    return {"suppliers": shown[:limit], "total": total}
 
 
 @app.get("/suppliers/{supplier_id}")
 async def get_supplier(supplier_id: str, org_id: str = Depends(tenant_org)):
     """Get a single supplier profile."""
-    return await _get_org_supplier(org_id, supplier_id)
+    return _presented(await _get_org_supplier(org_id, supplier_id))
 
 
 @app.post("/suppliers")
 async def create_supplier(supplier: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Create a new supplier."""
-    # The store assigns the id and the caller's organization.
-    return await store.create_supplier(org_id, supplier)
+    # The store assigns the id and the caller's organization. Scores come from assessments,
+    # not from the request.
+    supplier = {k: v for k, v in supplier.items() if k not in ("risk_score", "risk_tier", "risk_assessed_at")}
+    return _presented(await store.create_supplier(org_id, supplier))
 
 
 @app.put("/suppliers/{supplier_id}")
 async def update_supplier(supplier_id: str, updates: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Update supplier details."""
     # Identity and tenancy fields are not client-editable (enforced by the store).
+    updates = {k: v for k, v in updates.items() if k not in ("risk_score", "risk_tier", "risk_assessed_at")}
     supplier = await store.update_supplier(org_id, supplier_id, updates)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
-    return supplier
+    return _presented(supplier)
 
 
 # ---------------------------------------------------------------------------
@@ -635,7 +655,9 @@ async def supplier_signals(supplier_id: str, since_days: Optional[int] = None, m
     parts = _split(result["matches"].get(sid, []))
     return {"supplier_id": supplier["id"], "supplier_name": supplier.get("name"), **parts,
             # The lists are capped; these are the full counts.
+            # Incidents are events; one FDA recall event can cover many recall records.
             "incident_total": totals.get("incidents", len(parts["incidents"])),
+            "incident_records": totals.get("incident_records", len(parts["incidents"])),
             "exposure_total": totals.get("exposures", len(parts["exposures"]))}
 
 
@@ -790,8 +812,9 @@ async def supply_chain_map(org_id: str = Depends(tenant_org)):
             "supplier_type": s.get("supplier_type", "general"),
             "country_code": s.get("country_code", ""),
             "region": s.get("region", ""),
-            "risk_score": s.get("risk_score", 50),
-            "risk_tier": s.get("risk_tier", "medium"),
+            # Shown only if assessed (see _presented); the map draws unscored suppliers neutrally.
+            "risk_score": _presented(s)["risk_score"],
+            "risk_tier": _presented(s)["risk_tier"],
         })
         edges.append({
             "source": s["id"],
