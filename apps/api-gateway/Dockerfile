@@ -6,7 +6,7 @@ WORKDIR /app
 # For standalone builds, copy requirements first
 RUN pip install --no-cache-dir \
     fastapi uvicorn httpx pydantic structlog \
-    prometheus-client PyJWT passlib[bcrypt] cryptography
+    prometheus-client PyJWT bcrypt cryptography
 
 COPY . /app/
 

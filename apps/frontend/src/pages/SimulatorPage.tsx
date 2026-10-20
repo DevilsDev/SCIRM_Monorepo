@@ -62,7 +62,7 @@ export default function SimulatorPage() {
           <input type="number" value={simCount} onChange={(e) => setSimCount(Number(e.target.value))} min={100} max={10000} step={100} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm mb-4" />
 
           <button onClick={handleRun} disabled={loading || !selected.length} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {loading ? t('simulator.simulating', 'Simulating...') : t('simulator.runSimulations', 'Run {{count}} Simulations', { count: simCount.toLocaleString() })}
+            {loading ? t('simulator.simulating', 'Simulating...') : t('simulator.runSimulations', 'Run {{count}} Simulations', { count: simCount })}
           </button>
         </div>
 

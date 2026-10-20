@@ -67,7 +67,6 @@ export default function NewAssessmentPage() {
         assessment_type: assessmentType,
         time_horizon_days: timeHorizon,
         priority_factors: selectedPriorities.length > 0 ? selectedPriorities : undefined,
-        context: { organization_id: 'a0000000-0000-0000-0000-000000000001' },
       });
       setResult(response);
     } catch (err: any) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { getThemeColors } from './theme';
+import { getThemeColors, esc } from './theme';
 
 interface RadarData {
   dimension: string;
@@ -149,7 +149,7 @@ export default function RadarChart({ data, size = 300 }: RadarChartProps) {
         .style('cursor', 'pointer')
         .on('mouseover', (event) => {
           tooltip.style('opacity', '1')
-            .html(`<strong>${d.label}</strong><br/>Score: ${d.score.toFixed(0)}/100`)
+            .html(`<strong>${esc(d.label)}</strong><br/>Score: ${esc(d.score.toFixed(0))}/100`)
             .style('left', `${event.pageX + 12}px`)
             .style('top', `${event.pageY - 28}px`);
         })

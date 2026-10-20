@@ -164,7 +164,7 @@ export default function ComponentsPage() {
                   <td className="px-6 py-3 text-sm text-gray-500 dark:text-gray-400 capitalize">{item.category?.replace('_', ' ')}</td>
                   <td className="px-6 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${critColors[item.criticality] || 'bg-gray-100 dark:bg-gray-700'}`}>
-                      {t(severityKeys[item.criticality] || item.criticality, item.criticality)}
+                      {String(t(severityKeys[item.criticality] || item.criticality, item.criticality))}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-sm text-gray-500 dark:text-gray-400">{item.quantity}</td>
@@ -190,7 +190,7 @@ export default function ComponentsPage() {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-mono text-gray-400">{c.part_number}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${critColors[c.criticality] || 'bg-gray-100 dark:bg-gray-700'}`}>
-                  {t(severityKeys[c.criticality] || c.criticality, c.criticality)}
+                  {String(t(severityKeys[c.criticality] || c.criticality, c.criticality))}
                 </span>
               </div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">{c.name}</p>

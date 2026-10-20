@@ -3,6 +3,20 @@
  * Detects dark mode from the <html> element class.
  */
 
+/**
+ * Escape a value for interpolation into tooltip HTML built with d3 `.html()`.
+ * Labels come from user- and LLM-supplied data (supplier names, risk titles),
+ * so every interpolated value must pass through this.
+ */
+export function esc(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function isDarkMode(): boolean {
   return document.documentElement.classList.contains('dark');
 }

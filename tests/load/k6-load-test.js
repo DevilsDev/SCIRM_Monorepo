@@ -2,7 +2,7 @@
  * SCIRM Platform Load Test — k6
  * Simulates 100K concurrent users across all API endpoints.
  *
- * Run: k6 run tests/load/k6-load-test.js
+ * Run: k6 run -e SCIRM_PASSWORD=<password> tests/load/k6-load-test.js
  * With output: k6 run --out json=results.json tests/load/k6-load-test.js
  */
 
@@ -39,7 +39,7 @@ let authToken = '';
 export function setup() {
   const loginRes = http.post(
     `${BASE_URL}/api/v1/auth/login`,
-    JSON.stringify({ email: 'sarah.chen@pharmacorp.com', password: 'scirm-dev-2026' }),
+    JSON.stringify({ email: __ENV.SCIRM_EMAIL || 'sarah.chen@pharmacorp.com', password: __ENV.SCIRM_PASSWORD }),
     { headers: { 'Content-Type': 'application/json' } }
   );
   return { token: JSON.parse(loginRes.body).access_token };

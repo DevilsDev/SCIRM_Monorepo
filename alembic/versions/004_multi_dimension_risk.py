@@ -38,9 +38,9 @@ def upgrade() -> None:
         sa.Column("dimension", dimension_enum, nullable=False),
         sa.Column("score", sa.Float, nullable=False),
         sa.Column("confidence", sa.Float, server_default="0.5"),
-        sa.Column("trend", trend_enum, server_default="'stable'"),
+        sa.Column("trend", trend_enum, server_default="stable"),
         sa.Column("data_sources", postgresql.ARRAY(sa.String), server_default="{}"),
-        sa.Column("reasoning", sa.Text, server_default="''"),
+        sa.Column("reasoning", sa.Text, server_default=""),
         sa.Column("assessed_at", sa.DateTime, server_default=sa.text("now()")),
         sa.Column("metadata", postgresql.JSON, server_default="{}"),
     )

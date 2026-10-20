@@ -352,20 +352,28 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: redis-url
-        - name: JWT_SECRET
+        # Names must match what libs/common/auth.py and the gateway read.
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: JWT_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: scirm-secrets
               key: jwt-secret
-        - name: COORDINATOR_URL
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: COORDINATOR_SERVICE_URL
           value: "http://coordinator:8000"
-        - name: PLANNER_URL
+        - name: PLANNER_SERVICE_URL
           value: "http://planner:8000"
-        - name: RESEARCHER_URL
+        - name: RESEARCHER_SERVICE_URL
           value: "http://researcher:8000"
-        - name: EXECUTOR_URL
+        - name: EXECUTOR_SERVICE_URL
           value: "http://executor:8000"
-        - name: REVIEWER_URL
+        - name: REVIEWER_SERVICE_URL
           value: "http://reviewer:8000"
         resources:
           requests:

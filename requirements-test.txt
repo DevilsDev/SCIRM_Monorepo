@@ -1,0 +1,12 @@
+# Minimal dependencies for the CI test suite (tests/security).
+# Kept separate from requirements.txt, whose ML stack (torch, transformers,
+# langchain) is not needed to test the gateway and services.
+fastapi==0.146.0
+starlette==1.9.0
+httpx==0.28.1
+pydantic==2.14.1
+PyJWT==2.15.1
+bcrypt==5.0.0
+structlog==26.1.0
+prometheus_client==0.26.0
+pytest==9.1.1

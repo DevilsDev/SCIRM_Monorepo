@@ -3,12 +3,15 @@ SCIRM API Gateway
 Central entry point for all client requests, routing to appropriate agent services.
 """
 
+import asyncio
+import hmac
 import os
+import secrets
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
+from urllib.parse import quote, urlencode
 from uuid import uuid4
 
-import jwt
 import httpx
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
@@ -17,13 +20,15 @@ from pydantic import BaseModel
 import structlog
 
 from libs.common.auth import (
-    verify_token, create_access_token, create_refresh_token, verify_password,
-    get_password_hash, generate_totp_secret, get_totp_uri, verify_totp,
-    MFA_ENABLED, SECRET_KEY, ALGORITHM,
+    verify_token, decode_token, require_write_access, create_access_token,
+    create_refresh_token, verify_password, get_password_hash, generate_totp_secret,
+    get_totp_uri, verify_totp, MFA_ENABLED, IS_DEV, MAX_PASSWORD_BYTES,
+    TOKEN_TYPE_REFRESH, TOKEN_TYPE_MFA_PENDING,
 )
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
+from libs.common.tenancy import internal_headers
 from libs.integrations.manager import erp_manager
 
 logger = structlog.get_logger()
@@ -43,6 +48,11 @@ PROCUREMENT_URL = os.getenv("PROCUREMENT_SERVICE_URL", "http://localhost:8011")
 COMPONENT_TRACKER_URL = os.getenv("COMPONENT_TRACKER_URL", "http://localhost:8012")
 
 security = HTTPBearer()
+
+
+def _svc_headers(user) -> Dict[str, str]:
+    """Identity headers for internal services. The org always comes from the verified token."""
+    return internal_headers(user.organization_id, user.id)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,7 +83,6 @@ class SignupRequest(BaseModel):
     email: str
     password: str
     name: str
-    organization_id: Optional[str] = None
 
 # In-memory user store for development (production would use database)
 _registered_users: Dict[str, Dict[str, Any]] = {}
@@ -106,17 +115,58 @@ async def readiness():
     """Readiness probe for Kubernetes."""
     return {"status": "ready", "service": "api-gateway"}
 
-DEV_PASSWORD = os.getenv("DEV_PASSWORD", "scirm-dev-2026")  # Override via env var in production
-DEV_USERS = {
-    "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
-    "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
-    "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002", "mfa_secret": None},
-    "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "default-org", "mfa_secret": None},
-}
+# Built-in demo accounts exist only in development. Their shared password comes from
+# DEV_PASSWORD, or is generated at startup and printed to the console — never hardcoded.
+if IS_DEV:
+    DEV_PASSWORD = os.getenv("DEV_PASSWORD") or secrets.token_urlsafe(12)
+    if not os.getenv("DEV_PASSWORD"):
+        print(f"[api-gateway] Dev login password for demo accounts: {DEV_PASSWORD}", flush=True)
+    DEV_USERS = {
+        "sarah.chen@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000001", "name": "Sarah Chen", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
+        "marcus.rodriguez@pharmacorp.com": {"id": "b0000000-0000-0000-0000-000000000002", "name": "Marcus Rodriguez", "roles": ["analyst"], "org_id": "a0000000-0000-0000-0000-000000000001", "mfa_secret": None},
+        "lisa.park@medtech.com": {"id": "b0000000-0000-0000-0000-000000000003", "name": "Lisa Park", "roles": ["admin", "analyst"], "org_id": "a0000000-0000-0000-0000-000000000002", "mfa_secret": None},
+        "auditor@scirm.dev": {"id": "b0000000-0000-0000-0000-000000000004", "name": "SCIRM Auditor", "roles": ["auditor", "viewer"], "org_id": "a0000000-0000-0000-0000-000000000003", "mfa_secret": None},
+    }
+else:
+    DEV_PASSWORD = None
+    DEV_USERS = {}
+
+
+def _find_user(email: str) -> Optional[Dict[str, Any]]:
+    return _registered_users.get(email) or DEV_USERS.get(email)
+
+
+def _find_user_by_id(user_id: str) -> Optional[tuple]:
+    for store in (_registered_users, DEV_USERS):
+        for email, info in store.items():
+            if info["id"] == user_id:
+                return email, info
+    return None
+
+
+def _check_password(email: str, password: str) -> Optional[Dict[str, Any]]:
+    registered = _registered_users.get(email)
+    if registered:
+        return registered if verify_password(password, registered["hashed_password"]) else None
+    dev_user = DEV_USERS.get(email)
+    if dev_user and DEV_PASSWORD and hmac.compare_digest(password.encode(), DEV_PASSWORD.encode()):
+        return dev_user
+    return None
+
+
+def _issue_tokens(email: str, user_info: Dict[str, Any]) -> Dict[str, str]:
+    token = create_access_token(data={
+        "sub": user_info["id"],
+        "email": email,
+        "name": user_info["name"],
+        "roles": user_info["roles"],
+        "org_id": user_info["org_id"],
+    })
+    refresh = create_refresh_token(user_info["id"])
+    return {"access_token": token, "refresh_token": refresh, "token_type": "bearer"}
 
 
 class MFAVerifyRequest(BaseModel):
-    email: str
     totp_code: str
     mfa_token: str
 
@@ -124,61 +174,40 @@ class MFAVerifyRequest(BaseModel):
 @app.post("/api/v1/auth/login")
 async def login(request: LoginRequest):
     """Authenticate user. If MFA is enabled, returns mfa_required=true with a temporary token."""
-    user_info = DEV_USERS.get(request.email)
-    registered = _registered_users.get(request.email)
-
-    if not user_info and not registered:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    # Check password: registered users use their own password, dev users use DEV_PASSWORD
-    if registered:
-        if request.password != registered.get("password"):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        if not user_info:
-            user_info = registered
-    elif request.password != DEV_PASSWORD:
+    user_info = _check_password(request.email, request.password)
+    if not user_info:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Check if MFA is required
     if MFA_ENABLED and user_info.get("mfa_secret"):
         mfa_token = create_access_token(
-            data={"sub": user_info["id"], "type": "mfa_pending", "email": request.email},
+            data={"sub": user_info["id"], "type": TOKEN_TYPE_MFA_PENDING, "email": request.email},
             expires_delta=timedelta(minutes=5),
         )
         return {"mfa_required": True, "mfa_token": mfa_token, "token_type": "bearer"}
 
-    token = create_access_token(data={
-        "sub": user_info["id"],
-        "email": request.email,
-        "name": user_info["name"],
-        "roles": user_info["roles"],
-        "org_id": user_info["org_id"],
-    })
-    refresh = create_refresh_token(user_info["id"])
-
-    return {"access_token": token, "refresh_token": refresh, "token_type": "bearer"}
+    return _issue_tokens(request.email, user_info)
 
 
 @app.post("/api/v1/auth/mfa/verify")
 async def verify_mfa(request: MFAVerifyRequest):
-    """Verify TOTP code after initial login when MFA is enabled."""
-    user_info = DEV_USERS.get(request.email)
-    if not user_info or not user_info.get("mfa_secret"):
+    """Verify TOTP code after initial login when MFA is enabled.
+
+    The mfa_token proves the password step succeeded; the user is taken from it,
+    never from the request body.
+    """
+    payload = decode_token(request.mfa_token, TOKEN_TYPE_MFA_PENDING)
+    found = _find_user_by_id(payload["sub"])
+    if not found or found[0] != payload.get("email"):
+        raise HTTPException(status_code=401, detail="Invalid MFA token")
+    email, user_info = found
+    if not user_info.get("mfa_secret"):
         raise HTTPException(status_code=400, detail="MFA not configured for this user")
 
     if not verify_totp(user_info["mfa_secret"], request.totp_code):
         raise HTTPException(status_code=401, detail="Invalid TOTP code")
 
-    token = create_access_token(data={
-        "sub": user_info["id"],
-        "email": request.email,
-        "name": user_info["name"],
-        "roles": user_info["roles"],
-        "org_id": user_info["org_id"],
-    })
-    refresh = create_refresh_token(user_info["id"])
-
-    return {"access_token": token, "refresh_token": refresh, "token_type": "bearer"}
+    return _issue_tokens(email, user_info)
 
 
 @app.post("/api/v1/auth/mfa/setup")
@@ -189,8 +218,9 @@ async def setup_mfa(token: str = Depends(security)):
     uri = get_totp_uri(secret, user.email)
 
     # Store secret (in production, persist to DB)
-    if user.email in DEV_USERS:
-        DEV_USERS[user.email]["mfa_secret"] = secret
+    user_info = _find_user(user.email)
+    if user_info:
+        user_info["mfa_secret"] = secret
 
     return {"secret": secret, "otpauth_uri": uri, "message": "Scan the QR code with your authenticator app"}
 
@@ -202,29 +232,19 @@ async def refresh_token(body: Dict[str, Any]):
     if not refresh:
         raise HTTPException(status_code=400, detail="refresh_token required")
 
-    try:
-        payload = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Invalid token type")
-        user_id = payload.get("sub")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-
-    # Find user by ID
-    user_info = next((u for u in DEV_USERS.values() if u["id"] == user_id), None)
-    email = next((e for e, u in DEV_USERS.items() if u["id"] == user_id), "")
-    if not user_info:
+    payload = decode_token(refresh, TOKEN_TYPE_REFRESH)
+    found = _find_user_by_id(payload["sub"])
+    if not found:
         raise HTTPException(status_code=401, detail="User not found")
 
-    new_token = create_access_token(data={
-        "sub": user_info["id"],
-        "email": email,
-        "name": user_info["name"],
-        "roles": user_info["roles"],
-        "org_id": user_info["org_id"],
-    })
+    tokens = _issue_tokens(*found)
+    return {"access_token": tokens["access_token"], "token_type": "bearer"}
 
-    return {"access_token": new_token, "token_type": "bearer"}
+
+OAUTH_PROVIDERS = {
+    "google": "https://accounts.google.com/o/oauth2/v2/auth",
+    "azure": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+}
 
 
 @app.get("/api/v1/auth/oauth/authorize")
@@ -233,68 +253,66 @@ async def oauth_authorize(provider: str = "google", redirect_uri: str = "http://
     OAuth 2.0 authorization endpoint — returns the provider's auth URL.
     In production, this redirects to the actual OAuth provider.
     """
-    # Mock OAuth flow for development
+    if provider not in OAUTH_PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unsupported OAuth provider")
+    allowed_redirects = [o.rstrip("/") + "/auth/callback" for o in os.getenv(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")]
+    if redirect_uri not in allowed_redirects:
+        raise HTTPException(status_code=400, detail="redirect_uri not allowed")
+
+    state = secrets.token_urlsafe(32)
+    query = urlencode({
+        "client_id": "scirm",
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+    })
     return {
         "provider": provider,
-        "authorization_url": f"https://{provider}.com/oauth/authorize?client_id=scirm&redirect_uri={redirect_uri}&scope=openid+email+profile",
-        "state": "mock-state-token",
+        "authorization_url": f"{OAUTH_PROVIDERS[provider]}?{query}",
+        "state": state,
         "message": "OAuth provider integration — redirect user to authorization_url",
     }
 
 
 @app.post("/api/v1/auth/signup")
 async def signup(request: SignupRequest):
-    """Register a new user account."""
-    # Check if email already taken (dev users + registered users)
-    if request.email in DEV_USERS or request.email in _registered_users:
+    """Register a new user account.
+
+    Each signup gets its own new organization. Joining an existing organization
+    must go through an invitation flow, never a client-supplied organization_id.
+    """
+    if _find_user(request.email):
         raise HTTPException(status_code=409, detail="Email already registered")
 
     # Validate password strength
     if len(request.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(request.password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise HTTPException(status_code=400, detail=f"Password must be at most {MAX_PASSWORD_BYTES} bytes")
 
-    # Create user
     user_id = str(uuid4())
-    _registered_users[request.email] = {
+    user_info = {
         "id": user_id,
         "name": request.name,
-        "roles": ["analyst"],  # Default role for new signups
-        "org_id": request.organization_id or "default-org",
-        "password": request.password,
+        "roles": ["admin", "analyst"],  # Owner of their own new organization
+        "org_id": str(uuid4()),
+        "hashed_password": get_password_hash(request.password),
         "mfa_secret": None,
         "created_at": datetime.utcnow().isoformat(),
     }
-
-    # Also add to DEV_USERS so login works immediately
-    DEV_USERS[request.email] = {
-        "id": user_id,
-        "name": request.name,
-        "roles": ["analyst"],
-        "org_id": request.organization_id or "default-org",
-        "mfa_secret": None,
-    }
-
-    # Generate tokens
-    token = create_access_token(data={
-        "sub": user_id,
-        "email": request.email,
-        "name": request.name,
-        "roles": ["analyst"],
-        "org_id": request.organization_id or "default-org",
-    })
-    refresh = create_refresh_token(user_id)
+    _registered_users[request.email] = user_info
 
     logger.info("User registered", email=request.email, user_id=user_id)
 
     return {
-        "access_token": token,
-        "refresh_token": refresh,
-        "token_type": "bearer",
+        **_issue_tokens(request.email, user_info),
         "user": {
             "id": user_id,
             "email": request.email,
             "name": request.name,
-            "roles": ["analyst"],
+            "roles": user_info["roles"],
         },
     }
 
@@ -306,20 +324,21 @@ async def assess_risk(
 ):
     """Initiate risk assessment through coordinator agent."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{COORDINATOR_URL}/assess-risk",
                 json=request.model_dump(mode="json"),
-                headers={"Authorization": f"Bearer {token.credentials}"},
+                headers=_svc_headers(user),
                 timeout=30.0
             )
             response.raise_for_status()
             result = RiskAssessmentResponse(**response.json())
 
             # Broadcast real-time events to WebSocket clients
-            await manager.broadcast({
+            await manager.broadcast(user.organization_id, {
                 "event": "risk_update",
                 "data": {
                     "task_id": result.task_id,
@@ -331,7 +350,7 @@ async def assess_risk(
             for risk in result.risks:
                 sev = risk.severity if hasattr(risk, 'severity') else risk.get("severity", "")
                 if sev in ("high", "critical"):
-                    await manager.broadcast({
+                    await manager.broadcast(user.organization_id, {
                         "event": "alert_triggered",
                         "data": {
                             "severity": sev,
@@ -365,7 +384,7 @@ async def get_risks(
             response = await client.get(
                 f"{COORDINATOR_URL}/risks",
                 params=params,
-                headers={"Authorization": f"Bearer {token.credentials}"},
+                headers=_svc_headers(user),
                 timeout=10.0
             )
             response.raise_for_status()
@@ -374,6 +393,20 @@ async def get_risks(
     except httpx.HTTPError as e:
         logger.error("Failed to fetch risks", error=str(e))
         raise HTTPException(status_code=500, detail="Risk service unavailable")
+
+# --- Risk History ---
+
+@app.get("/api/v1/risks/history")
+async def risk_history(limit: int = 100, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}/risks/history", params={"limit": limit}, headers=_svc_headers(user), timeout=10.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error("Failed to fetch risk history", error=str(e))
+        raise HTTPException(status_code=500, detail="Risk history unavailable")
 
 @app.get("/api/v1/risks/{risk_id}")
 async def get_risk(
@@ -386,8 +419,8 @@ async def get_risk(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{COORDINATOR_URL}/risks/{risk_id}",
-                headers={"Authorization": f"Bearer {token.credentials}"},
+                f"{COORDINATOR_URL}/risks/{quote(risk_id, safe='')}",
+                headers=_svc_headers(user),
                 timeout=10.0
             )
             response.raise_for_status()
@@ -408,8 +441,8 @@ async def get_recommendations(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{COORDINATOR_URL}/recommendations/{risk_id}",
-                headers={"Authorization": f"Bearer {token.credentials}"},
+                f"{COORDINATOR_URL}/recommendations/{quote(risk_id, safe='')}",
+                headers=_svc_headers(user),
                 timeout=10.0
             )
             response.raise_for_status()
@@ -423,18 +456,16 @@ async def get_recommendations(
 
 @app.get("/api/v1/suppliers")
 async def list_suppliers(
-    org_id: str = None, risk_tier: str = None, limit: int = 50,
+    risk_tier: str = None, limit: int = 50,
     token: str = Depends(security),
 ):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
             params = {"limit": limit}
-            if org_id:
-                params["org_id"] = org_id
             if risk_tier:
                 params["risk_tier"] = risk_tier
-            response = await client.get(f"{COORDINATOR_URL}/suppliers", params=params, timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/suppliers", params=params, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -446,7 +477,7 @@ async def get_supplier(supplier_id: str, token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/suppliers/{supplier_id}", timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/suppliers/{quote(supplier_id, safe='')}", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -467,26 +498,12 @@ async def list_alerts(
                 params["status_filter"] = status
             if severity:
                 params["severity"] = severity
-            response = await client.get(f"{COORDINATOR_URL}/alerts", params=params, timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/alerts", params=params, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
         logger.error("Failed to fetch alerts", error=str(e))
         raise HTTPException(status_code=500, detail="Alert service unavailable")
-
-# --- Risk History ---
-
-@app.get("/api/v1/risks/history")
-async def risk_history(limit: int = 100, token: str = Depends(security)):
-    user = await verify_token(token.credentials)
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/risks/history", params={"limit": limit}, timeout=10.0)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPError as e:
-        logger.error("Failed to fetch risk history", error=str(e))
-        raise HTTPException(status_code=500, detail="Risk history unavailable")
 
 # --- Predictions ---
 
@@ -495,7 +512,7 @@ async def get_predictions(token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/predictions", timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/predictions", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -505,14 +522,12 @@ async def get_predictions(token: str = Depends(security)):
 # --- Supply Chain Map ---
 
 @app.get("/api/v1/supply-chain/map")
-async def supply_chain_map(org_id: str = None, token: str = Depends(security)):
+async def supply_chain_map(token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
             params = {}
-            if org_id:
-                params["org_id"] = org_id
-            response = await client.get(f"{COORDINATOR_URL}/supply-chain/map", params=params, timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/supply-chain/map", params=params, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -528,7 +543,7 @@ async def simulate_scenario(scenario: Dict[str, Any], token: str = Depends(secur
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{COORDINATOR_URL}/scenarios/simulate",
-                json=scenario, timeout=30.0,
+                json=scenario, headers=_svc_headers(user), timeout=30.0,
             )
             response.raise_for_status()
             return response.json()
@@ -544,7 +559,7 @@ async def chat(body: Dict[str, Any], token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{CHAT_URL}/chat", json=body, timeout=30.0)
+            response = await client.post(f"{CHAT_URL}/chat", json=body, headers=_svc_headers(user), timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -557,9 +572,10 @@ async def chat(body: Dict[str, Any], token: str = Depends(security)):
 async def trigger_ingestion(token: str = Depends(security)):
     """Trigger data ingestion from all sources."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{INGESTION_URL}/ingest", timeout=30.0)
+            response = await client.post(f"{INGESTION_URL}/ingest", headers=_svc_headers(user), timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -574,7 +590,7 @@ async def intelligence_feed(source: str = None, limit: int = 50, token: str = De
             params = {"limit": limit}
             if source:
                 params["source"] = source
-            response = await client.get(f"{INGESTION_URL}/documents", params=params, timeout=10.0)
+            response = await client.get(f"{INGESTION_URL}/documents", params=params, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -585,7 +601,7 @@ async def intelligence_sources(token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{INGESTION_URL}/sources", timeout=10.0)
+            response = await client.get(f"{INGESTION_URL}/sources", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -599,7 +615,7 @@ async def export_risks(format: str = "csv", token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 1000}, timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 1000}, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             data = response.json()
             risks = data.get("risks", [])
@@ -627,7 +643,7 @@ async def export_suppliers(format: str = "csv", token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/suppliers", timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/suppliers", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             data = response.json()
             suppliers = data.get("suppliers", [])
@@ -655,10 +671,10 @@ async def export_full_report(token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            risks_resp = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 500}, timeout=10.0)
-            suppliers_resp = await client.get(f"{COORDINATOR_URL}/suppliers", timeout=10.0)
-            alerts_resp = await client.get(f"{COORDINATOR_URL}/alerts", timeout=10.0)
-            predictions_resp = await client.get(f"{COORDINATOR_URL}/predictions", timeout=10.0)
+            risks_resp = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 500}, headers=_svc_headers(user), timeout=10.0)
+            suppliers_resp = await client.get(f"{COORDINATOR_URL}/suppliers", headers=_svc_headers(user), timeout=10.0)
+            alerts_resp = await client.get(f"{COORDINATOR_URL}/alerts", headers=_svc_headers(user), timeout=10.0)
+            predictions_resp = await client.get(f"{COORDINATOR_URL}/predictions", headers=_svc_headers(user), timeout=10.0)
 
         return {
             "report_title": "SCIRM Supply Chain Risk Report",
@@ -714,7 +730,7 @@ async def list_components(category: str = None, criticality: str = None, token: 
             params = {}
             if category: params["category"] = category
             if criticality: params["criticality"] = criticality
-            response = await client.get(f"{COMPONENT_TRACKER_URL}/components", params=params, timeout=10.0)
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/components", params=params, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -725,7 +741,7 @@ async def list_products(token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COMPONENT_TRACKER_URL}/products", timeout=10.0)
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/products", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -736,7 +752,7 @@ async def get_product_bom(product_id: str, token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COMPONENT_TRACKER_URL}/products/{product_id}/bom", timeout=10.0)
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/products/{quote(product_id, safe='')}/bom", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -747,7 +763,7 @@ async def component_impact(component_id: str, token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COMPONENT_TRACKER_URL}/impact-analysis/{component_id}", timeout=10.0)
+            response = await client.get(f"{COMPONENT_TRACKER_URL}/impact-analysis/{quote(component_id, safe='')}", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -761,7 +777,7 @@ async def run_simulation(body: Dict[str, Any], token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{SIMULATOR_URL}/simulate", json=body, timeout=60.0)
+            response = await client.post(f"{SIMULATOR_URL}/simulate", json=body, headers=_svc_headers(user), timeout=60.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -774,9 +790,10 @@ async def run_simulation(body: Dict[str, Any], token: str = Depends(security)):
 async def evaluate_procurement(body: Dict[str, Any], token: str = Depends(security)):
     """Evaluate suppliers and generate procurement actions."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{PROCUREMENT_URL}/evaluate", json=body, timeout=30.0)
+            response = await client.post(f"{PROCUREMENT_URL}/evaluate", json=body, headers=_svc_headers(user), timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -790,7 +807,7 @@ async def procurement_actions(status: str = None, token: str = Depends(security)
             params = {}
             if status:
                 params["status"] = status
-            response = await client.get(f"{PROCUREMENT_URL}/actions", params=params, timeout=10.0)
+            response = await client.get(f"{PROCUREMENT_URL}/actions", params=params, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -801,7 +818,7 @@ async def procurement_alternatives(supplier_name: str, token: str = Depends(secu
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{PROCUREMENT_URL}/alternatives/{supplier_name}", timeout=10.0)
+            response = await client.get(f"{PROCUREMENT_URL}/alternatives/{quote(supplier_name, safe='')}", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -813,9 +830,10 @@ async def procurement_alternatives(supplier_name: str, token: str = Depends(secu
 async def create_risk(body: Dict[str, Any], token: str = Depends(security)):
     """Create a manual risk entry."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{COORDINATOR_URL}/risks", json=body, timeout=15.0)
+            response = await client.post(f"{COORDINATOR_URL}/risks", json=body, headers=_svc_headers(user), timeout=15.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -826,9 +844,10 @@ async def create_risk(body: Dict[str, Any], token: str = Depends(security)):
 async def update_risk(risk_id: str, body: Dict[str, Any], token: str = Depends(security)):
     """Update a risk entry."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.put(f"{COORDINATOR_URL}/risks/{risk_id}", json=body, timeout=15.0)
+            response = await client.put(f"{COORDINATOR_URL}/risks/{quote(risk_id, safe='')}", json=body, headers=_svc_headers(user), timeout=15.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -841,9 +860,10 @@ async def update_risk(risk_id: str, body: Dict[str, Any], token: str = Depends(s
 async def create_supplier(body: Dict[str, Any], token: str = Depends(security)):
     """Create a new supplier."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{COORDINATOR_URL}/suppliers", json=body, timeout=15.0)
+            response = await client.post(f"{COORDINATOR_URL}/suppliers", json=body, headers=_svc_headers(user), timeout=15.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -854,9 +874,10 @@ async def create_supplier(body: Dict[str, Any], token: str = Depends(security)):
 async def update_supplier(supplier_id: str, body: Dict[str, Any], token: str = Depends(security)):
     """Update an existing supplier."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.put(f"{COORDINATOR_URL}/suppliers/{supplier_id}", json=body, timeout=15.0)
+            response = await client.put(f"{COORDINATOR_URL}/suppliers/{quote(supplier_id, safe='')}", json=body, headers=_svc_headers(user), timeout=15.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -869,9 +890,10 @@ async def update_supplier(supplier_id: str, body: Dict[str, Any], token: str = D
 async def acknowledge_alert(alert_id: str, token: str = Depends(security)):
     """Acknowledge an active alert."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{COORDINATOR_URL}/alerts/{alert_id}/acknowledge", timeout=10.0)
+            response = await client.post(f"{COORDINATOR_URL}/alerts/{quote(alert_id, safe='')}/acknowledge", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -884,9 +906,10 @@ async def acknowledge_alert(alert_id: str, token: str = Depends(security)):
 async def discover_subtiers(body: Dict[str, Any], token: str = Depends(security)):
     """Discover sub-tier suppliers using AI."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{COORDINATOR_URL}/discover-subtiers", json=body, timeout=30.0)
+            response = await client.post(f"{COORDINATOR_URL}/discover-subtiers", json=body, headers=_svc_headers(user), timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -899,9 +922,10 @@ async def discover_subtiers(body: Dict[str, Any], token: str = Depends(security)
 async def create_risk_event(body: Dict[str, Any], token: str = Depends(security)):
     """Create a risk event with impact propagation."""
     user = await verify_token(token.credentials)
+    require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{COORDINATOR_URL}/events", json=body, timeout=30.0)
+            response = await client.post(f"{COORDINATOR_URL}/events", json=body, headers=_svc_headers(user), timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -913,7 +937,7 @@ async def list_events(limit: int = 50, token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/events", params={"limit": limit}, timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/events", params={"limit": limit}, headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -924,7 +948,7 @@ async def get_event_impacts(event_id: str, token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{COORDINATOR_URL}/events/{event_id}/impacts", timeout=10.0)
+            response = await client.get(f"{COORDINATOR_URL}/events/{quote(event_id, safe='')}/impacts", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -938,7 +962,7 @@ async def score_supplier_risk(body: Dict[str, Any], token: str = Depends(securit
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{RISK_SCORER_URL}/score", json=body, timeout=30.0)
+            response = await client.post(f"{RISK_SCORER_URL}/score", json=body, headers=_svc_headers(user), timeout=30.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -951,7 +975,7 @@ async def list_risk_dimensions(token: str = Depends(security)):
     user = await verify_token(token.credentials)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{RISK_SCORER_URL}/dimensions", timeout=10.0)
+            response = await client.get(f"{RISK_SCORER_URL}/dimensions", headers=_svc_headers(user), timeout=10.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
@@ -969,53 +993,78 @@ async def erp_status(token: str = Depends(security)):
 async def erp_sync(body: Dict[str, Any], token: str = Depends(security)):
     """Sync data from all connected ERP systems."""
     user = await verify_token(token.credentials)
-    org_id = body.get("organization_id", "a0000000-0000-0000-0000-000000000001")
+    require_write_access(user)
     await erp_manager.connect_all()
-    results = await erp_manager.sync_all(org_id)
+    results = await erp_manager.sync_all(user.organization_id)
     return {"status": "completed", "results": results}
 
 @app.get("/api/v1/erp/suppliers")
-async def erp_suppliers(org_id: str = "a0000000-0000-0000-0000-000000000001", token: str = Depends(security)):
+async def erp_suppliers(token: str = Depends(security)):
     """Fetch suppliers from all connected ERP systems."""
     user = await verify_token(token.credentials)
     await erp_manager.connect_all()
-    suppliers = await erp_manager.sync_suppliers(org_id)
+    suppliers = await erp_manager.sync_suppliers(user.organization_id)
     return {"suppliers": suppliers, "total": len(suppliers)}
 
 # WebSocket for real-time updates
 class ConnectionManager:
+    """Tracks authenticated WebSocket clients per organization."""
+
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.connections: Dict[str, list] = {}
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
+    def add(self, org_id: str, websocket: WebSocket):
+        self.connections.setdefault(org_id, []).append(websocket)
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    def disconnect(self, org_id: str, websocket: WebSocket):
+        clients = self.connections.get(org_id, [])
+        if websocket in clients:
+            clients.remove(websocket)
 
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+    async def broadcast(self, org_id: str, message: dict):
+        """Send a message to one organization's clients only."""
+        for connection in list(self.connections.get(org_id, [])):
             try:
                 await connection.send_json(message)
             except Exception:
-                # Remove disconnected clients
-                self.active_connections.remove(connection)
+                self.disconnect(org_id, connection)
 
 manager = ConnectionManager()
 
+WS_AUTH_TIMEOUT_SECONDS = 10
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time risk updates."""
-    await manager.connect(websocket)
+    """WebSocket endpoint for real-time risk updates.
+
+    The client must send {"token": "<access token>"} as its first message.
+    The token is not accepted in the URL, where it would end up in access logs.
+    """
+    allowed_origins = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")]
+    origin = websocket.headers.get("origin")
+    if origin and origin not in allowed_origins:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
     try:
+        first = await asyncio.wait_for(websocket.receive_json(), timeout=WS_AUTH_TIMEOUT_SECONDS)
+        user = await verify_token(str(first.get("token", "")))
+    except (asyncio.TimeoutError, HTTPException, ValueError, AttributeError, WebSocketDisconnect):
+        await websocket.close(code=1008)
+        return
+
+    manager.add(user.organization_id, websocket)
+    try:
+        await websocket.send_json({"event": "authenticated"})
         while True:
-            # Keep connection alive and listen for client messages
-            data = await websocket.receive_text()
-            # Echo back for now - in production, this would handle subscriptions
-            await websocket.send_text(f"Message received: {data}")
+            # Keep the connection alive; client messages are ignored for now.
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        pass
+    finally:
+        manager.disconnect(user.organization_id, websocket)
 
 if __name__ == "__main__":
     import uvicorn

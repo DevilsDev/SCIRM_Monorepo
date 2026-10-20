@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 import structlog
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from libs.common.monitoring import setup_monitoring
 from libs.common.security import setup_cors
 from libs.common import llm as llm_client
+from libs.common.tenancy import tenant_org
 
 logger = structlog.get_logger()
 
@@ -78,7 +79,7 @@ async def ready():
 
 
 @app.post("/evaluate")
-async def evaluate_suppliers(request: EvaluateRequest):
+async def evaluate_suppliers(request: EvaluateRequest, org_id: str = Depends(tenant_org)):
     """Evaluate suppliers and generate procurement actions for those exceeding risk threshold."""
     new_actions = []
     threshold = request.risk_threshold or RISK_THRESHOLD
@@ -143,6 +144,7 @@ async def evaluate_suppliers(request: EvaluateRequest):
                 "created_at": datetime.utcnow().isoformat(),
             }
 
+        action["organization_id"] = org_id
         new_actions.append(action)
         _actions.append(action)
 
@@ -155,19 +157,19 @@ async def evaluate_suppliers(request: EvaluateRequest):
 
 
 @app.get("/actions")
-async def list_actions(status: str = None):
+async def list_actions(status: str = None, org_id: str = Depends(tenant_org)):
     """List all procurement actions."""
-    actions = _actions
+    actions = [a for a in _actions if a.get("organization_id") == org_id]
     if status:
         actions = [a for a in actions if a.get("status") == status]
     return {"actions": actions, "total": len(actions)}
 
 
 @app.post("/actions/{action_id}/decide")
-async def decide_action(action_id: str, request: ActionRequest):
+async def decide_action(action_id: str, request: ActionRequest, org_id: str = Depends(tenant_org)):
     """Approve or reject a procurement action."""
     for action in _actions:
-        if action["id"] == action_id:
+        if action["id"] == action_id and action.get("organization_id") == org_id:
             if request.decision == "approve":
                 action["status"] = "approved"
                 action["approved_at"] = datetime.utcnow().isoformat()

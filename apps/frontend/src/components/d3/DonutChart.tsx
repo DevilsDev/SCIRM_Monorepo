@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { useTranslation } from 'react-i18next';
-import { getThemeColors } from './theme';
+import { getThemeColors, esc } from './theme';
 
 interface DonutData {
   name: string;
@@ -70,10 +70,10 @@ export default function DonutChart({ data, width = 320, height = 280 }: DonutCha
 
     // Hover effects
     arcs.selectAll('path')
-      .on('mouseover', function (event, d) {
+      .on('mouseover', function (event, d: any) {
         d3.select(this).transition().duration(200).attr('d', (d: any) => arcHover(d) || '');
         tooltip.style('opacity', '1')
-          .html(`<strong class="capitalize">${d.data.name}</strong><br/>${d.data.value} risks (${Math.round((d.data.value / total) * 100)}%)`)
+          .html(`<strong class="capitalize">${esc(d.data.name)}</strong><br/>${esc(d.data.value)} risks (${esc(Math.round((d.data.value / total) * 100))}%)`)
           .style('left', `${event.pageX + 12}px`)
           .style('top', `${event.pageY - 28}px`);
       })

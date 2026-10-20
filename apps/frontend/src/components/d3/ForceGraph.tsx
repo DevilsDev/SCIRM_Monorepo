@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { getThemeColors } from './theme';
+import { getThemeColors, esc } from './theme';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -157,10 +157,10 @@ export default function ForceGraph({ nodes: rawNodes, edges: rawEdges, height = 
     // Hover effects
     node.on('mouseover', function (event, d) {
       d3.select(this).select('circle').transition().duration(150).attr('r', (NODE_RADIUS[d.type] || 16) * 1.3);
-      let html = `<strong>${d.label}</strong><br/>Type: ${d.type}`;
-      if (d.risk_score != null) html += `<br/>Risk: ${d.risk_score}/100`;
-      if (d.risk_tier) html += `<br/>Tier: ${d.risk_tier}`;
-      if (d.severity) html += `<br/>Severity: ${d.severity}`;
+      let html = `<strong>${esc(d.label)}</strong><br/>Type: ${esc(d.type)}`;
+      if (d.risk_score != null) html += `<br/>Risk: ${esc(d.risk_score)}/100`;
+      if (d.risk_tier) html += `<br/>Tier: ${esc(d.risk_tier)}`;
+      if (d.severity) html += `<br/>Severity: ${esc(d.severity)}`;
       tooltip.style('opacity', '1').html(html)
         .style('left', `${event.pageX + 14}px`).style('top', `${event.pageY - 30}px`);
     })
