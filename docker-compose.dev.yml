@@ -111,7 +111,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -142,7 +142,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -172,7 +172,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -202,7 +202,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -229,7 +229,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     volumes:
       # Live reload: source mounted over the copies baked into the image.
@@ -249,7 +249,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     volumes:
       # Live reload: source mounted over the copies baked into the image.
@@ -297,7 +297,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4-turbo-preview}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     volumes:
       # Live reload: source mounted over the copies baked into the image.

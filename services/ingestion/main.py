@@ -25,6 +25,8 @@ from libs.common.monitoring import setup_monitoring
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import tenant_org
+from libs.evidence import answer as evidence_answer
+from libs.evidence import retrieval as evidence_retrieval
 from libs.intel import matching, scoring, sources
 
 logger = structlog.get_logger()
@@ -62,6 +64,12 @@ class IngestResult(BaseModel):
     sources_queried: List[str]
     sources: Dict[str, Dict[str, Any]]
     timestamp: str
+
+
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=3, max_length=500)
+    supplier: Dict[str, Any]
+    k: int = Field(8, ge=1, le=20)
 
 
 class MatchRequest(BaseModel):
@@ -222,6 +230,18 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
     # Truncation drops the oldest activity first; callers should say counts may be incomplete.
     return {"matches": out, "totals": totals, "candidates_considered": len(candidates),
             "candidates_truncated": truncated}
+
+
+@app.post("/evidence/ask")
+async def ask(request: AskRequest, org_id: str = Depends(tenant_org)):
+    """Answer a question about one supplier from public records, citing each record used.
+
+    The question and supplier come from the caller and are not stored here."""
+    supplier = {k: request.supplier.get(k) for k in ("id", "name", "country_code", "aliases")}
+    retrieved = await evidence_retrieval.retrieve(store, request.question, supplier, k=request.k)
+    count = 0 if retrieved["results"] else await evidence_retrieval.supplier_record_count(store, supplier)
+    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    return await evidence_answer.compose(request.question, supplier, retrieved, count, coverage_since=since)
 
 
 if __name__ == "__main__":

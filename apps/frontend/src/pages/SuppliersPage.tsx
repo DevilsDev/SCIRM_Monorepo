@@ -9,6 +9,7 @@ import SupplierForm from '../components/forms/SupplierForm';
 import CSVUpload from '../components/CSVUpload';
 import { useToast } from '../components/Toast';
 import SupplierSignals from '../components/SupplierSignals';
+import SupplierAsk from '../components/SupplierAsk';
 import SeverityBadge from '../components/SeverityBadge';
 
 const tierColors: Record<string, string> = {
@@ -341,7 +342,9 @@ export default function SuppliersPage() {
         )}
         {selectedSupplier && (
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('signals.title', 'Public records')}</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('ask.title', 'Ask about this supplier')}</h2>
+            <SupplierAsk supplierId={selectedSupplier.id} />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mt-6 mb-2">{t('signals.title', 'Public records')}</h2>
             <SupplierSignals supplierId={selectedSupplier.id} />
           </div>
         )}

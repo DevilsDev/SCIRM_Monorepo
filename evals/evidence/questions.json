@@ -1,0 +1,614 @@
+[
+  {
+    "id": "q01",
+    "supplier": "Glenmark Pharmaceuticals Inc.",
+    "question": "Has Glenmark had to pull drugs because of cancer-causing impurities?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "nitros"
+      ]
+    },
+    "note": "Nitrosamine-impurity recalls (NDSRIs)."
+  },
+  {
+    "id": "q02",
+    "supplier": "Glenmark Pharmaceuticals Inc.",
+    "question": "Is there any problem with the carvedilol we source from Glenmark?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "carvedilol"
+      ]
+    },
+    "note": "Recalls of Glenmark carvedilol products."
+  },
+  {
+    "id": "q03",
+    "supplier": "Glenmark Pharmaceuticals Inc.",
+    "question": "What happened with Glenmark's atomoxetine capsules?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "atomoxetine"
+      ]
+    },
+    "note": "Recalls of atomoxetine (nitrosamine)."
+  },
+  {
+    "id": "q04",
+    "supplier": "Glenmark Pharmaceuticals Inc.",
+    "question": "Are Glenmark's shipments from India being stopped at US customs?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention|detained"
+      ]
+    },
+    "note": "Import alert on Glenmark Ltd."
+  },
+  {
+    "id": "q05",
+    "supplier": "Fresenius Kabi USA, LLC",
+    "question": "Has Fresenius Kabi had issues keeping its injectables free of microbes?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Assurance of Sterility|Microbial Contamination|endotoxin"
+      ]
+    },
+    "note": "Sterility / microbial contamination recalls."
+  },
+  {
+    "id": "q06",
+    "supplier": "Fresenius Kabi USA, LLC",
+    "question": "Have glass, hair or other foreign bits turned up in Fresenius Kabi vials?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "particulate"
+      ]
+    },
+    "note": "Particulate-matter recalls (glass, hair)."
+  },
+  {
+    "id": "q07",
+    "supplier": "Fresenius Kabi USA, LLC",
+    "question": "Which Fresenius Kabi injectables can't we get right now?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Unavailable|Limited Availability"
+      ]
+    },
+    "note": "Shortage entries with unavailable or limited presentations."
+  },
+  {
+    "id": "q08",
+    "supplier": "Fresenius Kabi USA, LLC",
+    "question": "Is Fresenius Kabi dropping any products from its portfolio?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "To Be Discontinued"
+      ]
+    },
+    "note": "Discontinuation entries."
+  },
+  {
+    "id": "q09",
+    "supplier": "Baxter Healthcare Corporation",
+    "question": "Have Baxter IV bags been recalled because something was floating in the fluid?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "particulate"
+      ]
+    },
+    "note": "Particulate recalls (steel, fiberglass, plastic)."
+  },
+  {
+    "id": "q10",
+    "supplier": "Baxter Healthcare Corporation",
+    "question": "Anything I should worry about with Baxter?",
+    "relevant": {
+      "any_regex": [
+        "\\bClass II?\\b|CGMP|Detention"
+      ]
+    },
+    "note": "Serious items: Class I/II recalls and the GMP import alert."
+  },
+  {
+    "id": "q11",
+    "supplier": "Baxter Healthcare Corporation",
+    "question": "Is Baxter's dextrose on the FDA shortage list?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Dextrose"
+      ]
+    },
+    "note": "Dextrose shortage entries."
+  },
+  {
+    "id": "q12",
+    "supplier": "Sun Pharmaceutical Industries, Inc.",
+    "question": "Has Sun Pharma had products that don't dissolve the way they're supposed to?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Dissolution"
+      ]
+    },
+    "note": "Failed dissolution recalls."
+  },
+  {
+    "id": "q13",
+    "supplier": "Sun Pharmaceutical Industries, Inc.",
+    "question": "Is a Sun Pharma plant barred from shipping into the US?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention"
+      ]
+    },
+    "note": "Import alert 66-40 on Sun Pharma (ex-Ranbaxy)."
+  },
+  {
+    "id": "q14",
+    "supplier": "Sun Pharmaceutical Industries, Inc.",
+    "question": "Are Sun's ADHD medicines like lisdexamfetamine or methylphenidate hard to get?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Lisdexamfetamine|Methylphenidate"
+      ]
+    },
+    "note": "Shortage entries for Sun ADHD stimulants."
+  },
+  {
+    "id": "q15",
+    "supplier": "Cipla USA Inc.",
+    "question": "Did Cipla recall its cinacalcet because of a carcinogen?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "nitroso[- ]?cinacalcet"
+      ]
+    },
+    "note": "N-nitroso-cinacalcet recalls."
+  },
+  {
+    "id": "q16",
+    "supplier": "Cipla USA Inc.",
+    "question": "Is Cipla on any of FDA's import blacklists?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention|Misbranded"
+      ]
+    },
+    "note": "All Cipla import alerts."
+  },
+  {
+    "id": "q17",
+    "supplier": "Cipla USA Inc.",
+    "question": "Have customers complained about Cipla tablets arriving crushed or broken?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "crushed|broken"
+      ]
+    },
+    "note": "Broken-tablet recalls."
+  },
+  {
+    "id": "q18",
+    "supplier": "Dabur India Ltd",
+    "question": "Why are Dabur's products being held at US ports of entry?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention"
+      ]
+    },
+    "note": "Dabur import alerts."
+  },
+  {
+    "id": "q19",
+    "supplier": "Dabur India Ltd",
+    "question": "Anything I should worry about with Dabur India?",
+    "relevant": {
+      "any_regex": [
+        "CGMP|GMP|Detention"
+      ]
+    },
+    "note": "All serious Dabur records: GMP recalls, CGMP letter, import alerts."
+  },
+  {
+    "id": "q20",
+    "supplier": "Teva Pharmaceuticals USA, Inc.",
+    "question": "Has Teva had pills that were too strong or too weak?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "sub-?potent|super-?potent"
+      ]
+    },
+    "note": "Potency recalls."
+  },
+  {
+    "id": "q21",
+    "supplier": "Teva Pharmaceuticals USA, Inc.",
+    "question": "Did an FDA inspection turn up problems with how Teva keeps products sterile?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Assurance of Sterility"
+      ]
+    },
+    "note": "Sterility recalls after FDA inspection."
+  },
+  {
+    "id": "q22",
+    "supplier": "Teva Pharmaceuticals USA, Inc.",
+    "question": "Did Teva build any of its drugs with an ingredient source that wasn't signed off?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "unapproved raw material"
+      ]
+    },
+    "note": "Unapproved raw material recalls."
+  },
+  {
+    "id": "q23",
+    "supplier": "Teva Pharmaceuticals USA, Inc.",
+    "question": "Which Teva generics are going away for good?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "To Be Discontinued"
+      ]
+    },
+    "note": "Teva discontinuation entries."
+  },
+  {
+    "id": "q24",
+    "supplier": "Amneal Pharmaceuticals LLC",
+    "question": "What are Amneal's most dangerous recalls?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "\\bClass I\\b"
+      ]
+    },
+    "note": "Class I recalls only."
+  },
+  {
+    "id": "q25",
+    "supplier": "Amneal Pharmaceuticals LLC",
+    "question": "Should I be concerned about Amneal as a supplier?",
+    "relevant": {
+      "any_regex": [
+        "\\bClass II?\\b|CGMP"
+      ]
+    },
+    "note": "Class I/II recalls plus CGMP warning letter."
+  },
+  {
+    "id": "q26",
+    "supplier": "Amneal Pharmaceuticals LLC",
+    "question": "Has the FDA cited Amneal for GMP violations in a letter?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "CGMP"
+      ]
+    },
+    "note": "CGMP warning letter."
+  },
+  {
+    "id": "q27",
+    "supplier": "Kenil Healthcare",
+    "question": "How is Kenil Healthcare doing on manufacturing quality?",
+    "relevant": {
+      "any_regex": [
+        "CGMP|GMP"
+      ]
+    },
+    "note": "All Kenil records (GMP recalls, letter, import alert)."
+  },
+  {
+    "id": "q28",
+    "supplier": "Eli Lilly and Company",
+    "question": "Has the FDA told Eli Lilly off for misleading drug marketing?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "False|Misleading"
+      ]
+    },
+    "note": "False & misleading claims warning letters."
+  },
+  {
+    "id": "q29",
+    "supplier": "Eli Lilly and Company",
+    "question": "Is Lilly phasing out any of its insulins?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Insulin"
+      ]
+    },
+    "note": "Insulin discontinuation entries."
+  },
+  {
+    "id": "q30",
+    "supplier": "Himalaya Drug Company",
+    "question": "Are Himalaya's products being refused entry into the United States?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention"
+      ]
+    },
+    "note": "Himalaya import alerts (unapproved drugs)."
+  },
+  {
+    "id": "q31",
+    "supplier": "Novo Nordisk Inc.",
+    "question": "Is Novo Nordisk discontinuing the oral semaglutide tablet?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Semaglutide"
+      ]
+    },
+    "note": "Semaglutide tablet discontinuation entry."
+  },
+  {
+    "id": "q32",
+    "supplier": "Huons Co., Ltd.",
+    "question": "Has Huons had sterility problems with its local anesthetic injections?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Assurance of Sterility"
+      ]
+    },
+    "note": "Huons sterility recalls."
+  },
+  {
+    "id": "q33",
+    "supplier": "ICU Medical, Inc.",
+    "question": "Did ICU Medical ship potassium chloride bags labeled with the wrong strength?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Declared Strength"
+      ]
+    },
+    "note": "Potassium chloride strength-label Class I recalls."
+  },
+  {
+    "id": "q34",
+    "supplier": "Hikma Pharmaceuticals USA Inc.",
+    "question": "Are Hikma's opioid injections like fentanyl or morphine in short supply?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Fentanyl|Morphine|Hydromorphone|Sufentanil|Remifentanil|Meperidine"
+      ]
+    },
+    "note": "Opioid injectable shortage entries (any availability)."
+  },
+  {
+    "id": "q35",
+    "supplier": "Abbott Diabetes Care",
+    "question": "Has the FDA flagged Abbott Diabetes Care for device quality system problems?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "QSR|Medical Devices"
+      ]
+    },
+    "note": "Device CGMP/QSR warning letter (single record)."
+  },
+  {
+    "id": "q36",
+    "supplier": "Aytu BioPharma, Inc.",
+    "question": "Has Aytu been warned by FDA about how it promotes its drugs?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "False|Misleading|Misbranded"
+      ]
+    },
+    "note": "Misleading-claims warning letters (two records)."
+  },
+  {
+    "id": "q37",
+    "supplier": "Baxter Healthcare Corporation",
+    "question": "Has Baxter recalled anything over cancer-causing nitrosamine contamination?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "nitros|carcinogen"
+      ]
+    },
+    "note": "NEGATIVE: Baxter recalls are particulate/CGMP, none nitrosamine."
+  },
+  {
+    "id": "q38",
+    "supplier": "Kenil Healthcare",
+    "question": "Has Kenil Healthcare had any sterility failures or mislabeled products?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Assurance of Sterility|Labeling|mix-?up|Microbial"
+      ]
+    },
+    "note": "NEGATIVE: Kenil recalls are all generic CGMP."
+  },
+  {
+    "id": "q39",
+    "supplier": "Himalaya Drug Company",
+    "question": "Is Himalaya flagged at the border for failing FDA manufacturing standards?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Not Met Drug GMP|66-40"
+      ]
+    },
+    "note": "NEGATIVE: Himalaya alerts are all 66-41 (unapproved drugs), not GMP."
+  },
+  {
+    "id": "q40",
+    "supplier": "Fresenius Kabi USA, LLC",
+    "question": "Are any Fresenius Kabi shipments being detained at the border?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention|detained"
+      ]
+    },
+    "note": "NEGATIVE: no import alerts for Fresenius Kabi."
+  },
+  {
+    "id": "q41",
+    "supplier": "Sun Pharmaceutical Industries, Inc.",
+    "question": "Has Sun Pharma received an FDA warning letter recently?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "CGMP|Adulterated|Misbranded|Unapproved|False"
+      ]
+    },
+    "note": "NEGATIVE: no Sun warning letters in corpus."
+  },
+  {
+    "id": "q42",
+    "supplier": "Eli Lilly and Company",
+    "question": "Has Eli Lilly recalled any of its products?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "\\bClass (I|II|III)\\b|recall"
+      ]
+    },
+    "note": "NEGATIVE: no Lilly recalls in corpus."
+  },
+  {
+    "id": "q43",
+    "supplier": "Meridian Sterile Pharmaceuticals Inc.",
+    "question": "Has Meridian Sterile had any recalls for contamination or sterility?",
+    "relevant": {
+      "any_regex": [
+        "Assurance of Sterility|contamina"
+      ]
+    },
+    "note": "NEGATIVE: supplier has no records."
+  },
+  {
+    "id": "q44",
+    "supplier": "Halvorsen Generics Ltd",
+    "question": "Any FDA warning letters or import alerts on Halvorsen Generics?",
+    "relevant": {
+      "any_regex": [
+        "CGMP|Detention|Adulterated|Misbranded"
+      ]
+    },
+    "note": "NEGATIVE: supplier has no records."
+  },
+  {
+    "id": "q45",
+    "supplier": "Corvanta Biologics GmbH",
+    "question": "Is Corvanta Biologics running short on any of its products?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Unavailable|Limited Availability|Discontinu"
+      ]
+    },
+    "note": "NEGATIVE: supplier has no records."
+  }
+]

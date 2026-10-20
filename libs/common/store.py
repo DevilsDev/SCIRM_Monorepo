@@ -14,6 +14,7 @@ except refresh_candidates(), which iterates tenants one by one.
 
 import json
 import os
+import re
 import uuid
 from datetime import date, datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -270,6 +271,26 @@ class MemoryStore:
                       or (s["signal_type"] == "disaster" and countries_set & set(s.get("country_codes") or [])))]
         found.sort(key=_activity, reverse=True)
         return found[:limit]
+
+    async def search_signals(self, query_terms: List[str], keys: Optional[List[str]] = None,
+                             limit: int = 50) -> List[Dict[str, Any]]:
+        """Keyword search (any term), title matches weighing double. Development stand-in for
+        the PostgreSQL full-text search; evaluation numbers come from PostgreSQL."""
+        stems = [t.lower()[:5] for term in query_terms for t in re.findall(r"[a-z0-9]+", term.lower()) if len(t) > 2]
+        if not stems:
+            return []
+        keys_set = set(keys or [])
+        scored = []
+        for sig in self.signals.values():
+            if sig.get("delisted_at") or (keys is not None and not keys_set & set(sig.get("entity_keys") or [])):
+                continue
+            title = {w[:5] for w in re.findall(r"[a-z0-9]+", (sig.get("title") or "").lower())}
+            summary = {w[:5] for w in re.findall(r"[a-z0-9]+", (sig.get("summary") or "").lower())}
+            score = sum(2.0 * (st in title) + 1.0 * (st in summary) for st in stems)
+            if score:
+                scored.append({**sig, "rank": score})
+        scored.sort(key=lambda x: (x["rank"], _activity(x)), reverse=True)
+        return scored[:limit]
 
     async def retire_unseen(self, source: str, seen_ids: Iterable[str]) -> int:
         """Mark this source's active signals that a full run did not see as delisted."""
@@ -735,6 +756,7 @@ class PostgresStore:
 
     @staticmethod
     def _signal_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        row.pop("search_doc", None)
         out = _jsonable(row)
         for k in ("occurred_at", "published_at", "updated_at"):
             if isinstance(out.get(k), date):
@@ -792,6 +814,23 @@ class PostgresStore:
             "OR (signal_type = 'disaster' AND country_codes && CAST(:countries AS varchar(3)[]))) "
             "ORDER BY COALESCE(updated_at, published_at) DESC LIMIT :limit"),
             {"keys": list(keys), "countries": list(countries), "since": _day(since), "limit": limit})
+        return [self._signal_row(r) for r in rows]
+
+    async def search_signals(self, query_terms: List[str], keys: Optional[List[str]] = None,
+                             limit: int = 50) -> List[Dict[str, Any]]:
+        """Full-text search: active signals matching any term, ranked by ts_rank_cd (titles
+        weighted above summaries). websearch_to_tsquery never raises on user text."""
+        terms = [t.replace('"', " ").strip() for t in query_terms if t and t.strip()]
+        if not terms:
+            return []
+        query = " or ".join(f'"{t}"' if " " in t else t for t in terms)
+        rows = await self._all(None, (
+            "SELECT s.*, ts_rank_cd(s.search_doc, q) AS rank "
+            "FROM public_signals s, websearch_to_tsquery('english', :q) q "
+            "WHERE s.delisted_at IS NULL AND s.search_doc @@ q "
+            "AND (CAST(:keys AS text[]) IS NULL OR s.entity_keys && CAST(:keys AS text[])) "
+            "ORDER BY rank DESC, COALESCE(s.updated_at, s.published_at) DESC LIMIT :limit"),
+            {"q": query, "keys": list(keys) if keys is not None else None, "limit": limit})
         return [self._signal_row(r) for r in rows]
 
     async def retire_unseen(self, source: str, seen_ids: Iterable[str]) -> int:

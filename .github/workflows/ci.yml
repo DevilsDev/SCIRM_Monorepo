@@ -35,7 +35,7 @@ jobs:
         run: python -m compileall -q libs services apps/api-gateway alembic
 
       - name: Security, AI-trust and public-intelligence tests
-        run: pytest tests/security tests/ai_trust tests/intel -q
+        run: pytest tests/security tests/ai_trust tests/intel tests/evidence -q
 
   postgres:
     name: Backend tests on PostgreSQL
@@ -65,8 +65,8 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements-test.txt
 
-      - name: Security suite on the Postgres store, plus RLS, audit and migration checks
-        run: pytest tests/security tests/db -q
+      - name: Security suite on the Postgres store, RLS/audit/migration checks, and the Evidence Engine quality gate
+        run: pytest tests/security tests/db tests/evidence -q
 
   frontend:
     name: Frontend type check and build

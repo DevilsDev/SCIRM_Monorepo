@@ -166,6 +166,39 @@ export interface SupplierSignalSummary {
   recall_score: number | null;
 }
 
+export interface EvidenceClaim {
+  text: string;
+  citations: string[];
+  reasons?: string[];
+}
+
+export interface EvidenceCitation {
+  id: string;
+  source: string;
+  source_label: string;
+  type: string;
+  title: string;
+  published_at: string;
+  url: string | null;
+  severity: string;
+  match_type: string;
+  match_kind: string;
+  matched_on: string;
+}
+
+export interface EvidenceAnswer {
+  question: string;
+  supplier: string;
+  /** answered | no_records | insufficient_evidence */
+  status: string;
+  note: string;
+  claims: EvidenceClaim[];
+  removed: EvidenceClaim[];
+  citations: EvidenceCitation[];
+  /** extractive (from the records' own fields) | llm | extractive_after_llm_rejected | none */
+  method: string;
+}
+
 export interface PublicSourceStatus {
   label: string;
   status: 'ok' | 'error' | 'rate_limited' | 'never_run';
@@ -357,6 +390,11 @@ export const api = {
   // Public signals matched to suppliers
   async getSupplierSignals(supplierId: string): Promise<SupplierSignals> {
     const response = await apiClient.get(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/signals`);
+    return response.data;
+  },
+
+  async askAboutSupplier(supplierId: string, question: string): Promise<EvidenceAnswer> {
+    const response = await apiClient.post(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/ask`, { question });
     return response.data;
   },
 
