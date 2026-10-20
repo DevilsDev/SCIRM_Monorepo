@@ -38,7 +38,9 @@ HERE = Path(__file__).parent
 CORPUS = HERE / "data" / "corpus.jsonl.gz"
 # Set A was used while developing retrieval; set B was written afterwards and never tuned
 # on, so B is the honest number. Both were written without access to the retrieval code.
-QUESTION_SETS = {"A_tuned_on": HERE / "questions.json", "B_held_out": HERE / "questions_b.json"}
+QUESTION_SETS = {"A_tuned_on": HERE / "questions.json", "B_held_out": HERE / "questions_b.json",
+                 # Written before vector search was tuned; the honest number for hybrid retrieval.
+                 "C_held_out": HERE / "questions_c.json"}
 K = 10
 
 
@@ -72,12 +74,12 @@ def relevant_ids(question: Dict[str, Any], corpus: List[Dict[str, Any]]) -> set:
     return out
 
 
-async def eval_retrieval(store, corpus, questions) -> Dict[str, Any]:
+async def eval_retrieval(store, corpus, questions, embedder=None) -> Dict[str, Any]:
     rows = []
     for q in questions:
         relevant = relevant_ids(q, corpus)
         supplier = {"name": q["supplier"]}
-        got = await retrieval.retrieve(store, q["question"], supplier, k=K)
+        got = await retrieval.retrieve(store, q["question"], supplier, k=K, embedder=embedder)
         ids = [(x["record"]["source"], x["record"]["external_id"]) for x in got["results"]]
         if relevant:
             hits = [i for i in ids if i in relevant]
@@ -201,21 +203,40 @@ def eval_checker(corpus, n: int = 400, seed: int = 7) -> Dict[str, Any]:
             "corruptions": results, "overall_catch_rate": round(caught / applied, 3) if applied else None}
 
 
-async def run(store) -> Dict[str, Any]:
+async def embed_corpus(store, embedder) -> int:
+    from libs.common.store import text_hash
+    from libs.evidence.embeddings import document_text
+    done = 0
+    while True:
+        pending = await store.signals_needing_embedding(embedder.model_id, limit=500)
+        if not pending:
+            return done
+        vectors = await embedder.embed_documents([document_text(r) for r in pending])
+        written = await store.set_embeddings([(r["id"], text_hash(r), v) for r, v in zip(pending, vectors)],
+                                             embedder.model_id)
+        done += written
+        if not written:
+            return done
+
+
+async def run(store, embedder=None) -> Dict[str, Any]:
     corpus = load_corpus()
     await store.upsert_signals(corpus)
+    embedded = await embed_corpus(store, embedder) if embedder else 0
     retrieval_results = {}
     for name in QUESTION_SETS:
         questions = load_questions(name)
         if questions:
-            retrieval_results[name] = await eval_retrieval(store, corpus, questions)
-    return {"retrieval": retrieval_results, "checker": eval_checker(corpus), "corpus": len(corpus)}
+            retrieval_results[name] = await eval_retrieval(store, corpus, questions, embedder)
+    return {"retrieval": retrieval_results, "checker": eval_checker(corpus), "corpus": len(corpus),
+            "retrieval_mode": f"hybrid ({embedder.model_id}, {embedded} records embedded)" if embedder else "keyword"}
 
 
 def report(result: Dict[str, Any]) -> str:
-    lines = [f"Evidence Engine evaluation on public data ({result['corpus']} records; synthetic, not partner-labelled)"]
+    lines = [f"Evidence Engine evaluation on public data ({result['corpus']} records; synthetic, not partner-labelled); "
+             f"retrieval: {result.get('retrieval_mode', 'keyword')}"]
     for name, r in result["retrieval"].items():
-        lines += [f"Retrieval, set {name} (keyword v1): {r['positives']} questions with relevant records, "
+        lines += [f"Retrieval, set {name}: {r['positives']} questions with relevant records, "
                   f"recall@10 {r['recall_at_10']}, MRR {r['mrr']}; no hit at all: {r['positives_with_no_hit'] or 'none'}",
                   f"  {r['negatives']} 'nothing matches' questions answered without citing records: {r['negatives_correct']}"
                   f" (wrong: {r['negatives_wrong'] or 'none'})"]
@@ -231,6 +252,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--postgres", action="store_true", help="evaluate on PostgreSQL (needs TEST_POSTGRES_URL)")
     parser.add_argument("--json", type=Path)
+    parser.add_argument("--vectors", action="store_true",
+                        help="hybrid retrieval with the configured embedder (EMBEDDINGS_PROVIDER=bedrock, AWS access); "
+                             "needs --postgres")
     args = parser.parse_args()
 
     app_url = None
@@ -241,6 +265,13 @@ def main():
         app_url = pg_support.fresh_database("scirm_eval_evidence", seed_demo=False)["app"]
         os.environ["DB_POOL"] = "null"
 
+    embedder = None
+    if args.vectors:
+        from libs.evidence.embeddings import get_embedder
+        embedder = get_embedder()
+        if embedder is None or not app_url:
+            raise SystemExit("--vectors needs --postgres and EMBEDDINGS_PROVIDER=bedrock with EU model access")
+
     async def go():
         if app_url:
             from libs.common.store import PostgresStore
@@ -249,7 +280,7 @@ def main():
             from libs.common.store import MemoryStore
             store = MemoryStore(seed_demo=False)
         try:
-            return await run(store)
+            return await run(store, embedder)
         finally:
             await store.close()
 

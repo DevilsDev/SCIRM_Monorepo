@@ -24,10 +24,15 @@ Results are filtered with the same supplier matcher as everywhere else
 would not show.
 """
 
+import os
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import structlog
+
 from libs.intel import matching
+
+logger = structlog.get_logger()
 
 MIN_CONFIDENCE = 0.6
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
@@ -177,8 +182,46 @@ def _supplier_matches(supplier: Dict[str, Any], records: List[Dict[str, Any]], i
     return out
 
 
-async def retrieve(store, question: str, supplier: Dict[str, Any], k: int = 10) -> Dict[str, Any]:
-    """The supplier's records most relevant to the question, plus how they were found."""
+# Vector hits farther than this (cosine distance) are not evidence of relevance. Not yet
+# calibrated: set it from a held-out evaluation once real embeddings run (evals/evidence).
+VECTOR_MAX_DISTANCE = float(os.getenv("EMBED_MAX_DISTANCE", "0.55"))
+RRF_K = 60  # reciprocal rank fusion constant
+
+
+def _key(record: Dict[str, Any]) -> Tuple[str, str]:
+    return (record["source"], record["external_id"])
+
+
+async def _vector_ranked(store, embedder, question: str, supplier: Dict[str, Any], keys: List[str],
+                         types: Set[str]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+    """The supplier's records nearest to the question, within the distance cut-off and
+    the requested record types. An embedding failure leaves keyword results only."""
+    try:
+        query = await embedder.embed_query(question)
+        hits = await store.vector_search(query, embedder.model_id, keys, limit=50)
+    except Exception as exc:  # e.g. Bedrock throttling
+        logger.warning("Vector search unavailable", error=type(exc).__name__)
+        return []
+    hits = [h for h in hits if h["distance"] <= VECTOR_MAX_DISTANCE and (not types or h["signal_type"] in types)]
+    return _supplier_matches(supplier, hits, include_exposures=False)
+
+
+def _fuse(*rankings: List[Tuple[Dict[str, Any], Dict[str, Any]]]):
+    """Reciprocal rank fusion: a record high in either list ranks high overall."""
+    scores: Dict[Tuple[str, str], float] = {}
+    items: Dict[Tuple[str, str], Tuple[Dict[str, Any], Dict[str, Any]]] = {}
+    for ranking in rankings:
+        for rank, (record, m) in enumerate(ranking, 1):
+            key = _key(record)
+            scores[key] = scores.get(key, 0.0) + 1.0 / (RRF_K + rank)
+            items.setdefault(key, (record, m))
+    return sorted(items.values(), key=lambda rm: (scores[_key(rm[0])], SEVERITY_RANK.get(rm[0]["severity"], 0),
+                                                 rm[0].get("updated_at") or rm[0]["published_at"]), reverse=True)
+
+
+async def retrieve(store, question: str, supplier: Dict[str, Any], k: int = 10, embedder=None) -> Dict[str, Any]:
+    """The supplier's records most relevant to the question, plus how they were found.
+    With an embedder, keyword and vector results are fused; without one, keyword only."""
     parsed = query_terms(question, supplier.get("name") or "")
     index = matching.supplier_index([supplier])
     types, required = set(parsed["types"]), parsed["required"]
@@ -201,18 +244,29 @@ async def retrieve(store, question: str, supplier: Dict[str, Any], k: int = 10) 
                                     SEVERITY_RANK.get(rm[0]["severity"], 0),
                                     rm[0].get("updated_at") or rm[0]["published_at"]), reverse=True)
         mode = "keyword"
+        if embedder is not None and not (types and not required):
+            vector = await _vector_ranked(store, embedder, question, supplier, index["keys"], types)
+            if vector:
+                ranked, mode = _fuse(ranked, vector), "hybrid"
     else:
         found = await store.signal_candidates(index["keys"], [], limit=5000)
         ranked = _supplier_matches(supplier, found, include_exposures=False)
         # Other words (a product name, say): if some records contain them, those are the answer.
         named = [rm for rm in ranked if parsed["extra"] and _contains_any(_text(rm[0]), parsed["extra"])]
-        mode = "named" if named else "general"
-        ranked = named or ranked
-        ranked.sort(key=lambda rm: (SEVERITY_RANK.get(rm[0]["severity"], 0),
-                                    rm[0].get("updated_at") or rm[0]["published_at"]), reverse=True)
+        if named:
+            ranked, mode = named, "named"
+        elif parsed["extra"] and embedder is not None:
+            # A described problem keyword search cannot parse ("bits floating in the liquid"):
+            # meaning-based search, and nothing if nothing is close enough.
+            ranked, mode = await _vector_ranked(store, embedder, question, supplier, index["keys"], set()), "vector"
+        else:
+            mode = "general"
+        if mode != "vector":
+            ranked.sort(key=lambda rm: (SEVERITY_RANK.get(rm[0]["severity"], 0),
+                                        rm[0].get("updated_at") or rm[0]["published_at"]), reverse=True)
     seen, unique = set(), []
     for record, m in ranked:
-        key = (record["source"], record["external_id"])
+        key = _key(record)
         if key not in seen:
             seen.add(key)
             unique.append({"record": record, "match": m})
