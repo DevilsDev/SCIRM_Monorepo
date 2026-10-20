@@ -876,6 +876,45 @@ async def import_sap_suppliers(body: SupplierImportBody, token: str = Depends(se
     return result
 
 
+class SpendImportBody(BaseModel):
+    content: str = Field(..., min_length=1, max_length=100_000_000)
+    column_map: Dict[str, str] = Field(default_factory=dict)
+    decimal: Optional[str] = Field(None, pattern=r"^[.,]$")
+    apply: bool = False
+
+
+@app.post("/api/v1/suppliers/import/sap-spend")
+async def import_sap_spend(body: SpendImportBody, token: str = Depends(security)):
+    """12-month purchase-order spend per SAP supplier. Preview by default; apply=true writes."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/suppliers/import/sap-spend", json=body.model_dump(),
+                                         headers=_svc_headers(user), timeout=300.0)
+            response.raise_for_status()
+            result = response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (400, 409, 422):
+            detail = e.response.json().get("detail")
+            raise HTTPException(status_code=400 if e.response.status_code == 422 else e.response.status_code,
+                                detail=detail if isinstance(detail, str) else "The file could not be read")
+        raise HTTPException(status_code=502, detail="The import failed")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Supplier service unavailable")
+    if body.apply:
+        # Totals only: order lines and amounts per supplier stay out of the audit log.
+        try:
+            await audit_store.record_audit(user.organization_id, {
+                "user_id": user.id, "actor_type": "user", "actor": user.email, "action": "suppliers.import.sap_spend",
+                "resource_type": "suppliers", "status_code": 200,
+                "details": {"written": result.get("written"), "period": result.get("period"),
+                            "lines": result.get("lines"), "unknown_suppliers": result.get("unknown_count")}})
+        except Exception as exc:
+            logger.error("Audit write failed", error=type(exc).__name__, action="suppliers.import.sap_spend")
+    return result
+
+
 @app.get("/api/v1/signals/suppliers")
 async def signals_overview(since_days: int = 365, token: str = Depends(security)):
     """Public incident and exposure counts for every supplier of the caller's organization."""
