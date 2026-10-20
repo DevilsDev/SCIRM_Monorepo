@@ -29,7 +29,7 @@ from libs.common.store import text_hash
 from libs.evidence import answer as evidence_answer
 from libs.evidence import embeddings as evidence_embeddings
 from libs.evidence import retrieval as evidence_retrieval
-from libs.intel import matching, scan, scoring, sources
+from libs.intel import geo, matching, scan, scoring, sources
 
 logger = structlog.get_logger()
 
@@ -173,7 +173,23 @@ async def trigger_ingestion(org_id: str = Depends(tenant_org)):
 
 
 def _match_entry(m: Dict[str, Any]) -> Dict[str, Any]:
-    return {**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")}, "signal": _as_document(m["signal"])}
+    entry = {**{k: m[k] for k in ("match_type", "confidence", "kind", "matched_on")}, "signal": _as_document(m["signal"])}
+    if m.get("site"):
+        entry["site"] = m["site"]  # nearest site, distance and the alert radius used
+    return entry
+
+
+def _elsewhere(supplier: Optional[Dict[str, Any]], candidates: List[Dict[str, Any]],
+               exposures: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """For a supplier with located sites: alerts in its countries that are not near any site.
+    They are not exposures, but are counted so the reader knows they were considered."""
+    if not supplier or not geo.located_sites(supplier):
+        return {"site_level": False}
+    countries = set(matching.supplier_countries(supplier))
+    shown = {m["signal"].get("id") for m in exposures}
+    elsewhere = sum(1 for c in candidates if c.get("signal_type") == "disaster" and geo.event_point(c)
+                    and countries & set(c.get("country_codes") or []) and c.get("id") not in shown)
+    return {"site_level": True, "exposures_elsewhere": elsewhere}
 
 
 def _event_entry(group: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -250,6 +266,7 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
     countries = index["countries"] if request.include_exposure else []
     candidates = await store.signal_candidates(index["keys"], countries, since=since, limit=MATCH_CANDIDATE_LIMIT)
     matches = matching.match_all(request.suppliers, candidates, min_confidence=0.0)
+    by_id = {str(s.get("id")): s for s in request.suppliers}
     out, totals = {}, {}
     for supplier_id, found in matches.items():
         kept = [m for m in found if m["kind"] == "exposure" or m["confidence"] >= request.min_confidence]
@@ -259,7 +276,8 @@ async def match_suppliers(request: MatchRequest, org_id: str = Depends(tenant_or
         # recall numbers (one per strength or pack), which would otherwise read as a dozen problems.
         events = matching.group_events(incidents)
         totals[supplier_id] = {"incidents": len(events), "incident_records": len(incidents),
-                               "exposures": len(exposures), **_watch(incidents)}
+                               "exposures": len(exposures), **_watch(incidents),
+                               **_elsewhere(by_id.get(supplier_id), candidates, exposures)}
         # The limit applies to each kind, so exposures never crowd out incidents.
         out[supplier_id] = ([_event_entry(group) for group in events[: request.limit_per_supplier]]
                             + [_match_entry(m) for m in exposures[: request.limit_per_supplier]])

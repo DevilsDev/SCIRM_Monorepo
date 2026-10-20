@@ -38,7 +38,7 @@ concerns one of them. It is built first for pharmaceutical and healthcare supply
 | Capability | Description |
 |---|---|
 | **Public-record monitoring** | Ingests five public sources: FDA drug recalls, FDA warning letters, the FDA import-alert Red Lists, FDA drug shortages, and GDACS disaster alerts. Each record keeps its public date separately from the event date. |
-| **Supplier matching** | Links records to your suppliers by name, known aliases and parent company, and says how each match was made. Similar-name matches are marked for checking. A disaster in a supplier's country is shown as *exposure*, never as an incident. |
+| **Supplier matching** | Links records to your suppliers by name, known aliases and parent company, and says how each match was made. Similar-name matches are marked for checking. Disasters are *exposure*, never incidents: matched by distance to the supplier's sites (from SAP addresses or added by hand), or by country when no site is known. See [Disaster exposure by site](docs/site-exposure.md). |
 | **One event, one row** | An FDA recall event often has a recall number for every strength or pack. SCIRM groups them, so one event counts once and lists the products it covers. |
 | **Watch flag** | A back-tested recall-history rule marks suppliers worth a closer look. It is a prompt to investigate, not a prediction (see [evaluation](#evidence-and-evaluation)). |
 | **Cited answers** | Ask a question about a supplier ("Any sterility problems?"). Every sentence in the answer cites the record it comes from, and a deterministic checker removes any sentence its records do not support. |
@@ -304,7 +304,6 @@ and the workflow file explains how to enable publishing.
 - **Not yet built:**
   - direct SAP API connection
   - ranking suppliers by purchase-order spend
-  - plant-level (instead of country-level) disaster exposure
   - encrypted MFA secrets at rest
 - **Untested in this repository:** live Bedrock calls; they need EU AWS access.
 
@@ -321,3 +320,7 @@ and the workflow file explains how to enable publishing.
 ## License
 
 [MIT](LICENSE) © 2025 Dev Devil
+
+The city gazetteer in `libs/intel/data/cities.tsv.gz` is derived from
+[GeoNames](https://www.geonames.org) and licensed CC BY 4.0. Public records come from the
+U.S. FDA (openFDA and fda.gov) and [GDACS](https://www.gdacs.org).

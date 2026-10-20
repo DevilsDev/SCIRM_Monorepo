@@ -16,6 +16,7 @@ nav:
   - Guides:
       - Importing suppliers from SAP: sap-import.md
       - Bedrock (EU) setup: bedrock-setup.md
+      - Disaster exposure by site: site-exposure.md
   - Development:
       - Branching: development/branching.md
   - Operations:

@@ -8,6 +8,7 @@ about them with citations to those records.
 
 - [Importing suppliers from SAP](sap-import.md): upload an LFA1 export; preview before anything is saved.
 - [Bedrock (EU) setup](bedrock-setup.md): enable AI-written answers and vector search, EU-only.
+- [Disaster exposure by site](site-exposure.md): how alerts are matched to plants and warehouses.
 
 ## For developers and operators
 

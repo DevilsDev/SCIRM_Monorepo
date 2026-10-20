@@ -98,6 +98,8 @@ export interface Supplier {
   is_active: boolean;
   /** Set on demo suppliers (fictional, or named after real companies). */
   demo_note?: string;
+  /** Places the supplier operates, for site-level disaster exposure. */
+  sites?: SupplierSite[];
 }
 
 export interface Alert {
@@ -159,11 +161,13 @@ export interface PublicSignal {
 }
 
 export interface SignalMatch {
-  match_type: 'name_exact' | 'name_contains' | 'name_similar' | 'parent_company' | 'country_exposure';
+  match_type: 'name_exact' | 'name_contains' | 'name_similar' | 'parent_company' | 'country_exposure' | 'site_proximity';
   confidence: number;
   kind: 'incident' | 'exposure';
   matched_on: string;
   signal: PublicSignal;
+  /** site_proximity: the nearest site within the alert's radius of its reported point. */
+  site?: { site: string; city: string | null; country: string; distance_km: number; radius_km: number; precision: string };
   /** When one event covers several records (an FDA recall per product strength or pack). */
   records?: Array<{ id: string; external_id: string; product: string; severity: string; url: string | null }>;
 }
@@ -177,6 +181,22 @@ export interface SupplierSignals {
   incident_total: number;
   incident_records?: number;
   exposure_total: number;
+  /** True when exposure was judged per located site rather than per country. */
+  site_level?: boolean;
+  /** Alerts in the supplier's countries that were not near any of its sites. */
+  exposures_elsewhere?: number;
+}
+
+export interface SupplierSite {
+  id: string;
+  label: string;
+  city: string | null;
+  country: string;
+  lat: number;
+  lon: number;
+  source: 'manual' | 'sap_lfa1' | string;
+  /** exact (coordinates given), city, or city_ambiguous (several places share the name). */
+  precision: 'exact' | 'city' | 'city_ambiguous' | string;
 }
 
 export interface SupplierSignalSummary {
@@ -585,6 +605,15 @@ export const api = {
 
   async getFeedbackSummary(sinceDays = 90): Promise<FeedbackSummary> {
     return (await apiClient.get('/api/v1/feedback/summary', { params: { since_days: sinceDays } })).data;
+  },
+
+  // Supplier sites (site-level disaster exposure)
+  async addSupplierSite(supplierId: string, site: { label: string; country: string; city?: string; lat?: number; lon?: number }): Promise<Supplier> {
+    return (await apiClient.post(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/sites`, site)).data;
+  },
+
+  async removeSupplierSite(supplierId: string, siteId: string): Promise<Supplier> {
+    return (await apiClient.delete(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/sites/${encodeURIComponent(siteId)}`)).data;
   },
 
   async getSignalsOverview(sinceDays: number = 365): Promise<{ suppliers: SupplierSignalSummary[] }> {

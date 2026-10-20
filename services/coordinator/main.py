@@ -32,6 +32,7 @@ from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
 from libs.integrations import sap_import
+from libs.intel import geo
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -644,11 +645,59 @@ async def create_supplier(supplier: Dict[str, Any], org_id: str = Depends(tenant
 async def update_supplier(supplier_id: str, updates: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Update supplier details."""
     # Identity and tenancy fields are not client-editable (enforced by the store).
-    updates = {k: v for k, v in updates.items() if k not in ("risk_score", "risk_tier", "risk_assessed_at")}
+    # Scores come from assessments; sites go through /sites (validated and located).
+    updates = {k: v for k, v in updates.items() if k not in ("risk_score", "risk_tier", "risk_assessed_at", "sites")}
     supplier = await store.update_supplier(org_id, supplier_id, updates)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return _presented(supplier)
+
+
+class SiteInput(BaseModel):
+    label: str = Field(..., min_length=1, max_length=100)
+    country: str = Field(..., pattern=r"^[A-Za-z]{2}$")
+    city: Optional[str] = Field(None, max_length=100)
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lon: Optional[float] = Field(None, ge=-180, le=180)
+
+
+MAX_SITES = 50
+
+
+@app.post("/suppliers/{supplier_id}/sites")
+async def add_site(supplier_id: str, site: SiteInput, org_id: str = Depends(tenant_org)):
+    """Add a place the supplier operates. Exact coordinates are used as given; otherwise
+    the city is looked up in the offline gazetteer (city-level precision)."""
+    supplier = await _get_org_supplier(org_id, supplier_id)
+    sites = [x for x in supplier.get("sites") or [] if isinstance(x, dict)]
+    if len(sites) >= MAX_SITES:
+        raise HTTPException(status_code=400, detail=f"A supplier can have at most {MAX_SITES} sites")
+    country = site.country.upper()
+    if (site.lat is None) != (site.lon is None):
+        raise HTTPException(status_code=400, detail="Give both latitude and longitude, or neither")
+    if site.lat is not None:
+        entry = {"label": site.label.strip(), "city": (site.city or "").strip() or None, "country": country,
+                 "lat": site.lat, "lon": site.lon, "source": "manual", "precision": "exact"}
+    else:
+        entry = geo.site_from_address(site.label.strip(), (site.city or "").strip(), country, "manual")
+        if entry is None:
+            raise HTTPException(status_code=400, detail=(
+                f"'{site.city or ''}' was not found in {country}. Check the spelling, use the nearest larger "
+                "town, or enter the coordinates."))
+    entry["id"] = str(uuid.uuid4())
+    updated = await store.update_supplier(org_id, supplier_id, {"sites": sites + [entry]})
+    return _presented(updated)
+
+
+@app.delete("/suppliers/{supplier_id}/sites/{site_id}")
+async def remove_site(supplier_id: str, site_id: str, org_id: str = Depends(tenant_org)):
+    """Remove a site. A site from the SAP address comes back on the next SAP import."""
+    supplier = await _get_org_supplier(org_id, supplier_id)
+    sites = [x for x in supplier.get("sites") or [] if isinstance(x, dict)]
+    kept = [x for x in sites if x.get("id") != site_id]
+    if len(kept) == len(sites):
+        raise HTTPException(status_code=404, detail="Site not found")
+    return _presented(await store.update_supplier(org_id, supplier_id, {"sites": kept}))
 
 
 # ---------------------------------------------------------------------------
@@ -658,7 +707,7 @@ async def update_supplier(supplier_id: str, updates: Dict[str, Any], org_id: str
 async def _match_signals(org_id: str, suppliers: List[Dict[str, Any]], **options: Any) -> Dict[str, Any]:
     """Ask the ingestion service which public signals concern these suppliers.
     Only this tenant's suppliers are sent; the ingestion service stores none of them."""
-    payload = {"suppliers": [{k: s.get(k) for k in ("id", "name", "country_code", "aliases")} for s in suppliers],
+    payload = {"suppliers": [{k: s.get(k) for k in ("id", "name", "country_code", "aliases", "sites")} for s in suppliers],
                **{k: v for k, v in options.items() if v is not None}}
     try:
         url, headers = f"{INGESTION_URL}/match", internal_headers(org_id)
@@ -694,7 +743,10 @@ async def supplier_signals(supplier_id: str, since_days: Optional[int] = None, m
             # Incidents are events; one FDA recall event can cover many recall records.
             "incident_total": totals.get("incidents", len(parts["incidents"])),
             "incident_records": totals.get("incident_records", len(parts["incidents"])),
-            "exposure_total": totals.get("exposures", len(parts["exposures"]))}
+            "exposure_total": totals.get("exposures", len(parts["exposures"])),
+            # With located sites, exposure is judged per site; alerts elsewhere in its countries are counted here.
+            "site_level": totals.get("site_level", False),
+            "exposures_elsewhere": totals.get("exposures_elsewhere", 0)}
 
 
 class AskRequest(BaseModel):
@@ -707,7 +759,7 @@ async def ask_about_supplier(supplier_id: str, request: AskRequest, org_id: str 
     Only this supplier is sent to the Evidence Engine; the question is not stored."""
     supplier = await _get_org_supplier(org_id, supplier_id)
     payload = {"question": request.question,
-               "supplier": {k: supplier.get(k) for k in ("id", "name", "country_code", "aliases")}}
+               "supplier": {k: supplier.get(k) for k in ("id", "name", "country_code", "aliases", "sites")}}
     url, headers = f"{INGESTION_URL}/evidence/ask", internal_headers(org_id)
     try:
         if _http_client is not None:
