@@ -429,7 +429,7 @@ class TestFailClosedConfig:
             "m = importlib.util.module_from_spec(s); s.loader.exec_module(m); print(len(m.DEV_USERS))"
         )
         env = {k: v for k, v in os.environ.items() if k not in ("DEV_PASSWORD",)}
-        env.update({"ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key", **PROD_DB})
+        env.update({"MFA_ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key", **PROD_DB})
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip().endswith("0")
@@ -444,7 +444,7 @@ class TestFailClosedConfig:
             "print(m.SIGNUP_MODE, r.status_code)"
         )
         env = {k: v for k, v in os.environ.items() if k not in ("DEV_PASSWORD", "SIGNUP_MODE")}
-        env.update({"ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key", **PROD_DB})
+        env.update({"MFA_ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key", **PROD_DB})
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
         assert result.stdout.split()[-2:] == ["closed", "403"]

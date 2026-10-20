@@ -29,6 +29,10 @@ from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
 from libs.common.store import FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin, create_store
+from libs.common import secret_box
+
+# MFA seeds are encrypted at rest; outside development the key must be configured.
+secret_box.require_key()
 from libs.common.tenancy import internal_headers
 from libs.integrations.manager import erp_manager
 
@@ -340,8 +344,8 @@ async def setup_mfa(token: str = Depends(security)):
     secret = generate_totp_secret()
     uri = get_totp_uri(secret, user.email)
 
-    # Demo accounts keep it in memory; real accounts in the database. Note: stored in plain
-    # text for now; encrypting TOTP secrets at rest is a follow-up.
+    # Demo accounts (development only) keep it in memory; real accounts store it encrypted
+    # (libs/common/secret_box.py, applied by the store).
     demo = DEV_USERS.get(user.email.lower())
     if demo:
         demo["mfa_secret"] = secret
