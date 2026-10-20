@@ -43,6 +43,7 @@ concerns one of them. It is built first for pharmaceutical and healthcare supply
 | **Watch flag** | A back-tested recall-history rule marks suppliers worth a closer look. It is a prompt to investigate, not a prediction (see [evaluation](#evidence-and-evaluation)). |
 | **Cited answers** | Ask a question about a supplier ("Any sterility problems?"). Every sentence in the answer cites the record it comes from, and a deterministic checker removes any sentence its records do not support. |
 | **SAP supplier import** | Upload an export of the SAP vendor master (table LFA1). You see what will change before anything is saved. SCIRM does not connect to SAP and stores no SAP credentials. See [the guide](docs/sap-import.md). |
+| **Spend ranking** | Upload purchase-order items (EKKO/EKPO or an ME2N list) to rank suppliers by 12-month spend, per currency and never converted. |
 | **Supplier scan** | Upload a supplier list (CSV) and get a self-contained, cited report. The list is not stored. |
 | **Teams** | Invitations, four roles (admin, analyst, viewer, auditor), MFA, and an append-only audit log. |
 | **Pilot metrics** | Users rate matched records and answers. Admins see the share of records rated useful, the wrong-supplier rate, the share of answers rated helpful, and citation accuracy. |
@@ -178,6 +179,7 @@ most important:
 | `PUBLIC_APP_URL` | Base URL used in invitation links. |
 | `SIGNUP_MODE` | `open` in development, `closed` elsewhere (people join by invitation). |
 | `MFA_ENABLED` | Enables TOTP multi-factor sign-in. |
+| `MFA_ENCRYPTION_KEY` | Encrypts MFA seeds at rest (AES-256-GCM, bound to the user). Required outside development; `MFA_ENCRYPTION_KEY_PREVIOUS` supports rotation. |
 | `SAMPLE_FEATURES` | Shows the sample-data pages and allows their API endpoints. Defaults to on in development and test, off elsewhere; keep it off for pilots. |
 | `LLM_PROVIDER`, `BEDROCK_REGION`, `BEDROCK_MODEL_ID`, `EMBEDDINGS_PROVIDER` | Optional AI. EU-only by default (`LLM_EU_ONLY=true`). |
 | `OPENFDA_API_KEY` | Optional; raises openFDA rate limits. |
@@ -219,7 +221,8 @@ CI runs, on every pull request:
   - Tests check isolation with raw SQL.
 - **Authentication:**
   - Access tokens last 60 minutes and refresh tokens 30 days.
-  - Passwords are hashed with bcrypt, and TOTP MFA is supported.
+  - Passwords are hashed with bcrypt, and TOTP MFA is supported. MFA seeds are encrypted
+    at rest with AES-256-GCM.
   - Invitation tokens are stored hashed, used once, and travel in the URL fragment,
     never in a path or query string.
 - **Authorisation:**
@@ -303,8 +306,6 @@ and the workflow file explains how to enable publishing.
   *Not assessed*.
 - **Not yet built:**
   - direct SAP API connection
-  - ranking suppliers by purchase-order spend
-  - encrypted MFA secrets at rest
 - **Untested in this repository:** live Bedrock calls; they need EU AWS access.
 
 ## Contributing

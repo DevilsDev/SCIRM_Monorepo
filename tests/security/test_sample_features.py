@@ -68,7 +68,7 @@ def test_off_by_default_outside_development():
         "m = importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.SAMPLE_FEATURES)"
     )
     env = {k: v for k, v in os.environ.items() if k not in ("DEV_PASSWORD", "SAMPLE_FEATURES")}
-    env.update({"ENVIRONMENT": "staging", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key",
+    env.update({"MFA_ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "ENVIRONMENT": "staging", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key",
                 "STORE_BACKEND": "postgres", "DATABASE_URL": "postgresql://unused:unused@127.0.0.1:1/unused"})
     result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr

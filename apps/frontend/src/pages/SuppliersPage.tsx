@@ -12,6 +12,7 @@ import SupplierAsk from '../components/SupplierAsk';
 import SupplierSites from '../components/SupplierSites';
 import SeverityBadge from '../components/SeverityBadge';
 import { useFeatures } from '../services/features';
+import { formatSpend } from '../components/SapSpendImport';
 
 const tierColors: Record<string, string> = {
   low: 'bg-green-100 text-green-800',
@@ -37,6 +38,7 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tierFilter, setTierFilter] = useState('');
+  const [sortBy, setSortBy] = useState<'default' | 'spend' | 'events'>('default');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   // Bumped when sites change, so the public-records panel re-matches exposure.
   const [signalsVersion, setSignalsVersion] = useState(0);
@@ -72,6 +74,10 @@ export default function SuppliersPage() {
   // The panel shows evidence (public records, cited answers) only. A rule-based
   // "risk profile" was removed: it produced the same numbers for every unassessed supplier.
   const handleSupplierClick = (supplier: Supplier) => setSelectedSupplier(supplier);
+
+  const displayed = sortBy === 'default' ? suppliers : [...suppliers].sort((a, b) => sortBy === 'spend'
+    ? (a.spend_rank ?? Infinity) - (b.spend_rank ?? Infinity)
+    : (signalSummary?.[b.id]?.incidents ?? 0) - (signalSummary?.[a.id]?.incidents ?? 0));
 
   const handleCreateSupplier = async (values: any) => {
     await api.createSupplier(values);
@@ -138,6 +144,7 @@ export default function SuppliersPage() {
       </div>
 
       <div className="flex gap-3">
+        {(tierFilter || suppliers.some((x) => x.risk_tier)) && (
         <select
           value={tierFilter}
           onChange={(e) => setTierFilter(e.target.value)}
@@ -147,6 +154,17 @@ export default function SuppliersPage() {
           <option value="low">{t('risks.low', 'Low')}</option>
           <option value="medium">{t('risks.medium', 'Medium')}</option>
           <option value="high">{t('risks.high', 'High')}</option>
+        </select>
+        )}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'default' | 'spend' | 'events')}
+          aria-label={t('suppliers.sortBy', 'Sort suppliers')}
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
+        >
+          <option value="default">{t('suppliers.sortDefault', 'Sort: as listed')}</option>
+          <option value="spend">{t('suppliers.sortSpend', 'Sort: largest spend')}</option>
+          <option value="events">{t('suppliers.sortEvents', 'Sort: most public events')}</option>
         </select>
       </div>
 
@@ -177,11 +195,12 @@ export default function SuppliersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskScore', 'Risk Score')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskTier', 'Risk Tier')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colPublicRecordsHint', 'FDA events naming this supplier in the last 12 months (a recall covering several products counts once)')}>{t('suppliers.colPublicRecords', 'Public Events (12 mo)')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colSpendHint', 'Purchase-order spend in the last 12 months, from the SAP spend import; share of the total in the main currency')}>{t('suppliers.colSpend', 'Spend (12 mo)')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colActions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {suppliers.map((s) => (
+              {displayed.map((s) => (
                 <tr
                   key={s.id}
                   className="hover:bg-blue-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
@@ -220,6 +239,18 @@ export default function SuppliersPage() {
                       </td>
                     </>
                   )}
+                  <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap"
+                    title={s.spend_period ? t('suppliers.spendPeriod', '{{from}} to {{to}}', s.spend_period) : t('suppliers.noSpend', 'No purchase-order spend imported')}>
+                    {s.spend_main_currency && s.spend_12m ? (
+                      <>
+                        {formatSpend(s.spend_12m[s.spend_main_currency] ?? '0', s.spend_main_currency)}
+                        {s.spend_share != null && <span className="ml-1 text-xs text-gray-400">{(s.spend_share * 100).toFixed(1)}%</span>}
+                        {Object.keys(s.spend_12m).filter((c) => c !== s.spend_main_currency).map((c) => (
+                          <span key={c} className="block text-xs text-gray-400">+ {formatSpend(s.spend_12m![c], c)}</span>
+                        ))}
+                      </>
+                    ) : <span className="text-gray-300">–</span>}
+                  </td>
                   <td className="px-6 py-4">
                     {signalSummary?.[s.id]?.incidents ? (
                       <div className="flex items-center gap-2">

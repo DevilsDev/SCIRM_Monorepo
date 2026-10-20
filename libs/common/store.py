@@ -19,6 +19,8 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from libs.common import secret_box
+
 SEVERITIES = ("low", "medium", "high", "critical")
 
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
@@ -477,11 +479,14 @@ class MemoryStore:
 
     async def find_login_user(self, email: str) -> Optional[Dict[str, Any]]:
         user = self._user_by_email(email)
-        return dict(user) if user else None
+        return await self._with_mfa_secret(dict(user)) if user else None
 
     async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         user = self.users.get(str(user_id))
-        return {k: v for k, v in user.items() if k != "hashed_password"} if user else None
+        return await self._with_mfa_secret({k: v for k, v in user.items() if k != "hashed_password"}) if user else None
+
+    async def _with_mfa_secret(self, user: Dict[str, Any]) -> Dict[str, Any]:
+        return await _open_mfa_secret(self, user)
 
     async def create_organization(self, name: str, industry: str = "general") -> str:
         org = str(uuid.uuid4())
@@ -575,7 +580,7 @@ class MemoryStore:
         user = self.users.get(str(user_id))
         if not user or user["organization_id"] != org:
             return False
-        user.update(mfa_secret=secret, mfa_enabled=bool(secret))
+        user.update(mfa_secret=secret_box.encrypt(secret, user["id"]) if secret else None, mfa_enabled=bool(secret))
         return True
 
     async def record_login(self, org: str, user_id: str) -> None:
@@ -608,6 +613,18 @@ class MemoryStore:
 
     async def list_audit(self, org: str, limit: int = 100) -> List[Dict[str, Any]]:
         return [a for a in reversed(self.audit) if a.get("organization_id") == org][:limit]
+
+
+async def _open_mfa_secret(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Decrypt a user's TOTP seed for the caller. A legacy plaintext seed, or one sealed
+    with the previous key, is re-encrypted with the current key on the way."""
+    stored = user.get("mfa_secret")
+    if not stored:
+        return user
+    plaintext, stale = secret_box.decrypt(stored, str(user["id"]))
+    if stale:
+        await store.set_mfa_secret(str(user["organization_id"]), str(user["id"]), plaintext)
+    return {**user, "mfa_secret": plaintext}
 
 
 # ===========================================================================
@@ -1235,13 +1252,13 @@ class PostgresStore:
 
     async def find_login_user(self, email: str) -> Optional[Dict[str, Any]]:
         rows = await self._all(None, "SELECT * FROM scirm_login_lookup(:e)", {"e": (email or "").lower()})
-        return self._account(rows[0]) if rows else None
+        return await _open_mfa_secret(self, self._account(rows[0])) if rows else None
 
     async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         if not _is_uuid(user_id):
             return None
         rows = await self._all(None, "SELECT * FROM scirm_user_by_id(CAST(:i AS uuid))", {"i": str(user_id)})
-        return self._account(rows[0]) if rows else None
+        return await _open_mfa_secret(self, self._account(rows[0])) if rows else None
 
     async def create_organization(self, name: str, industry: str = "general") -> str:
         org = str(uuid.uuid4())
@@ -1356,7 +1373,8 @@ class PostgresStore:
             return False
         rows = await self._all(org, (
             "UPDATE users SET mfa_secret = :s, mfa_enabled = :on, updated_at = now() "
-            "WHERE id = CAST(:i AS uuid) RETURNING id"), {"s": secret, "on": bool(secret), "i": user_id})
+            "WHERE id = CAST(:i AS uuid) RETURNING id"),
+            {"s": secret_box.encrypt(secret, user_id) if secret else None, "on": bool(secret), "i": user_id})
         return bool(rows)
 
     async def record_login(self, org: str, user_id: str) -> None:
