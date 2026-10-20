@@ -105,6 +105,15 @@ def _caller(request: Request) -> Dict[str, Any]:
 
 
 @app.middleware("http")
+async def sample_features_gate(request: Request, call_next):
+    """Refuse sample-data endpoints unless SAMPLE_FEATURES is on (see its definition)."""
+    if not SAMPLE_FEATURES and _is_sample_feature(request.url.path):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=404, content={"detail": "This feature is not available"})
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def audit_writes(request: Request, call_next):
     """Record every state-changing API call — who, which tenant, what, and the outcome."""
     response = await call_next(request)
@@ -199,6 +208,19 @@ else:
 # Self-service signup creates a new organization. Off outside development: customers are
 # onboarded by an operator (scripts/create_tenant.py) and add teammates by invitation.
 SIGNUP_MODE = os.getenv("SIGNUP_MODE", "open" if IS_DEV else "closed").lower()
+# Features that run on built-in sample data or unvalidated formulas (scenario simulators,
+# procurement alternatives, components and BOMs, 7-day "predictions", the rule-based risk
+# score). On by default only in development and test; elsewhere their endpoints are
+# refused, so a pilot never sees sample output presented as analysis.
+SAMPLE_FEATURES = (os.getenv("SAMPLE_FEATURES") or ("true" if IS_DEV else "false")).lower() == "true"
+SAMPLE_FEATURE_PATHS = ("/api/v1/predictions", "/api/v1/simulator", "/api/v1/scenarios", "/api/v1/procurement",
+                        "/api/v1/components", "/api/v1/products", "/api/v1/risk-score", "/api/v1/risk-dimensions")
+
+
+def _is_sample_feature(path: str) -> bool:
+    return any(path == p or path.startswith(p + "/") for p in SAMPLE_FEATURE_PATHS)
+
+
 # Base for invitation links. Configured, never taken from the request's Host header.
 PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:3000" if IS_DEV else "").rstrip("/")
 # Checked for unknown emails too, so response time does not reveal which accounts exist.
@@ -251,6 +273,13 @@ def _issue_tokens(email: str, user_info: Dict[str, Any]) -> Dict[str, str]:
 class MFAVerifyRequest(BaseModel):
     totp_code: str
     mfa_token: str
+
+
+@app.get("/api/v1/config")
+async def client_config(token: str = Depends(security)):
+    """What the web app should show for this deployment."""
+    await verify_token(token.credentials)
+    return {"features": {"sample_pages": SAMPLE_FEATURES}}
 
 
 @app.post("/api/v1/auth/login")

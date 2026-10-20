@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import { useEffect, useRef, useState } from 'react';
 import { DateRangePicker } from '../components/ui';
+import { useFeatures } from '../services/features';
 
 export default function DashboardPage() {
   const { risks, totalCount, loading, refetch } = useRisks({ limit: 50 });
@@ -25,6 +26,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const { t } = useTranslation();
+  const { samplePages } = useFeatures();
   const prevCount = useRef(totalCount);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -77,9 +79,11 @@ export default function DashboardPage() {
             <Link to="/assessments/new" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">
               {t('dashboard.newAssessmentBtn', 'New Assessment')}
             </Link>
-            <Link to="/simulator" className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600">
-              {t('dashboard.simulatorBtn', 'Simulator')}
-            </Link>
+            {samplePages && (
+              <Link to="/simulator" className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600">
+                {t('dashboard.simulatorBtn', 'Simulator')}
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -148,7 +152,7 @@ export default function DashboardPage() {
                 </Link>
                 <div className="flex items-center gap-2">
                   <SeverityBadge severity={risk.severity} />
-                  {!isViewer && (
+                  {!isViewer && samplePages && (
                     <Link to={`/simulator`} className="text-[10px] text-blue-500 hover:text-blue-700 whitespace-nowrap" title={t('dashboard.simulate', 'Simulate')}>
                       {t('dashboard.simulate', 'Simulate')}
                     </Link>
@@ -165,10 +169,10 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">{t('dashboard.adminActions', 'Admin Quick Actions')}</h2>
           <div className="flex flex-wrap gap-2">
-            <Link to="/procurement" className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200">{t('dashboard.procurementAgent', 'Procurement Agent')}</Link>
+            {samplePages && <Link to="/procurement" className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-200">{t('dashboard.procurementAgent', 'Procurement Agent')}</Link>}
             <Link to="/intelligence" className="px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-lg text-xs font-medium hover:bg-cyan-200">{t('dashboard.intelFeed', 'Intel Feed')}</Link>
             <Link to="/events" className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-medium hover:bg-orange-200">{t('dashboard.riskEvents', 'Risk Events')}</Link>
-            <Link to="/components" className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200">{t('dashboard.componentsBtn', 'Components')}</Link>
+            {samplePages && <Link to="/components" className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200">{t('dashboard.componentsBtn', 'Components')}</Link>}
           </div>
         </div>
       )}
