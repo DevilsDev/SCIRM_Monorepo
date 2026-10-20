@@ -1,0 +1,605 @@
+[
+  {
+    "id": "b01",
+    "supplier": "Fresenius Kabi",
+    "question": "Fresenius recalls?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "\\bClass (I|II|III)\\b|recall"
+      ]
+    },
+    "note": "Every Fresenius Kabi recall."
+  },
+  {
+    "id": "b02",
+    "supplier": "Accord Healthcare Inc.",
+    "question": "accord levothyroxine - whats going on with it",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "levothyroxine"
+      ]
+    },
+    "note": "Accord levothyroxine recalls (potency)."
+  },
+  {
+    "id": "b03",
+    "supplier": "Accord Healthcare Inc.",
+    "question": "Two things on Accord: any cinacalcet recalls for a carcinogenic impurity, and can we still get their carboplatin and methotrexate?",
+    "relevant": {
+      "any_regex": [
+        "nitroso[- ]?cinacalcet",
+        "Carboplatin|Methotrexate"
+      ]
+    },
+    "note": "Mixed: nitrosamine cinacalcet recalls + carboplatin/methotrexate shortage entries."
+  },
+  {
+    "id": "b04",
+    "supplier": "Zydus Pharmaceuticals (USA) Inc.",
+    "question": "zydus nitrosamine recals",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "nitros"
+      ]
+    },
+    "note": "Zydus nitrosamine (NDSRI) recalls."
+  },
+  {
+    "id": "b05",
+    "supplier": "Zydus Pharmaceuticals (USA) Inc.",
+    "question": "Our pharmacy buys Zydus's icosapent ethyl and a tech mentioned seeing capsules that looked melted or had red spots in them, is that a known issue that got reported anywhere or are we just seeing a bad batch?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Icosapent"
+      ]
+    },
+    "note": "Icosapent ethyl capsule recalls."
+  },
+  {
+    "id": "b06",
+    "supplier": "Lupin Pharmaceuticals, Inc.",
+    "question": "Did Lupin use active ingredient from a vendor nobody had qualified?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "unapproved vendor"
+      ]
+    },
+    "note": "API from unapproved vendor recalls."
+  },
+  {
+    "id": "b07",
+    "supplier": "Lupin Pharmaceuticals, Inc.",
+    "question": "lupin - wrong expiry printed or bottles w/ the wrong pills?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Missing Lot and/or Exp Date|Product Mix Up"
+      ]
+    },
+    "note": "Wrong expiry labeling + product mix-up recalls."
+  },
+  {
+    "id": "b08",
+    "supplier": "B. Braun Medical Inc.",
+    "question": "B Braun IV bags leaking?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "leak"
+      ]
+    },
+    "note": "Leak-related sterility recalls."
+  },
+  {
+    "id": "b09",
+    "supplier": "B. Braun Medical Inc.",
+    "question": "b. braun class 1 recalls",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "\\bClass I\\b"
+      ]
+    },
+    "note": "B. Braun Class I recalls (particulate)."
+  },
+  {
+    "id": "b10",
+    "supplier": "B. Braun Medical Inc.",
+    "question": "Is B. Braun heparin hard to get?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Heparin"
+      ]
+    },
+    "note": "B. Braun heparin shortage entry."
+  },
+  {
+    "id": "b11",
+    "supplier": "Hospira, Inc.",
+    "question": "We run a hospital pharmacy and our wholesaler keeps telling us Hospira injectables are backordered, especially the ones we use in the OR and ICU, so can you tell me which Hospira products are actually out or only partly available right now?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Unavailable|Limited Availability"
+      ]
+    },
+    "note": "Hospira shortage entries with unavailable/limited presentations."
+  },
+  {
+    "id": "b12",
+    "supplier": "Hospira, Inc.",
+    "question": "hospira sodium bicarb supply?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Sodium Bicarbonate"
+      ]
+    },
+    "note": "Hospira sodium bicarbonate shortage/discontinuation entries."
+  },
+  {
+    "id": "b13",
+    "supplier": "Hospira, Inc.",
+    "question": "Has Hospira had vials crack or the solution change color?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "crack|Discolor"
+      ]
+    },
+    "note": "Cracked-vial discoloration recall."
+  },
+  {
+    "id": "b14",
+    "supplier": "Sandoz Inc.",
+    "question": "sandoz cefazolin labelled as penicillin??",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Cefazolin"
+      ]
+    },
+    "note": "Cefazolin/penicillin label mix-up Class I recalls."
+  },
+  {
+    "id": "b15",
+    "supplier": "Sandoz Inc.",
+    "question": "Have any Sandoz refrigerated products gotten too warm during shipping?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Temperature|cold chain"
+      ]
+    },
+    "note": "Temperature excursion / cold-chain recalls."
+  },
+  {
+    "id": "b16",
+    "supplier": "Sandoz Inc.",
+    "question": "Is any Sandoz site on FDA's import watch list?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Misbranded|Detention|import alert"
+      ]
+    },
+    "note": "Sandoz GmbH API import alert."
+  },
+  {
+    "id": "b17",
+    "supplier": "Aurobindo Pharma Limited",
+    "question": "Aurobindo: nitrosamines in cinacalcet or nebivolol, and any complaints about capsules showing up empty?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "nitros",
+        "shortfill|empty capsule"
+      ]
+    },
+    "note": "Mixed: nitrosamine recalls + empty-capsule shortfill recall."
+  },
+  {
+    "id": "b18",
+    "supplier": "Dr. Reddy's Laboratories Inc.",
+    "question": "dr reddys levetiracetam bag mislabeled?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Levetiracetam"
+      ]
+    },
+    "note": "Levetiracetam infusion label mix-up recall."
+  },
+  {
+    "id": "b19",
+    "supplier": "Dr. Reddy's Laboratories Inc.",
+    "question": "Has Dr. Reddy's had a recall where a different tablet was found in the bottle?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "foreign tablets"
+      ]
+    },
+    "note": "Foreign tablet in bottle recall."
+  },
+  {
+    "id": "b20",
+    "supplier": "Apotex Corp.",
+    "question": "Apotex warning letter?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "CGMP|Adulterated|Misbranded"
+      ]
+    },
+    "note": "Apotex CGMP warning letter."
+  },
+  {
+    "id": "b21",
+    "supplier": "Apotex Corp.",
+    "question": "problems with apotex bottle caps or seals?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "cap liner|sealing|leaking"
+      ]
+    },
+    "note": "Container/closure defect recalls (caps, sealing, leaking)."
+  },
+  {
+    "id": "b22",
+    "supplier": "Patanjali Ayurved Limited",
+    "question": "patanjali stuff getting detained at port??",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention"
+      ]
+    },
+    "note": "Patanjali import alerts."
+  },
+  {
+    "id": "b23",
+    "supplier": "Reckitt Benckiser",
+    "question": "Why would Reckitt Benckiser products get stopped at import, is it because they're selling drugs FDA never approved?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Unapproved New Drugs"
+      ]
+    },
+    "note": "Reckitt 66-41 import alerts."
+  },
+  {
+    "id": "b24",
+    "supplier": "Xiamen Kang Zhongyuan Biotechnology Co., Ltd.",
+    "question": "Were the cough drops made by Xiamen Kang Zhongyuan recalled, and did FDA also send them a warning letter?",
+    "relevant": {
+      "any_regex": [
+        "cough",
+        "CGMP"
+      ]
+    },
+    "note": "Mixed: cough drop recalls + CGMP warning letter."
+  },
+  {
+    "id": "b25",
+    "supplier": "Xiamen Kang Zhongyuan Biotechnology Co., Ltd.",
+    "question": "Is Xiamen Kang Zhongyuan blocked from exporting to the US for not meeting manufacturing standards?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Not Met Drug GMP"
+      ]
+    },
+    "note": "GMP import alert 66-40."
+  },
+  {
+    "id": "b26",
+    "supplier": "Viatris Inc.",
+    "question": "viatris levothyroxine strength out of spec?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "potent"
+      ]
+    },
+    "note": "Viatris super/subpotent levothyroxine recalls."
+  },
+  {
+    "id": "b27",
+    "supplier": "Viatris Inc.",
+    "question": "For Viatris I need two things for the quarterly review: did FDA send them a formal enforcement letter, and which of their products are being discontinued?",
+    "relevant": {
+      "any_regex": [
+        "CGMP",
+        "To Be Discontinued"
+      ]
+    },
+    "note": "Mixed: CGMP warning letter + discontinuation entries."
+  },
+  {
+    "id": "b28",
+    "supplier": "Lannett Company, Inc.",
+    "question": "Lannett ADHD capsules - wrong strength in the bottle or IR beads in an ER capsule?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Mix-?up|Foreign Tablet"
+      ]
+    },
+    "note": "Lannett amphetamine/lisdexamfetamine mix-up recalls."
+  },
+  {
+    "id": "b29",
+    "supplier": "Lannett Company, Inc.",
+    "question": "lannett dissolution failures",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Dissolution|Content Uniformity"
+      ]
+    },
+    "note": "Dissolution and content uniformity recalls."
+  },
+  {
+    "id": "b30",
+    "supplier": "Medline Industries, LP",
+    "question": "Are Medline's alcohol swabs and wipes weaker than the label says?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "sub-?potent"
+      ]
+    },
+    "note": "Medline subpotent alcohol product recalls."
+  },
+  {
+    "id": "b31",
+    "supplier": "Medline Industries, LP",
+    "question": "medline fda letters, drugs or devices",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "CGMP|QSR|Adulterated"
+      ]
+    },
+    "note": "Medline CGMP and device QSR warning letters."
+  },
+  {
+    "id": "b32",
+    "supplier": "Exela Pharma Sciences",
+    "question": "Exela - any sterility recall or heavy metal like arsenic found?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "arsenic",
+        "Assurance of Sterility"
+      ]
+    },
+    "note": "Mixed: arsenic impurity + sterility recalls."
+  },
+  {
+    "id": "b33",
+    "supplier": "Elanco Animal Health",
+    "question": "elanco advertising complaints from FDA",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "False|Misleading|Misbranded"
+      ]
+    },
+    "note": "Elanco misleading-claims warning letters (two records)."
+  },
+  {
+    "id": "b34",
+    "supplier": "Boothwyn Pharmacy",
+    "question": "Has Boothwyn's compounded medication come in under strength?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "sub-?potent"
+      ]
+    },
+    "note": "Boothwyn subpotent recalls."
+  },
+  {
+    "id": "b35",
+    "supplier": "Accord Healthcare Inc.",
+    "question": "accord - glass or particles found in any injectables?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "particulate|glass"
+      ]
+    },
+    "note": "NEGATIVE: Accord recalls are potency/impurity, none particulate."
+  },
+  {
+    "id": "b36",
+    "supplier": "Patanjali Ayurved Limited",
+    "question": "Is Patanjali on the import alert for firms failing GMP inspections?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Not Met Drug GMP|66-40"
+      ]
+    },
+    "note": "NEGATIVE: Patanjali alerts are all 66-41 (unapproved drugs)."
+  },
+  {
+    "id": "b37",
+    "supplier": "Medline Industries, LP",
+    "question": "Any Medline sterility or contamination recalls?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "Assurance of Sterility|contamina|Microbial"
+      ]
+    },
+    "note": "NEGATIVE: Medline recalls are subpotent alcohol products."
+  },
+  {
+    "id": "b38",
+    "supplier": "B. Braun Medical Inc.",
+    "question": "Has B. Braun had to recall anything over nitrosamine impurities?",
+    "relevant": {
+      "sources": [
+        "fda_recalls"
+      ],
+      "any_regex": [
+        "nitros|carcinogen"
+      ]
+    },
+    "note": "NEGATIVE: B. Braun recalls are particulate/leak sterility."
+  },
+  {
+    "id": "b39",
+    "supplier": "Zydus Pharmaceuticals (USA) Inc.",
+    "question": "Is Zydus running short or discontinuing any drugs?",
+    "relevant": {
+      "sources": [
+        "fda_shortages"
+      ],
+      "any_regex": [
+        "Unavailable|Limited Availability|Discontinu"
+      ]
+    },
+    "note": "NEGATIVE: no Zydus shortage entries."
+  },
+  {
+    "id": "b40",
+    "supplier": "Hospira, Inc.",
+    "question": "hospira import alert or border detention?",
+    "relevant": {
+      "sources": [
+        "fda_import_alerts"
+      ],
+      "any_regex": [
+        "Detention|import alert"
+      ]
+    },
+    "note": "NEGATIVE: no Hospira import alerts."
+  },
+  {
+    "id": "b41",
+    "supplier": "Lupin Pharmaceuticals, Inc.",
+    "question": "Has FDA issued Lupin a warning letter in the last couple of years?",
+    "relevant": {
+      "sources": [
+        "fda_warning_letters"
+      ],
+      "any_regex": [
+        "CGMP|Adulterated|Misbranded|Unapproved|False"
+      ]
+    },
+    "note": "NEGATIVE: no Lupin warning letters in corpus."
+  },
+  {
+    "id": "b42",
+    "supplier": "Brightwater Parenterals LLC",
+    "question": "brightwater parenterals recalls or shortages?",
+    "relevant": {
+      "any_regex": [
+        "\\bClass (I|II|III)\\b|Unavailable|Limited Availability|Discontinu"
+      ]
+    },
+    "note": "NEGATIVE: supplier has no records."
+  },
+  {
+    "id": "b43",
+    "supplier": "Ostrava Biopharm s.r.o.",
+    "question": "Has FDA held any Ostrava Biopharm shipments at the border or sent them a warning letter?",
+    "relevant": {
+      "any_regex": [
+        "Detention|CGMP|Adulterated|Misbranded"
+      ]
+    },
+    "note": "NEGATIVE: supplier has no records."
+  },
+  {
+    "id": "b44",
+    "supplier": "Kestrel Generics Pvt Ltd",
+    "question": "Kestrel Generics - any impurity or potency recalls on their tablets?",
+    "relevant": {
+      "any_regex": [
+        "Impurit|potent|nitros"
+      ]
+    },
+    "note": "NEGATIVE: supplier has no records."
+  }
+]

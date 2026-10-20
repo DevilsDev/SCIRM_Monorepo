@@ -16,7 +16,7 @@ import httpx
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import structlog
 
 from libs.common.auth import (
@@ -575,6 +575,28 @@ async def supplier_signals(supplier_id: str, since_days: int = None, min_confide
     return await _coordinator_get(user, f"/suppliers/{quote(supplier_id, safe='')}/signals",
                                   {"since_days": since_days, "min_confidence": min_confidence},
                                   "Supplier signals unavailable")
+
+
+class SupplierQuestion(BaseModel):
+    question: str = Field(..., min_length=3, max_length=500)
+
+
+@app.post("/api/v1/suppliers/{supplier_id}/ask")
+async def ask_about_supplier(supplier_id: str, body: SupplierQuestion, token: str = Depends(security)):
+    """Grounded answer from public records about one supplier; every sentence cites a record."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{COORDINATOR_URL}/suppliers/{quote(supplier_id, safe='')}/ask",
+                                         json=body.model_dump(), headers=_svc_headers(user), timeout=60.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (404, 503):
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail"))
+        raise HTTPException(status_code=502, detail="Answering failed")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Answering is unavailable")
 
 
 @app.get("/api/v1/signals/suppliers")

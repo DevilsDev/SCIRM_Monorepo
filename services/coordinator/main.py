@@ -17,6 +17,7 @@ import asyncio
 import httpx
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, status
+from pydantic import BaseModel, Field
 
 # Allow imports from project root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -636,6 +637,31 @@ async def supplier_signals(supplier_id: str, since_days: Optional[int] = None, m
             # The lists are capped; these are the full counts.
             "incident_total": totals.get("incidents", len(parts["incidents"])),
             "exposure_total": totals.get("exposures", len(parts["exposures"]))}
+
+
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=3, max_length=500)
+
+
+@app.post("/suppliers/{supplier_id}/ask")
+async def ask_about_supplier(supplier_id: str, request: AskRequest, org_id: str = Depends(tenant_org)):
+    """Answer a question about one of this tenant's suppliers from public records.
+    Only this supplier is sent to the Evidence Engine; the question is not stored."""
+    supplier = await _get_org_supplier(org_id, supplier_id)
+    payload = {"question": request.question,
+               "supplier": {k: supplier.get(k) for k in ("id", "name", "country_code", "aliases")}}
+    url, headers = f"{INGESTION_URL}/evidence/ask", internal_headers(org_id)
+    try:
+        if _http_client is not None:
+            response = await _http_client.post(url, json=payload, headers=headers)
+        else:
+            async with httpx.AsyncClient(timeout=AGENT_TIMEOUT) as client:
+                response = await client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Evidence Engine unavailable", error=type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Answering is unavailable")
 
 
 _SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}

@@ -15,8 +15,12 @@ import structlog
 logger = structlog.get_logger()
 
 # Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
+# Model per provider, so a fallback never sends one provider's model name to the other.
+# LLM_MODEL, if set, overrides the primary provider's model only.
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
+LLM_MODEL = os.getenv("LLM_MODEL", "")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2000"))
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
@@ -107,10 +111,10 @@ async def generate(
     """
     provider = provider or LLM_PROVIDER
     model = model or LLM_MODEL
-
+    defaults = {"openai": OPENAI_MODEL, "anthropic": ANTHROPIC_MODEL}
     providers = {
-        "openai": (_call_openai, model if "gpt" in model else "gpt-4-turbo-preview"),
-        "anthropic": (_call_anthropic, model if "claude" in model else "claude-3-5-sonnet-20241022"),
+        name: (fn, model if model and name == provider else defaults[name])
+        for name, fn in (("openai", _call_openai), ("anthropic", _call_anthropic))
     }
 
     # Build ordered call list: primary first, then fallback — only providers with a key.

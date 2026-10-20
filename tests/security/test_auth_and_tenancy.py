@@ -280,6 +280,18 @@ class TestPublicSignals:
         client.get("/api/v1/signals/suppliers", headers=bearer(lisa["access_token"]))
         assert set(sent) == {"Supplier Delta", "Supplier Epsilon"}
 
+    def test_ask_about_own_supplier_cites_records(self, client, sarah, ingested):
+        response = client.post(f"/api/v1/suppliers/{self.SUN}/ask", json={"question": "Any recalls?"},
+                               headers=bearer(sarah["access_token"]))
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "answered" and all(c["citations"] for c in body["claims"])
+
+    def test_cannot_ask_about_another_orgs_supplier(self, client, lisa, ingested):
+        response = client.post(f"/api/v1/suppliers/{self.SUN}/ask", json={"question": "Any recalls?"},
+                               headers=bearer(lisa["access_token"]))
+        assert response.status_code == 404
+
     def test_matching_outage_is_a_503_not_an_empty_answer(self, client, apps, sarah, monkeypatch):
         original = apps["router"].handle_async_request
 

@@ -234,3 +234,15 @@ class TestDelisting:
         assert result["delisted"] == 0
         recalls = client.get("/documents", params={"source": "fda_recalls", "since_days": 36500}, headers=HEADERS).json()
         assert recalls["documents"]
+
+
+def test_evidence_ask_cites_records_and_scopes_empty_answers(client):
+    client.post("/ingest", headers=HEADERS)
+    sun = {"id": "s", "name": "Sun Pharmaceutical Industries, Inc."}
+    answered = client.post("/evidence/ask", json={"question": "Any recalls?", "supplier": sun}, headers=HEADERS).json()
+    assert answered["status"] == "answered" and answered["claims"] and answered["citations"]
+    assert all(c["citations"] for c in answered["claims"])
+    unknown = client.post("/evidence/ask", json={"question": "Any recalls?", "supplier": {"name": "Nowhere Pharma Ltd"}},
+                          headers=HEADERS).json()
+    assert unknown["status"] == "no_records" and "does not mean nothing happened" in unknown["note"]
+    assert client.post("/evidence/ask", json={"question": "Any recalls?", "supplier": sun}).status_code == 401
