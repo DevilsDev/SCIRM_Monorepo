@@ -267,6 +267,20 @@ class TestAccounts:
         assert as_org(db["app"], db["a"], "SELECT count(*) FROM users WHERE email = 'race@example.com'") == [(1,)]
 
 
+
+def test_feedback_is_tenant_scoped(db):
+    """Migration 016: ratings are visible and writable only inside their own organization."""
+    insert = ("INSERT INTO feedback (organization_id, user_id, target_type, target_id, verdict) "
+              "VALUES (%s, 'u1', 'answer', 'rls-answer', 'useful')")
+    assert as_org(db["app"], db["a"], insert, (db["a"],)) == 1
+    assert isinstance(as_org(db["app"], db["b"], insert, (db["a"],)), psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM feedback WHERE target_id = 'rls-answer'") == [(0,)]
+    assert as_org(db["app"], db["a"], "SELECT count(*) FROM feedback WHERE target_id = 'rls-answer'") == [(1,)]
+    assert as_org(db["app"], db["b"], "DELETE FROM feedback WHERE target_id = 'rls-answer'") == 0
+    bad = as_org(db["app"], db["a"], "INSERT INTO feedback (organization_id, user_id, target_type, target_id, verdict) "
+                                     "VALUES (%s, 'u1', 'answer', 'x', 'great')", (db["a"],))
+    assert isinstance(bad, psycopg2.errors.CheckViolation)
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])
