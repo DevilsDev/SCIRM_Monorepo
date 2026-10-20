@@ -193,12 +193,9 @@ init: ## Initialize project for development
 # Health checks
 health: ## Check service health
 	@echo "🏥 Checking service health..."
-	curl -f http://localhost:8000/health || echo "❌ API Gateway unhealthy"
-	curl -f http://localhost:8001/health || echo "❌ Coordinator unhealthy"
-	curl -f http://localhost:8002/health || echo "❌ Planner unhealthy"
-	curl -f http://localhost:8003/health || echo "❌ Researcher unhealthy"
-	curl -f http://localhost:8004/health || echo "❌ Executor unhealthy"
-	curl -f http://localhost:8005/health || echo "❌ Reviewer unhealthy"
+	curl -f http://localhost:8000/health || echo "API Gateway unhealthy"
+	# Agent services are not published on the host; Docker reports their /ready health checks.
+	docker compose -f docker-compose.dev.yml ps --format "table {{.Service}}	{{.Status}}"
 
 # Version management
 version: ## Show current version

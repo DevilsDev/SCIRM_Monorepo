@@ -7,7 +7,7 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, verifyMfa } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -18,6 +18,10 @@ export default function LoginPage() {
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Second step when MFA is on: the password step returns a short-lived token, not a session.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const expired = Boolean((location.state as any)?.expired);
 
   // Where to redirect after login (saved by ProtectedRoute)
   const redirectTo = (location.state as any)?.from || '/dashboard';
@@ -32,9 +36,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      if (mfaToken) {
+        await verifyMfa(mfaToken, code.trim());
+      } else {
+        const result = await login(email, password);
+        if (result.status === 'mfa_required') {
+          setMfaToken(result.mfaToken);
+          return;
+        }
+      }
       setAttempts(0);
-      navigate(redirectTo);
+      navigate(redirectTo, { replace: true });
     } catch (err: any) {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
@@ -65,7 +77,40 @@ export default function LoginPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Supply Chain Risk Management</p>
           </div>
 
+          {expired && !error && (
+            <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
+              {t('auth.sessionExpired', 'Your session has ended. Sign in again to return to where you were.')}
+            </p>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
+            {mfaToken ? (
+            <div>
+              <label htmlFor="totp" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('auth.mfaCode', 'Authentication code')}
+              </label>
+              <input
+                id="totp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none tracking-widest"
+                placeholder="123456"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                {t('auth.mfaHint', 'Enter the 6-digit code from your authenticator app.')}{' '}
+                <button type="button" className="text-blue-600" onClick={() => { setMfaToken(null); setCode(''); setError(''); }}>
+                  {t('auth.mfaBack', 'Use a different account')}
+                </button>
+              </p>
+            </div>
+            ) : (
+            <>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {t('auth.email', 'Email')}
@@ -95,6 +140,8 @@ export default function LoginPage() {
                 placeholder={t('auth.passwordPlaceholder', 'Enter your password')}
               />
             </div>
+            </>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
@@ -105,7 +152,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? t('auth.signingIn', 'Signing in...') : t('auth.signIn', 'Sign in')}
+              {loading ? t('auth.signingIn', 'Signing in...') : mfaToken ? t('auth.verify', 'Verify') : t('auth.signIn', 'Sign in')}
             </button>
           </form>
 

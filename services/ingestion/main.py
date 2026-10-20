@@ -25,7 +25,9 @@ from libs.common.monitoring import setup_monitoring
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import tenant_org
+from libs.common.store import text_hash
 from libs.evidence import answer as evidence_answer
+from libs.evidence import embeddings as evidence_embeddings
 from libs.evidence import retrieval as evidence_retrieval
 from libs.intel import matching, scoring, sources
 
@@ -42,6 +44,9 @@ MATCH_CANDIDATE_LIMIT = int(os.getenv("MATCH_CANDIDATE_LIMIT", "20000"))
 store = create_store()
 # Replaced in tests with a client on a mock transport.
 http_client_factory = sources.http_client
+# None means keyword-only retrieval. Tests inject a fake embedder here.
+embedder = evidence_embeddings.get_embedder()
+EMBED_PER_RUN = int(os.getenv("EMBED_PER_RUN", "5000"))
 
 
 @asynccontextmanager
@@ -115,8 +120,35 @@ async def run_ingestion(only: Optional[List[str]] = None) -> IngestResult:
         log = logger.info if result.status == "ok" else logger.warning
         log("Source ingested", source=result.source, status=result.status, error=result.error,
             signals=len(result.signals), new=new, delisted=retired)
+    await embed_pending()
     return IngestResult(documents_ingested=total_new, sources_queried=[r.source for r in results], sources=summary,
                         timestamp=datetime.now(timezone.utc).isoformat())
+
+
+async def embed_pending(limit: Optional[int] = None) -> Dict[str, Any]:
+    """Embed records that have no current vector for the configured model. A separate
+    step: an embedding failure (e.g. throttling) never fails a source's ingestion run."""
+    if embedder is None:
+        return {"status": "disabled"}
+    done = 0
+    budget = limit or EMBED_PER_RUN
+    try:
+        while done < budget:
+            pending = await store.signals_needing_embedding(embedder.model_id, limit=min(200, budget - done))
+            if not pending:
+                break
+            texts = [evidence_embeddings.document_text(r) for r in pending]
+            vectors = await embedder.embed_documents(texts)
+            written = await store.set_embeddings([(r["id"], text_hash(r), v) for r, v in zip(pending, vectors)],
+                                                 embedder.model_id)
+            done += written
+            if len(pending) < 200 or written == 0:  # last batch, or no progress (texts changed meanwhile)
+                break
+    except Exception as exc:
+        logger.warning("Embedding step failed", error=type(exc).__name__, embedded=done)
+        return {"status": "error", "error": type(exc).__name__, "embedded": done}
+    logger.info("Embedding step", embedded=done)
+    return {"status": "ok", "embedded": done}
 
 
 async def _auto_ingest_loop() -> None:
@@ -173,7 +205,9 @@ async def list_sources(org_id: str = Depends(tenant_org)):
     status = {name: {"label": sources.SOURCE_LABELS[name], "status": "never_run", **runs.get(name, {})}
               for name in sources.SOURCES}
     _, total = await store.list_signals(limit=1)
-    return {"sources": status, "available": list(sources.SOURCES), "total_documents": total}
+    vectors = ({"status": "disabled"} if embedder is None
+               else {"status": "on", "model": embedder.model_id, **await store.embedding_coverage(embedder.model_id)})
+    return {"sources": status, "available": list(sources.SOURCES), "total_documents": total, "embeddings": vectors}
 
 
 def _watch(incidents: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -238,7 +272,7 @@ async def ask(request: AskRequest, org_id: str = Depends(tenant_org)):
 
     The question and supplier come from the caller and are not stored here."""
     supplier = {k: request.supplier.get(k) for k in ("id", "name", "country_code", "aliases")}
-    retrieved = await evidence_retrieval.retrieve(store, request.question, supplier, k=request.k)
+    retrieved = await evidence_retrieval.retrieve(store, request.question, supplier, k=request.k, embedder=embedder)
     count = 0 if retrieved["results"] else await evidence_retrieval.supplier_record_count(store, supplier)
     since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
     return await evidence_answer.compose(request.question, supplier, retrieved, count, coverage_since=since)

@@ -1,3 +1,9 @@
+# Development stack. Only the gateway (8000), the frontend (3000), Postgres (5432) and
+# monitoring (9090, 3001) are published, and only on 127.0.0.1. Agent services, Redis
+# and Weaviate are reachable only inside the Compose network, through the gateway, which
+# is how they run in production. To call an agent directly while debugging:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.debug-ports.yml up
+# Set SERVICE_API_KEY (any long random string) to enforce service-to-service auth in dev too.
 version: '3.8'
 
 services:
@@ -11,7 +17,7 @@ services:
       POSTGRES_USER: scirm
       POSTGRES_PASSWORD: dev_password
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -38,8 +44,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -51,8 +55,6 @@ services:
   # Vector Database
   weaviate:
     image: semitechnologies/weaviate:1.21.2
-    ports:
-      - "8080:8080"
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
@@ -69,9 +71,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/coordinator
-    ports:
-      - "8001:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - STORE_BACKEND=postgres
       - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
@@ -102,9 +103,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/planner
-    ports:
-      - "8002:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
@@ -133,9 +133,8 @@ services:
       args:
         SERVICE_PATH: services/researcher
         EXTRA_PIP: weaviate-client==3.26.7
-    ports:
-      - "8003:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
@@ -163,9 +162,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/executor
-    ports:
-      - "8004:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
@@ -193,9 +191,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/reviewer
-    ports:
-      - "8005:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
@@ -223,9 +220,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/risk-scorer
-    ports:
-      - "8006:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
@@ -243,9 +239,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/discovery
-    ports:
-      - "8007:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
@@ -263,9 +258,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/ingestion
-    ports:
-      - "8008:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - STORE_BACKEND=postgres
       - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       # Public sources (FDA recalls and shortages, GDACS): no keys needed. An optional
@@ -273,6 +267,18 @@ services:
       - INGESTION_AUTO=true
       - INGESTION_INTERVAL_MINUTES=60
       - OPENFDA_API_KEY=${OPENFDA_API_KEY:-}
+      # Evidence Engine AI on Amazon Bedrock, EU only (docs/bedrock-setup.md). Off unless
+      # AWS credentials are present; answers are then composed from the records alone.
+      - LLM_PROVIDER=bedrock
+      - LLM_EU_ONLY=true
+      - BEDROCK_REGION=${BEDROCK_REGION:-eu-central-1}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-eu.anthropic.claude-sonnet-5-5}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-}
+      - EMBED_MODEL_ID=${EMBED_MODEL_ID:-eu.cohere.embed-v4:0}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_BEARER_TOKEN_BEDROCK=${AWS_BEARER_TOKEN_BEDROCK:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       migrate:
@@ -289,9 +295,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/chat
-    ports:
-      - "8009:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - COORDINATOR_SERVICE_URL=http://coordinator:8000
       - RISK_SCORER_SERVICE_URL=http://risk-scorer:8000
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -311,9 +316,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/simulator
-    ports:
-      - "8010:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - COORDINATOR_SERVICE_URL=http://coordinator:8000
       - LOG_LEVEL=DEBUG
     volumes:
@@ -328,9 +332,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/procurement
-    ports:
-      - "8011:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - PROCUREMENT_MODE=advisory
       - PROCUREMENT_RISK_THRESHOLD=65
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -348,9 +351,8 @@ services:
       dockerfile: docker/service.Dockerfile
       args:
         SERVICE_PATH: services/component-tracker
-    ports:
-      - "8012:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - LOG_LEVEL=DEBUG
     volumes:
       # Live reload: source mounted over the copies baked into the image.
@@ -365,8 +367,9 @@ services:
       args:
         SERVICE_PATH: apps/api-gateway
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - STORE_BACKEND=postgres
       - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
@@ -414,7 +417,7 @@ services:
       context: ./apps/frontend
       dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - VITE_API_URL=http://localhost:8000
       - VITE_WS_URL=ws://localhost:8000/ws
@@ -427,7 +430,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./ops/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -441,9 +444,9 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}  # local only (127.0.0.1)
     volumes:
       - grafana_data:/var/lib/grafana
       - ./ops/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards

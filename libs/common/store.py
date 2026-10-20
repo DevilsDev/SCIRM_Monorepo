@@ -33,6 +33,24 @@ def _activity(signal: Dict[str, Any]) -> str:
     return signal.get("updated_at") or signal["published_at"]
 
 
+def text_hash(signal: Dict[str, Any]) -> str:
+    """Hash of the embedded text (title and summary); PostgreSQL computes the same with
+    md5(title || chr(10) || summary)."""
+    import hashlib
+    return hashlib.md5(f"{signal.get('title') or ''}\n{signal.get('summary') or ''}".encode("utf-8")).hexdigest()
+
+
+def _vector_literal(vector: List[float]) -> str:
+    return "[" + ",".join(f"{float(x):.7g}" for x in vector) + "]"
+
+
+def _cosine_distance(a: List[float], b: List[float]) -> float:
+    import math
+    dot = sum(x * y for x, y in zip(a, b))
+    na, nb = math.sqrt(sum(x * x for x in a)), math.sqrt(sum(y * y for y in b))
+    return 1.0 - dot / (na * nb) if na and nb else 1.0
+
+
 def _now() -> str:
     return datetime.utcnow().isoformat()
 
@@ -87,6 +105,8 @@ class MemoryStore:
         self.impacts: List[Dict[str, Any]] = []
         self.audit: List[Dict[str, Any]] = []
         self.signals: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        # (source, external_id) -> (vector, model, text hash)
+        self.embeddings: Dict[Tuple[str, str], Tuple[List[float], str, str]] = {}
         self.source_runs: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
@@ -291,6 +311,46 @@ class MemoryStore:
                 scored.append({**sig, "rank": score})
         scored.sort(key=lambda x: (x["rank"], _activity(x)), reverse=True)
         return scored[:limit]
+
+    async def signals_needing_embedding(self, model: str, limit: int = 500) -> List[Dict[str, Any]]:
+        out = []
+        for key, sig in self.signals.items():
+            if sig.get("delisted_at"):
+                continue
+            stored = self.embeddings.get(key)
+            if not stored or stored[1] != model or stored[2] != text_hash(sig):
+                out.append({"id": sig["id"], "title": sig["title"], "summary": sig.get("summary") or "",
+                            "_key": key})
+        out.sort(key=lambda r: _activity(self.signals[r["_key"]]), reverse=True)
+        return out[:limit]
+
+    async def set_embeddings(self, items: List[Tuple[str, str, List[float]]], model: str) -> int:
+        """items: (signal id, hash of the text embedded, vector). Skipped if the text changed since."""
+        by_id = {sig["id"]: key for key, sig in self.signals.items()}
+        written = 0
+        for signal_id, digest, vector in items:
+            key = by_id.get(signal_id)
+            if key and text_hash(self.signals[key]) == digest:
+                self.embeddings[key] = (list(vector), model, digest)
+                written += 1
+        return written
+
+    async def vector_search(self, vector: List[float], model: str, keys: List[str],
+                            limit: int = 50) -> List[Dict[str, Any]]:
+        keys_set, scored = set(keys), []
+        for key, sig in self.signals.items():
+            stored = self.embeddings.get(key)
+            if (sig.get("delisted_at") or not stored or stored[1] != model or stored[2] != text_hash(sig)
+                    or not keys_set & set(sig.get("entity_keys") or [])):
+                continue
+            scored.append({**sig, "distance": _cosine_distance(vector, stored[0])})
+        scored.sort(key=lambda r: r["distance"])
+        return scored[:limit]
+
+    async def embedding_coverage(self, model: str) -> Dict[str, int]:
+        active = [(k, s) for k, s in self.signals.items() if not s.get("delisted_at")]
+        embedded = sum(1 for k, s in active if (e := self.embeddings.get(k)) and e[1] == model and e[2] == text_hash(s))
+        return {"embedded": embedded, "total": len(active)}
 
     async def retire_unseen(self, source: str, seen_ids: Iterable[str]) -> int:
         """Mark this source's active signals that a full run did not see as delisted."""
@@ -756,7 +816,8 @@ class PostgresStore:
 
     @staticmethod
     def _signal_row(row: Dict[str, Any]) -> Dict[str, Any]:
-        row.pop("search_doc", None)
+        for k in ("search_doc", "embedding", "embedding_text_hash"):
+            row.pop(k, None)
         out = _jsonable(row)
         for k in ("occurred_at", "published_at", "updated_at"):
             if isinstance(out.get(k), date):
@@ -790,7 +851,14 @@ class PostgresStore:
                     "entity_names = EXCLUDED.entity_names, entity_keys = EXCLUDED.entity_keys, "
                     "country_codes = EXCLUDED.country_codes, occurred_at = EXCLUDED.occurred_at, "
                     "published_at = EXCLUDED.published_at, updated_at = EXCLUDED.updated_at, url = EXCLUDED.url, "
-                    "raw = EXCLUDED.raw, last_seen_at = now(), delisted_at = NULL "
+                    "raw = EXCLUDED.raw, last_seen_at = now(), delisted_at = NULL, "
+                    # A changed text invalidates its embedding (it is re-embedded later).
+                    "embedding = CASE WHEN md5(EXCLUDED.title || chr(10) || EXCLUDED.summary) "
+                    "  = public_signals.embedding_text_hash THEN public_signals.embedding END, "
+                    "embedding_model = CASE WHEN md5(EXCLUDED.title || chr(10) || EXCLUDED.summary) "
+                    "  = public_signals.embedding_text_hash THEN public_signals.embedding_model END, "
+                    "embedding_text_hash = CASE WHEN md5(EXCLUDED.title || chr(10) || EXCLUDED.summary) "
+                    "  = public_signals.embedding_text_hash THEN public_signals.embedding_text_hash END "
                     "RETURNING (xmax = 0) AS inserted"), row)
                 new += int(bool(result.scalar()))
         return new
@@ -832,6 +900,50 @@ class PostgresStore:
             "ORDER BY rank DESC, COALESCE(s.updated_at, s.published_at) DESC LIMIT :limit"),
             {"q": query, "keys": list(keys) if keys is not None else None, "limit": limit})
         return [self._signal_row(r) for r in rows]
+
+    async def signals_needing_embedding(self, model: str, limit: int = 500) -> List[Dict[str, Any]]:
+        rows = await self._all(None, (
+            "SELECT id, title, summary FROM public_signals WHERE delisted_at IS NULL AND ("
+            "embedding IS NULL OR embedding_model IS DISTINCT FROM :model "
+            "OR embedding_text_hash IS DISTINCT FROM md5(title || chr(10) || summary)) "
+            "ORDER BY COALESCE(updated_at, published_at) DESC LIMIT :limit"), {"model": model, "limit": limit})
+        return [{"id": str(r["id"]), "title": r["title"], "summary": r["summary"] or ""} for r in rows]
+
+    async def set_embeddings(self, items: List[Tuple[str, str, List[float]]], model: str) -> int:
+        """items: (signal id, hash of the text embedded, vector). A row whose text changed
+        since it was read keeps no vector: it is picked up again on the next pass."""
+        from sqlalchemy import text
+        written = 0
+        async with self._tx(None) as conn:
+            for signal_id, digest, vector in items:
+                result = await conn.execute(text(
+                    "UPDATE public_signals SET embedding = CAST(:v AS vector), embedding_model = :m, "
+                    "embedding_text_hash = :h WHERE id = CAST(:id AS uuid) "
+                    "AND md5(title || chr(10) || summary) = :h"),
+                    {"v": _vector_literal(vector), "m": model, "h": digest, "id": signal_id})
+                written += result.rowcount or 0
+        return written
+
+    async def vector_search(self, vector: List[float], model: str, keys: List[str],
+                            limit: int = 50) -> List[Dict[str, Any]]:
+        """Nearest records among one supplier's. The supplier's rows are taken first
+        (MATERIALIZED) and compared exactly: filtering after an approximate index search
+        would often leave a small supplier with no results at all."""
+        rows = await self._all(None, (
+            "WITH scoped AS MATERIALIZED (SELECT * FROM public_signals WHERE delisted_at IS NULL "
+            "AND embedding IS NOT NULL AND embedding_model = :m "
+            "AND embedding_text_hash = md5(title || chr(10) || summary) "
+            "AND entity_keys && CAST(:keys AS text[])) "
+            "SELECT *, embedding <=> CAST(:v AS vector) AS distance FROM scoped ORDER BY distance LIMIT :limit"),
+            {"v": _vector_literal(vector), "m": model, "keys": list(keys), "limit": limit})
+        return [self._signal_row(r) for r in rows]
+
+    async def embedding_coverage(self, model: str) -> Dict[str, int]:
+        [row] = await self._all(None, (
+            "SELECT count(*) FILTER (WHERE embedding IS NOT NULL AND embedding_model = :m "
+            "AND embedding_text_hash = md5(title || chr(10) || summary)) AS embedded, count(*) AS total "
+            "FROM public_signals WHERE delisted_at IS NULL"), {"m": model})
+        return {"embedded": int(row["embedded"]), "total": int(row["total"])}
 
     async def retire_unseen(self, source: str, seen_ids: Iterable[str]) -> int:
         """Mark this source's active signals that a full run did not see as delisted."""
