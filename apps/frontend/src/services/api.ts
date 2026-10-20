@@ -230,6 +230,39 @@ export interface ScanResult {
   html: string;
 }
 
+export interface SapImportAction {
+  action: 'create' | 'update' | 'link' | 'deactivate' | 'skip' | 'needs_decision';
+  number: string;
+  name: string;
+  supplier_id?: string;
+  changed?: string[];
+  reason?: string;
+}
+
+export interface SapImportResult {
+  applied: boolean;
+  written: number;
+  rows: number;
+  warnings: string[];
+  summary: Partial<Record<SapImportAction['action'] | 'unchanged', number>>;
+  duplicates: Array<{ number: string; name: string; country_code: string | null; existing_id: string;
+    existing_name: string; existing_code: string }>;
+  missing: Array<{ number: string; name: string; supplier_id: string }>;
+  missing_deactivated: boolean;
+  /** Set when missing suppliers were not deactivated because the file looked incomplete. */
+  guard: string | null;
+  actions: SapImportAction[];
+}
+
+export interface SapImportRequest {
+  content: string;
+  column_map?: Record<string, string>;
+  /** Possible duplicates: { SAP number: "create" | "link:<supplier id>" } */
+  decisions?: Record<string, string>;
+  deactivate_missing?: boolean;
+  apply?: boolean;
+}
+
 export type Role = 'admin' | 'analyst' | 'viewer' | 'auditor';
 export const ROLES: Role[] = ['admin', 'analyst', 'viewer', 'auditor'];
 
@@ -281,6 +314,11 @@ export const api = {
   async verifyMfa(mfaToken: string, totpCode: string): Promise<LoginResponse> {
     const response = await apiClient.post('/api/v1/auth/mfa/verify', { mfa_token: mfaToken, totp_code: totpCode });
     return response.data;
+  },
+
+  // SAP supplier import (LFA1 extract). Preview unless apply is true.
+  async importSapSuppliers(request: SapImportRequest): Promise<SapImportResult> {
+    return (await apiClient.post('/api/v1/suppliers/import/sap', request, { timeout: 300000 })).data;
   },
 
   // Supplier scan: the list is processed in memory and not stored.
