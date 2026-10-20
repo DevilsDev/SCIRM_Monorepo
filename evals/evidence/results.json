@@ -721,6 +721,383 @@
           "correct": true
         }
       ]
+    },
+    "C_held_out": {
+      "questions": 45,
+      "positives": 35,
+      "negatives": 10,
+      "recall_at_10": 0.615,
+      "mrr": 0.582,
+      "positives_with_no_hit": [
+        "c02",
+        "c10",
+        "c14",
+        "c15",
+        "c17",
+        "c18",
+        "c20",
+        "c25",
+        "c28",
+        "c30",
+        "c32"
+      ],
+      "negatives_correct": 0.8,
+      "negatives_wrong": [
+        "c38",
+        "c39"
+      ],
+      "rows": [
+        {
+          "id": "c01",
+          "positive": true,
+          "relevant": 4,
+          "recall": 0.25,
+          "rr": 0.1,
+          "returned": 10
+        },
+        {
+          "id": "c02",
+          "positive": true,
+          "relevant": 1,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 10
+        },
+        {
+          "id": "c03",
+          "positive": true,
+          "relevant": 1,
+          "recall": 1.0,
+          "rr": 0.3333333333333333,
+          "returned": 3
+        },
+        {
+          "id": "c04",
+          "positive": true,
+          "relevant": 21,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c05",
+          "positive": true,
+          "relevant": 3,
+          "recall": 0.6666666666666666,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c06",
+          "positive": true,
+          "relevant": 10,
+          "recall": 0.6,
+          "rr": 0.2,
+          "returned": 10
+        },
+        {
+          "id": "c07",
+          "positive": true,
+          "relevant": 1,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c08",
+          "positive": true,
+          "relevant": 27,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c09",
+          "positive": true,
+          "relevant": 23,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c10",
+          "positive": true,
+          "relevant": 9,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c11",
+          "positive": true,
+          "relevant": 16,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c12",
+          "positive": true,
+          "relevant": 19,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 10
+        },
+        {
+          "id": "c13",
+          "positive": true,
+          "relevant": 1,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 1
+        },
+        {
+          "id": "c14",
+          "positive": true,
+          "relevant": 2,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 3
+        },
+        {
+          "id": "c15",
+          "positive": true,
+          "relevant": 2,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c16",
+          "positive": true,
+          "relevant": 5,
+          "recall": 1.0,
+          "rr": 0.25,
+          "returned": 10
+        },
+        {
+          "id": "c17",
+          "positive": true,
+          "relevant": 2,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c18",
+          "positive": true,
+          "relevant": 12,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 7
+        },
+        {
+          "id": "c19",
+          "positive": true,
+          "relevant": 5,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 6
+        },
+        {
+          "id": "c20",
+          "positive": true,
+          "relevant": 4,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c21",
+          "positive": true,
+          "relevant": 4,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 4
+        },
+        {
+          "id": "c22",
+          "positive": true,
+          "relevant": 1,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 1
+        },
+        {
+          "id": "c23",
+          "positive": true,
+          "relevant": 2,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 2
+        },
+        {
+          "id": "c24",
+          "positive": true,
+          "relevant": 3,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 3
+        },
+        {
+          "id": "c25",
+          "positive": true,
+          "relevant": 1,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 10
+        },
+        {
+          "id": "c26",
+          "positive": true,
+          "relevant": 1,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 1
+        },
+        {
+          "id": "c27",
+          "positive": true,
+          "relevant": 4,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 4
+        },
+        {
+          "id": "c28",
+          "positive": true,
+          "relevant": 1,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c29",
+          "positive": true,
+          "relevant": 3,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 4
+        },
+        {
+          "id": "c30",
+          "positive": true,
+          "relevant": 2,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c31",
+          "positive": true,
+          "relevant": 2,
+          "recall": 0.5,
+          "rr": 1.0,
+          "returned": 1
+        },
+        {
+          "id": "c32",
+          "positive": true,
+          "relevant": 7,
+          "recall": 0.0,
+          "rr": 0.0,
+          "returned": 0
+        },
+        {
+          "id": "c33",
+          "positive": true,
+          "relevant": 8,
+          "recall": 0.625,
+          "rr": 1.0,
+          "returned": 5
+        },
+        {
+          "id": "c34",
+          "positive": true,
+          "relevant": 13,
+          "recall": 0.9,
+          "rr": 0.5,
+          "returned": 10
+        },
+        {
+          "id": "c35",
+          "positive": true,
+          "relevant": 2,
+          "recall": 1.0,
+          "rr": 1.0,
+          "returned": 6
+        },
+        {
+          "id": "c36",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c37",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c38",
+          "positive": false,
+          "returned": 10,
+          "status": "answered",
+          "correct": false
+        },
+        {
+          "id": "c39",
+          "positive": false,
+          "returned": 1,
+          "status": "answered",
+          "correct": false
+        },
+        {
+          "id": "c40",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c41",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c42",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c43",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c44",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        },
+        {
+          "id": "c45",
+          "positive": false,
+          "returned": 0,
+          "status": "no_records",
+          "correct": true
+        }
+      ]
     }
   },
   "checker": {
@@ -796,5 +1173,6 @@
     },
     "overall_catch_rate": 0.998
   },
-  "corpus": 7670
+  "corpus": 7670,
+  "retrieval_mode": "keyword"
 }
