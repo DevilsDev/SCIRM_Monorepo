@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<LoginResult>;
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
+  acceptInvitation: (token: string, name: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ status: 'signed_in' }),
   verifyMfa: async () => {},
   signup: async () => {},
+  acceptInvitation: async () => {},
   logout: () => {},
 });
 
@@ -86,8 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     begin(await api.signup(email, password, name));
   };
 
+  const acceptInvitation = async (token: string, name: string, password: string) => {
+    begin(await api.acceptInvitation(token, name, password));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, verifyMfa, signup, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, verifyMfa, signup, acceptInvitation, logout }}>
       {children}
     </AuthContext.Provider>
   );

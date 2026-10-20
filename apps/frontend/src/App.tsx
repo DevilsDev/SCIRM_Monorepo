@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 import DashboardPage from './pages/DashboardPage';
 import RiskListPage from './pages/RiskListPage';
 import RiskDetailPage from './pages/RiskDetailPage';
@@ -55,6 +56,9 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
+
+        {/* Invitation links: public, whether or not someone is signed in on this browser */}
+        <Route path="/invite" element={<AcceptInvitePage />} />
 
         {/* 404 catch-all */}
         <Route path="*" element={<NotFoundPage />} />
