@@ -26,38 +26,33 @@ install-dev: ## Install development dependencies only
 # Development
 dev: ## Start development environment
 	@echo "🚀 Starting SCIRM development environment..."
-	docker-compose -f docker-compose.dev.yml up --build
+	docker compose -f docker-compose.dev.yml up --build
 
 dev-backend: ## Start backend services only
 	@echo "🚀 Starting backend services..."
-	docker-compose -f docker-compose.dev.yml up --build coordinator planner researcher executor reviewer api-gateway
+	docker compose -f docker-compose.dev.yml up --build postgres migrate coordinator planner researcher executor reviewer ingestion api-gateway
 
 dev-frontend: ## Start frontend development server
 	@echo "🚀 Starting frontend development server..."
 	cd apps/frontend && npm run dev
 
 # Testing
-test: ## Run all tests
+test: ## Run backend and frontend tests (as CI does)
 	@echo "🧪 Running all tests..."
 	$(MAKE) test-backend
 	$(MAKE) test-frontend
-	$(MAKE) test-integration
 
-test-backend: ## Run backend tests
+test-backend: ## Run backend tests (in-memory store; set STORE_BACKEND=postgres and TEST_POSTGRES_URL for PostgreSQL)
 	@echo "🧪 Running backend tests..."
-	python -m pytest services/ libs/ -v --cov=. --cov-report=html --cov-report=term
+	python -m pytest tests/security tests/ai_trust tests/intel tests/evidence tests/erp tests/db -q
 
 test-frontend: ## Run frontend tests
 	@echo "🧪 Running frontend tests..."
 	cd apps/frontend && npm test
 
-test-integration: ## Run integration tests
+test-integration: ## Run integration tests against a running stack (make dev)
 	@echo "🧪 Running integration tests..."
 	python -m pytest tests/integration/ -v
-
-test-e2e: ## Run end-to-end tests
-	@echo "🧪 Running E2E tests..."
-	python -m pytest tests/e2e/ -v
 
 test-load: ## Run load tests
 	@echo "🧪 Running load tests..."
@@ -109,17 +104,13 @@ build-frontend: ## Build frontend application
 	docker build -t scirm/frontend:latest apps/frontend/
 
 # Documentation
-docs: ## Build documentation
+docs: ## Build documentation (strict, as CI does)
 	@echo "📚 Building documentation..."
-	mkdocs build
+	mkdocs build --strict
 
 docs-serve: ## Serve documentation locally
 	@echo "📚 Serving documentation at http://localhost:8001"
 	mkdocs serve --dev-addr=localhost:8001
-
-docs-deploy: ## Deploy documentation to GitHub Pages
-	@echo "📚 Deploying documentation..."
-	mkdocs gh-deploy --force
 
 # Database
 db-migrate: ## Run migrations, configure the scirm_app role and seed demo tenants (Compose)
@@ -131,10 +122,6 @@ db-reset: ## Reset database
 	alembic downgrade base
 	alembic upgrade head
 
-db-seed: ## Seed database with test data
-	@echo "🌱 Seeding database..."
-	python scripts/seed_database.py
-
 # Deployment
 deploy-staging: ## Deploy to staging environment
 	@echo "🚀 Deploying to staging..."
@@ -142,20 +129,10 @@ deploy-staging: ## Deploy to staging environment
 	kubectl rollout status deployment/coordinator -n scirm-staging
 	kubectl rollout status deployment/frontend -n scirm-staging
 
-deploy-prod: ## Deploy to production environment
-	@echo "🚀 Deploying to production..."
-	kubectl apply -f infra/k8s/production/ --recursive
-	kubectl rollout status deployment/coordinator -n scirm-production
-	kubectl rollout status deployment/frontend -n scirm-production
-
 # Monitoring
 logs: ## View application logs
 	@echo "📋 Viewing logs..."
 	kubectl logs -f deployment/coordinator -n scirm-staging
-
-logs-prod: ## View production logs
-	@echo "📋 Viewing production logs..."
-	kubectl logs -f deployment/coordinator -n scirm-production
 
 metrics: ## Open Grafana dashboard
 	@echo "📊 Opening Grafana dashboard..."
@@ -170,24 +147,15 @@ clean: ## Clean up build artifacts
 	rm -rf .coverage htmlcov/
 	cd apps/frontend && rm -rf node_modules/ dist/ build/
 
-setup-git: ## Set up git hooks and branching
-	@echo "🌿 Setting up git configuration..."
-	chmod +x .github/scripts/setup-repository.sh
-	./.github/scripts/setup-repository.sh
-
-setup-env: ## Set up environment files
-	@echo "⚙️ Setting up environment files..."
-	cp .env.example .env.local
-	cp .env.example .env.staging
-	cp .env.example .env.production
-	@echo "✅ Environment files created. Please update with actual values."
+setup-env: ## Create .env from .env.example (never overwrites an existing .env)
+	@echo "⚙️ Setting up .env..."
+	@test -f .env && echo ".env already exists; left unchanged" || (cp .env.example .env && echo "✅ .env created. Fill in values; never commit it.")
 
 init: ## Initialize project for development
 	@echo "🎯 Initializing SCIRM project..."
 	$(MAKE) install
 	$(MAKE) setup-env
 	$(MAKE) db-migrate
-	$(MAKE) db-seed
 	@echo "✅ Project initialized successfully!"
 
 # Health checks
