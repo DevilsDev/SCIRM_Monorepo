@@ -778,6 +778,30 @@ async def ask_about_supplier(supplier_id: str, body: SupplierQuestion, token: st
         raise HTTPException(status_code=503, detail="Answering is unavailable")
 
 
+class ScanUpload(BaseModel):
+    csv: str = Field(..., min_length=1, max_length=1_000_000)
+    title: str = Field("Supplier risk scan", max_length=200)
+    prepared_for: str = Field("", max_length=200)
+
+
+@app.post("/api/v1/scan")
+async def scan_suppliers(body: ScanUpload, token: str = Depends(security)):
+    """Scan a supplier list (CSV) against public records. Not stored; returns the report."""
+    user = await verify_token(token.credentials)
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{INGESTION_URL}/scan", json=body.model_dump(), headers=_svc_headers(user),
+                                         timeout=120.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 400:
+            raise HTTPException(status_code=400, detail=e.response.json().get("detail"))
+        raise HTTPException(status_code=502, detail="The scan failed")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Scanning is unavailable")
+
+
 @app.get("/api/v1/signals/suppliers")
 async def signals_overview(since_days: int = 365, token: str = Depends(security)):
     """Public incident and exposure counts for every supplier of the caller's organization."""

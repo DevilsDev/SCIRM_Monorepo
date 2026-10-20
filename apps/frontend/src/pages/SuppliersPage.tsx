@@ -138,6 +138,12 @@ export default function SuppliersPage() {
             <PlusIcon className="h-4 w-4" />
             {t('suppliers.addSupplier', 'Add Supplier')}
           </button>
+          <Link
+            to="/scan"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
+            {t('scan.open', 'Scan a supplier list')}
+          </Link>
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"

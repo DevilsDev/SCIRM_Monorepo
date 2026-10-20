@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -29,7 +29,7 @@ from libs.common.store import text_hash
 from libs.evidence import answer as evidence_answer
 from libs.evidence import embeddings as evidence_embeddings
 from libs.evidence import retrieval as evidence_retrieval
-from libs.intel import matching, scoring, sources
+from libs.intel import matching, scan, scoring, sources
 
 logger = structlog.get_logger()
 
@@ -75,6 +75,12 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=500)
     supplier: Dict[str, Any]
     k: int = Field(8, ge=1, le=20)
+
+
+class ScanRequest(BaseModel):
+    csv: str = Field(..., min_length=1, max_length=1_000_000)
+    title: str = Field("Supplier risk scan", max_length=200)
+    prepared_for: str = Field("", max_length=200)
 
 
 class MatchRequest(BaseModel):
@@ -211,27 +217,8 @@ async def list_sources(org_id: str = Depends(tenant_org)):
 
 
 def _watch(incidents: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """The back-tested recall-history score of a supplier from its matched recalls,
-    one entry per FDA recall event, and whether it reaches the watch threshold."""
-    from datetime import date
-    events: Dict[str, Dict[str, Any]] = {}
-    for m in incidents:
-        signal = m["signal"]
-        # Exact normalized-name matches only: that is how the back-test identifies firms, so
-        # neither a similar name nor a subsidiary ("Hospira, a Pfizer company") raises the score.
-        if signal.get("signal_type") != "recall" or m["match_type"] != "name_exact":
-            continue
-        raw = signal.get("raw") or {}
-        key = str(raw.get("event_id") or signal.get("external_id"))
-        published = date.fromisoformat(str(signal["published_at"])[:10])
-        entry = events.setdefault(key, {"published": published, "classes": []})
-        entry["published"] = min(entry["published"], published)
-        entry["classes"].append(raw.get("classification"))
-    today = datetime.now(timezone.utc).date()
-    score = scoring.recall_history_score(
-        [{"published": e["published"], "classification": scoring.most_severe(e["classes"])} for e in events.values()],
-        today)
-    return {"recall_score": score, "watch": score >= scoring.WATCH_THRESHOLD and score > 0}
+    """The back-tested Watch flag for a supplier (libs/intel/scoring.watch_from_matches)."""
+    return scoring.watch_from_matches(incidents, datetime.now(timezone.utc).date())
 
 
 @app.post("/match")
@@ -276,6 +263,20 @@ async def ask(request: AskRequest, org_id: str = Depends(tenant_org)):
     count = 0 if retrieved["results"] else await evidence_retrieval.supplier_record_count(store, supplier)
     since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
     return await evidence_answer.compose(request.question, supplier, retrieved, count, coverage_since=since)
+
+
+@app.post("/scan")
+async def scan_suppliers(request: ScanRequest, org_id: str = Depends(tenant_org)):
+    """Scan an uploaded supplier list against the public records. The list is processed in
+    memory and not stored; the report (data and a self-contained HTML page) is returned."""
+    suppliers, warnings = scan.parse_supplier_csv(request.csv)
+    if not suppliers:
+        raise HTTPException(status_code=400, detail="; ".join(warnings) or "No suppliers found in the file")
+    since = (datetime.now(timezone.utc).date() - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    report = await scan.run_scan(store, suppliers, coverage=(
+        f"FDA recalls and warning letters ingested since {since}; current FDA shortage and import-alert lists"))
+    return {"report": report, "warnings": warnings,
+            "html": scan.render_html(report, title=request.title, prepared_for=request.prepared_for)}
 
 
 if __name__ == "__main__":

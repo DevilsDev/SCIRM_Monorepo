@@ -294,6 +294,16 @@ class TestPublicSignals:
                                headers=bearer(lisa["access_token"]))
         assert response.status_code == 404
 
+    def test_supplier_scan_needs_sign_in_and_returns_a_report(self, client, sarah, ingested):
+        body = {"csv": "name;country\nSun Pharmaceutical Industries, Inc.;IN\n", "prepared_for": "Prospect"}
+        assert client.post("/api/v1/scan", json=body).status_code in (401, 403)
+        response = client.post("/api/v1/scan", json=body, headers=bearer(sarah["access_token"]))
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["report"]["summary"]["scanned"] == 1 and "<script" not in data["html"].lower()
+        bad = client.post("/api/v1/scan", json={"csv": "city\nBerlin\n"}, headers=bearer(sarah["access_token"]))
+        assert bad.status_code == 400 and "name column" in bad.json()["detail"]
+
     def test_matching_outage_is_a_503_not_an_empty_answer(self, client, apps, sarah, monkeypatch):
         original = apps["router"].handle_async_request
 
