@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/Toast';
 import Toggle from '../components/Toggle';
 import TeamSettings from '../components/TeamSettings';
+import PilotMetrics from '../components/PilotMetrics';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -83,6 +84,8 @@ export default function SettingsPage() {
       </div>
 
       <TeamSettings />
+
+      {user?.roles?.some((r) => r === 'admin' || r === 'auditor') && <PilotMetrics />}
 
       {/* Appearance */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

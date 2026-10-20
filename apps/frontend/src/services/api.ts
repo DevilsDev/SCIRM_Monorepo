@@ -235,6 +235,63 @@ export interface ScanResult {
   html: string;
 }
 
+export interface SapImportAction {
+  action: 'create' | 'update' | 'link' | 'deactivate' | 'skip' | 'needs_decision';
+  number: string;
+  name: string;
+  supplier_id?: string;
+  changed?: string[];
+  reason?: string;
+}
+
+export interface SapImportResult {
+  applied: boolean;
+  written: number;
+  rows: number;
+  warnings: string[];
+  summary: Partial<Record<SapImportAction['action'] | 'unchanged', number>>;
+  duplicates: Array<{ number: string; name: string; country_code: string | null; existing_id: string;
+    existing_name: string; existing_code: string }>;
+  missing: Array<{ number: string; name: string; supplier_id: string }>;
+  missing_deactivated: boolean;
+  /** Set when missing suppliers were not deactivated because the file looked incomplete. */
+  guard: string | null;
+  actions: SapImportAction[];
+}
+
+export interface SapImportRequest {
+  content: string;
+  column_map?: Record<string, string>;
+  /** Possible duplicates: { SAP number: "create" | "link:<supplier id>" } */
+  decisions?: Record<string, string>;
+  deactivate_missing?: boolean;
+  apply?: boolean;
+}
+
+export type FeedbackTarget = 'signal_match' | 'answer' | 'citation';
+export type FeedbackVerdict = 'useful' | 'not_useful' | 'wrong_supplier' | 'incorrect';
+
+export interface FeedbackInput {
+  target_type: FeedbackTarget;
+  /** signal_match: the signal id. answer: the id the page gave the answer. citation: "<answer id>:<S#>". */
+  target_id: string;
+  verdict: FeedbackVerdict;
+  supplier_id?: string;
+  reason?: string;
+  /** Only known fields are kept by the server (counts, method, source); never the question text. */
+  context?: Record<string, string | number>;
+}
+
+export interface FeedbackSummary {
+  since_days: number;
+  raters: number;
+  records: { rated: number; useful: number; not_useful: number; wrong_supplier: number;
+    useful_rate: number | null; wrong_supplier_rate: number | null };
+  answers: { rated: number; helpful: number; not_helpful: number; helpful_rate: number | null };
+  citations: { reported_incorrect: number; in_rated_answers: number; reported_incorrect_in_rated_answers: number;
+    estimated_correct_rate: number | null };
+}
+
 export type Role = 'admin' | 'analyst' | 'viewer' | 'auditor';
 export const ROLES: Role[] = ['admin', 'analyst', 'viewer', 'auditor'];
 
@@ -286,6 +343,11 @@ export const api = {
   async verifyMfa(mfaToken: string, totpCode: string): Promise<LoginResponse> {
     const response = await apiClient.post('/api/v1/auth/mfa/verify', { mfa_token: mfaToken, totp_code: totpCode });
     return response.data;
+  },
+
+  // SAP supplier import (LFA1 extract). Preview unless apply is true.
+  async importSapSuppliers(request: SapImportRequest): Promise<SapImportResult> {
+    return (await apiClient.post('/api/v1/suppliers/import/sap', request, { timeout: 300000 })).data;
   },
 
   // Supplier scan: the list is processed in memory and not stored.
@@ -505,6 +567,19 @@ export const api = {
   async askAboutSupplier(supplierId: string, question: string): Promise<EvidenceAnswer> {
     const response = await apiClient.post(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/ask`, { question });
     return response.data;
+  },
+
+  // Feedback: one rating per person per item; rating again replaces it.
+  async sendFeedback(input: FeedbackInput): Promise<void> {
+    await apiClient.post('/api/v1/feedback', input);
+  },
+
+  async getMySupplierFeedback(supplierId: string): Promise<{ ratings: Record<string, FeedbackVerdict> }> {
+    return (await apiClient.get(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/feedback`)).data;
+  },
+
+  async getFeedbackSummary(sinceDays = 90): Promise<FeedbackSummary> {
+    return (await apiClient.get('/api/v1/feedback/summary', { params: { since_days: sinceDays } })).data;
   },
 
   async getSignalsOverview(sinceDays: number = 365): Promise<{ suppliers: SupplierSignalSummary[] }> {

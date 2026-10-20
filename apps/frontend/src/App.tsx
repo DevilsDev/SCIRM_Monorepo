@@ -8,6 +8,7 @@ import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SupplierScanPage from './pages/SupplierScanPage';
+import SapImportPage from './pages/SapImportPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import DashboardPage from './pages/DashboardPage';
 import RiskListPage from './pages/RiskListPage';
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/scan" element={<SupplierScanPage />} />
+            <Route path="/suppliers/import/sap" element={<SapImportPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/supply-chain" element={<SupplyChainMapPage />} />
             <Route path="/predictions" element={<PredictionsPage />} />

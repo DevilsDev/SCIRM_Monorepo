@@ -16,7 +16,7 @@ import json
 import os
 import re
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 SEVERITIES = ("low", "medium", "high", "critical")
@@ -94,6 +94,44 @@ def _invitation_status(inv: Dict[str, Any], now: str) -> str:
     return "expired" if str(inv["expires_at"]) <= now else "pending"
 
 
+FEEDBACK_TARGETS = ("signal_match", "answer", "citation")
+FEEDBACK_VERDICTS = {"signal_match": ("useful", "not_useful", "wrong_supplier"),
+                     "answer": ("useful", "not_useful"),
+                     "citation": ("incorrect",)}
+
+
+def summarize_feedback(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Pilot gate metrics from feedback rows (target_type, target_id, verdict, user_id, context)."""
+    def count(t, v=None):
+        return sum(1 for r in rows if r["target_type"] == t and (v is None or r["verdict"] == v))
+
+    def rate(a, b):
+        return round(a / b, 3) if b else None
+
+    matches = count("signal_match")
+    answers = count("answer")
+    rated_answers = {r["target_id"] for r in rows if r["target_type"] == "answer"}
+    cited = sum(int((r.get("context") or {}).get("citations") or 0) for r in rows if r["target_type"] == "answer")
+    wrong_citations = count("citation", "incorrect")
+    # Citation ids are "<answer id>:<S#>"; only reports on rated answers share a denominator.
+    wrong_in_rated = sum(1 for r in rows if r["target_type"] == "citation" and r["verdict"] == "incorrect"
+                         and r["target_id"].rsplit(":", 1)[0] in rated_answers)
+    return {
+        "raters": len({r["user_id"] for r in rows}),
+        "records": {"rated": matches, "useful": count("signal_match", "useful"),
+                    "not_useful": count("signal_match", "not_useful"),
+                    "wrong_supplier": count("signal_match", "wrong_supplier"),
+                    "useful_rate": rate(count("signal_match", "useful"), matches),
+                    "wrong_supplier_rate": rate(count("signal_match", "wrong_supplier"), matches)},
+        "answers": {"rated": answers, "helpful": count("answer", "useful"), "not_helpful": count("answer", "not_useful"),
+                    "helpful_rate": rate(count("answer", "useful"), answers)},
+        # Estimated: an unreported citation is counted as correct.
+        "citations": {"reported_incorrect": wrong_citations, "in_rated_answers": cited,
+                      "reported_incorrect_in_rated_answers": wrong_in_rated,
+                      "estimated_correct_rate": rate(cited - wrong_in_rated, cited)},
+    }
+
+
 def _now() -> str:
     return datetime.utcnow().isoformat()
 
@@ -154,6 +192,7 @@ class MemoryStore:
         self.orgs: Dict[str, Dict[str, Any]] = {}
         self.users: Dict[str, Dict[str, Any]] = {}
         self.invitations: Dict[str, Dict[str, Any]] = {}
+        self.feedback: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
         self.signals: Dict[Tuple[str, str], Dict[str, Any]] = {}
         # (source, external_id) -> (vector, model, text hash)
         self.embeddings: Dict[Tuple[str, str], Tuple[List[float], str, str]] = {}
@@ -273,6 +312,17 @@ class MemoryStore:
             return None
         supplier.update({k: v for k, v in updates.items() if k not in ("id", "organization_id")})
         return supplier
+
+    async def write_suppliers(self, org: str, creates: List[Dict[str, Any]],
+                              updates: List[Tuple[str, Dict[str, Any]]]) -> int:
+        """Create and update suppliers together: all of them, or none if any update target is missing."""
+        if any([await self.get_supplier(org, sid) is None for sid, _ in updates]):
+            raise KeyError("supplier not found")
+        for sid, fields in updates:
+            await self.update_supplier(org, sid, fields)
+        for supplier in creates:
+            await self.create_supplier(org, supplier)
+        return len(creates) + len(updates)
 
     # --- alerts -------------------------------------------------------------
     async def add_alerts(self, org: str, alerts: List[Dict[str, Any]]) -> None:
@@ -532,6 +582,25 @@ class MemoryStore:
         user = self.users.get(str(user_id))
         if user and user["organization_id"] == org:
             user["last_login_at"] = _now()
+
+    # --- feedback -----------------------------------------------------------
+    async def record_feedback(self, org: str, user_id: str, item: Dict[str, Any]) -> Dict[str, Any]:
+        key = (org, str(user_id), item["target_type"], item["target_id"])
+        existing = self.feedback.get(key)
+        row = {**item, "organization_id": org, "user_id": str(user_id),
+               "created_at": existing["created_at"] if existing else _now(), "updated_at": _now()}
+        self.feedback[key] = row
+        return {k: row.get(k) for k in ("target_type", "target_id", "supplier_id", "verdict", "reason", "updated_at")}
+
+    async def my_feedback_for_supplier(self, org: str, user_id: str, supplier_id: str) -> Dict[str, str]:
+        """This user's ratings of records matched to one supplier: {target_id: verdict}."""
+        return {k[3]: v["verdict"] for k, v in self.feedback.items()
+                if k[0] == org and k[1] == str(user_id) and k[2] == "signal_match" and v.get("supplier_id") == supplier_id}
+
+    async def feedback_summary(self, org: str, since: Optional[datetime] = None) -> Dict[str, Any]:
+        cutoff = since.replace(tzinfo=None).isoformat() if since else None
+        rows = [r for k, r in self.feedback.items() if k[0] == org and (cutoff is None or r["updated_at"] >= cutoff)]
+        return summarize_feedback(rows)
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
@@ -877,6 +946,35 @@ class PostgresStore:
             "tier_level = :tier_level, metadata = CAST(:metadata AS json), updated_at = now() "
             "WHERE id = CAST(:id AS uuid)", params)])
         return await self.get_supplier(org, supplier_id)
+
+    async def write_suppliers(self, org: str, creates: List[Dict[str, Any]],
+                              updates: List[Tuple[str, Dict[str, Any]]]) -> int:
+        """Create and update suppliers in one transaction: all of them, or none."""
+        from sqlalchemy import text
+        if creates:
+            await self._ensure_org(org)
+        async with self._tx(org) as conn:
+            for sid, fields in updates:
+                rows = [dict(r._mapping) for r in await conn.execute(
+                    text("SELECT * FROM suppliers WHERE id = CAST(:id AS uuid) FOR UPDATE"), {"id": sid})]
+                if not rows:
+                    raise KeyError("supplier not found")
+                current = self._supplier_row(rows[0])
+                merged = {**current, **{k: v for k, v in fields.items() if k not in ("id", "organization_id")}}
+                await conn.execute(text(
+                    "UPDATE suppliers SET supplier_code = :supplier_code, name = :name, supplier_type = :supplier_type, "
+                    "country_code = :country_code, region = :region, risk_score = :risk_score, risk_tier = :risk_tier, "
+                    "contact_name = :contact_name, contact_email = :contact_email, is_active = :is_active, "
+                    "tier_level = :tier_level, metadata = CAST(:metadata AS json), updated_at = now() "
+                    "WHERE id = CAST(:id AS uuid)"), {**self._supplier_params(merged), "id": sid})
+            for supplier in creates:
+                await conn.execute(text(
+                    "INSERT INTO suppliers (id, organization_id, supplier_code, name, supplier_type, country_code, region, "
+                    "risk_score, risk_tier, contact_name, contact_email, is_active, tier_level, metadata) VALUES "
+                    "(CAST(:id AS uuid), CAST(:org AS uuid), :supplier_code, :name, :supplier_type, :country_code, :region, "
+                    ":risk_score, :risk_tier, :contact_name, :contact_email, :is_active, :tier_level, CAST(:metadata AS json))"),
+                    {**self._supplier_params(supplier), "id": str(uuid.uuid4()), "org": org})
+        return len(creates) + len(updates)
 
     # --- alerts -------------------------------------------------------------
     async def add_alerts(self, org: str, alerts: List[Dict[str, Any]]) -> None:
@@ -1265,6 +1363,39 @@ class PostgresStore:
         if _is_uuid(user_id):
             await self._exec(org, [("UPDATE users SET last_login_at = now() WHERE id = CAST(:i AS uuid)",
                                     {"i": user_id})])
+
+    # --- feedback -----------------------------------------------------------
+    async def record_feedback(self, org: str, user_id: str, item: Dict[str, Any]) -> Dict[str, Any]:
+        await self._ensure_org(org)
+        rows = await self._all(org, (
+            "INSERT INTO feedback (organization_id, user_id, target_type, target_id, supplier_id, verdict, reason, context) "
+            "VALUES (CAST(:org AS uuid), :u, :t, :tid, :sid, :v, :r, CAST(:ctx AS jsonb)) "
+            "ON CONFLICT (organization_id, user_id, target_type, target_id) DO UPDATE SET "
+            "verdict = EXCLUDED.verdict, reason = EXCLUDED.reason, supplier_id = EXCLUDED.supplier_id, "
+            "context = EXCLUDED.context, updated_at = now() "
+            "RETURNING target_type, target_id, supplier_id, verdict, reason, updated_at"),
+            {"org": org, "u": str(user_id), "t": item["target_type"], "tid": item["target_id"],
+             "sid": item.get("supplier_id"), "v": item["verdict"], "r": item.get("reason"),
+             "ctx": json.dumps(item.get("context") or {})})
+        return _jsonable(rows[0])
+
+    async def my_feedback_for_supplier(self, org: str, user_id: str, supplier_id: str) -> Dict[str, str]:
+        rows = await self._all(org, (
+            "SELECT target_id, verdict FROM feedback WHERE user_id = :u AND target_type = 'signal_match' "
+            "AND supplier_id = :sid"), {"u": str(user_id), "sid": supplier_id})
+        return {r["target_id"]: r["verdict"] for r in rows}
+
+    async def feedback_summary(self, org: str, since: Optional[datetime] = None) -> Dict[str, Any]:
+        if since is not None and since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+        rows = await self._all(org, (
+            "SELECT target_type, target_id, verdict, user_id, context FROM feedback "
+            "WHERE (CAST(:since AS timestamptz) IS NULL OR updated_at >= CAST(:since AS timestamptz))"),
+            {"since": since})
+        for r in rows:
+            if isinstance(r.get("context"), str):
+                r["context"] = json.loads(r["context"])
+        return summarize_feedback(rows)
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:

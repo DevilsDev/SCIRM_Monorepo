@@ -116,6 +116,12 @@ export default function SuppliersPage() {
           >
             {t('scan.open', 'Scan a supplier list')}
           </Link>
+          <Link
+            to="/suppliers/import/sap"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
+            {t('sap.open', 'Import from SAP')}
+          </Link>
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
