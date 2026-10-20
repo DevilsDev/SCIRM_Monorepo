@@ -43,6 +43,7 @@ concerns one of them. It is built first for pharmaceutical and healthcare supply
 | **Watch flag** | A back-tested recall-history rule marks suppliers worth a closer look. It is a prompt to investigate, not a prediction (see [evaluation](#evidence-and-evaluation)). |
 | **Cited answers** | Ask a question about a supplier ("Any sterility problems?"). Every sentence in the answer cites the record it comes from, and a deterministic checker removes any sentence its records do not support. |
 | **SAP supplier import** | Upload an export of the SAP vendor master (table LFA1). You see what will change before anything is saved. SCIRM does not connect to SAP and stores no SAP credentials. See [the guide](docs/sap-import.md). |
+| **Spend ranking** | Upload purchase-order items (EKKO/EKPO or an ME2N list) to rank suppliers by 12-month spend, per currency and never converted. |
 | **Supplier scan** | Upload a supplier list (CSV) and get a self-contained, cited report. The list is not stored. |
 | **Teams** | Invitations, four roles (admin, analyst, viewer, auditor), MFA, and an append-only audit log. |
 | **Pilot metrics** | Users rate matched records and answers. Admins see the share of records rated useful, the wrong-supplier rate, the share of answers rated helpful, and citation accuracy. |
@@ -303,7 +304,6 @@ and the workflow file explains how to enable publishing.
   *Not assessed*.
 - **Not yet built:**
   - direct SAP API connection
-  - ranking suppliers by purchase-order spend
   - plant-level (instead of country-level) disaster exposure
   - encrypted MFA secrets at rest
 - **Untested in this repository:** live Bedrock calls; they need EU AWS access.

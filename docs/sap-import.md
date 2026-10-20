@@ -43,7 +43,41 @@ Only admins and analysts can import.
 
 The audit log records who imported, when, and the counts. It does not record the file contents.
 
+## 3. Rank suppliers by purchase-order spend
+
+Once the supplier master is imported, upload purchase-order items to rank suppliers by
+what you bought from them in the last 12 months. The upload is on the same page, under
+**Purchase-order spend**.
+
+Export purchase-order items with their header fields: table EKPO joined with EKKO, or a
+purchase-order list (for example ME2N or ME2L) exported to a file. Include:
+
+| Field | Meaning | Needed |
+|---|---|---|
+| LIFNR | Supplier number | required |
+| BEDAT | Purchasing document date | required |
+| NETWR | Net order value of the item | required |
+| WAERS | Currency | required |
+| EBELN | Purchase order number (counts orders) | optional |
+| WERKS | Plant | optional |
+| LOEKZ | Deletion flag (deleted items are excluded) | optional |
+
+- **Period:** the 12 months up to the latest order date in the file.
+- **Currencies are never converted or added together.** Ranking and the share
+  percentage use the currency with the most spend in the file; other currencies are
+  shown alongside.
+- **Formats:** dates in any SAP user format and amounts written like `1.234,56` or
+  `1,234.56` are read, including a trailing minus for credits. An amount such as
+  `1,234` could mean two things; choose the decimal separator your export uses and
+  preview again.
+- **Each upload replaces earlier spend.** Suppliers with no orders in the period get
+  zero. Spend on supplier numbers that are not imported is listed, not stored; import
+  the supplier master to include them.
+- The audit log records the period and totals, never individual orders or amounts.
+
+The Suppliers page then shows **Spend (12 mo)** with each supplier's share, and can
+sort by largest spend.
+
 ## Not covered yet
 
-- **Purchase-order spend,** used to rank suppliers by what you buy from them.
 - **A direct API connection** (OData `API_BUSINESS_PARTNER`). This would need per-tenant credentials stored encrypted. Until then, the file export keeps your SAP credentials inside your own network.

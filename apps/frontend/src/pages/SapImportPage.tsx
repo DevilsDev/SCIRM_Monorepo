@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, SapImportResult } from '../services/api';
 import { decodeExport, headerCells } from '../services/fileText';
+import SapSpendImport from '../components/SapSpendImport';
 
 const MAX_BYTES = 20_000_000;
 const MAPPABLE: Array<{ field: string; column: string; label: string }> = [
@@ -225,6 +226,8 @@ export default function SapImportPage() {
           )}
         </div>
       )}
+
+      <SapSpendImport />
     </div>
   );
 }

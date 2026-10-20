@@ -31,7 +31,7 @@ from libs.common.monitoring import setup_monitoring, track_agent_task
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
-from libs.integrations import sap_import
+from libs.integrations import sap_import, sap_spend
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -623,6 +623,36 @@ async def import_sap_suppliers(body: SupplierImport, org_id: str = Depends(tenan
             "missing_deactivated": plan["missing_deactivated"], "guard": plan["guard"],
             # Unchanged suppliers are only counted, to keep the response small.
             "actions": [a for a in plan["actions"] if a["action"] != "unchanged"][:2000]}
+
+
+class SpendImport(BaseModel):
+    content: str = Field(..., min_length=1, max_length=100_000_000)
+    column_map: Dict[str, str] = Field(default_factory=dict)
+    decimal: Optional[str] = Field(None, pattern=r"^[.,]$")
+    apply: bool = False
+
+
+@app.post("/suppliers/import/sap-spend")
+async def import_sap_spend(body: SpendImport, org_id: str = Depends(tenant_org)):
+    """12-month purchase-order spend per SAP supplier, from an EKKO/EKPO (or ME2N) export.
+    Preview unless apply=true; applying replaces earlier spend, in one transaction."""
+    lines, warnings = sap_spend.parse_po_extract(body.content, body.column_map, body.decimal)
+    if not lines:
+        raise HTTPException(status_code=400, detail=" ".join(warnings) or "No purchase-order lines found in the file")
+    existing, _ = await store.list_suppliers(org_id, limit=None)
+    plan = sap_spend.plan_spend(sap_spend.summarize(lines), existing)
+    if not plan["updates"]:
+        warnings.append("No suppliers have been imported from SAP yet. Import the supplier master (LFA1) first.")
+    written = 0
+    if body.apply and plan["updates"]:
+        try:
+            written = await store.write_suppliers(org_id, [], [(u["supplier_id"], u["fields"]) for u in plan["updates"]])
+        except KeyError:
+            raise HTTPException(status_code=409, detail="Suppliers changed during the import. Preview again.")
+    return {"applied": body.apply, "written": written, "warnings": warnings,
+            **{k: plan[k] for k in ("period", "main_currency", "currencies", "lines", "top", "unknown_suppliers",
+                                    "unknown_count", "with_spend")},
+            "suppliers": len(plan["updates"])}
 
 
 @app.get("/suppliers/{supplier_id}")

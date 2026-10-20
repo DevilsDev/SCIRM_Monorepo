@@ -98,6 +98,14 @@ export interface Supplier {
   is_active: boolean;
   /** Set on demo suppliers (fictional, or named after real companies). */
   demo_note?: string;
+  /** 12-month purchase-order spend per currency, from an SAP export (never converted). */
+  spend_12m?: Record<string, string>;
+  spend_period?: { from: string; to: string } | null;
+  spend_main_currency?: string | null;
+  /** Share of the file's spend in the main currency (0-1). */
+  spend_share?: number | null;
+  /** 1 = largest spend in the main currency. */
+  spend_rank?: number | null;
 }
 
 export interface Alert {
@@ -259,6 +267,21 @@ export interface SapImportResult {
   actions: SapImportAction[];
 }
 
+export interface SapSpendResult {
+  applied: boolean;
+  written: number;
+  warnings: string[];
+  period: { from: string; to: string } | null;
+  main_currency: string | null;
+  currencies: Record<string, string>;
+  lines: { read: number; deleted: number; before_period: number; counted: number };
+  top: Array<{ rank: number; number: string; name: string; spend: Record<string, string>; share: number | null }>;
+  unknown_suppliers: Array<{ number: string; spend: Record<string, string> }>;
+  unknown_count: number;
+  with_spend: number;
+  suppliers: number;
+}
+
 export interface SapImportRequest {
   content: string;
   column_map?: Record<string, string>;
@@ -348,6 +371,12 @@ export const api = {
   // SAP supplier import (LFA1 extract). Preview unless apply is true.
   async importSapSuppliers(request: SapImportRequest): Promise<SapImportResult> {
     return (await apiClient.post('/api/v1/suppliers/import/sap', request, { timeout: 300000 })).data;
+  },
+
+  // SAP purchase-order spend (EKKO/EKPO or ME2N export). Preview unless apply is true.
+  async importSapSpend(request: { content: string; column_map?: Record<string, string>; decimal?: '.' | ',';
+    apply?: boolean }): Promise<SapSpendResult> {
+    return (await apiClient.post('/api/v1/suppliers/import/sap-spend', request, { timeout: 300000 })).data;
   },
 
   // Supplier scan: the list is processed in memory and not stored.
