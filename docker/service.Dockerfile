@@ -28,6 +28,7 @@ COPY libs/ ./libs/
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 COPY scripts/db_setup.py ./scripts/db_setup.py
+COPY scripts/create_tenant.py ./scripts/create_tenant.py
 COPY ${SERVICE_PATH}/main.py ./${SERVICE_PATH}/main.py
 
 USER scirm

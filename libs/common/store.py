@@ -51,6 +51,49 @@ def _cosine_distance(a: List[float], b: List[float]) -> float:
     return 1.0 - dot / (na * nb) if na and nb else 1.0
 
 
+class EmailExists(Exception):
+    """An account with this email already exists (in any organization)."""
+
+
+class LastAdmin(Exception):
+    """The change would leave the organization without an active admin."""
+
+
+ROLES = ("admin", "analyst", "viewer", "auditor")
+INVITATION_TTL_HOURS = int(os.getenv("INVITATION_TTL_HOURS", "168"))  # 7 days
+
+
+def new_invitation_token() -> Tuple[str, str]:
+    """(token for the invitee, SHA-256 hash to store). Only the hash is kept."""
+    import hashlib
+    import secrets
+    token = secrets.token_urlsafe(32)
+    return token, hashlib.sha256(token.encode()).hexdigest()
+
+
+_INVITATION_STATUS_SQL = ("CASE WHEN accepted_at IS NOT NULL THEN 'accepted' WHEN revoked_at IS NOT NULL "
+                          "THEN 'revoked' WHEN expires_at <= now() THEN 'expired' ELSE 'pending' END AS status")
+
+
+def invitation_hash(token: str) -> str:
+    import hashlib
+    return hashlib.sha256((token or "").encode()).hexdigest()
+
+
+def _member(user: Dict[str, Any]) -> Dict[str, Any]:
+    """A user as shown to colleagues: no password hash, no MFA secret."""
+    return {k: user.get(k) for k in ("id", "email", "name", "roles", "is_active", "mfa_enabled",
+                                     "created_at", "last_login_at")}
+
+
+def _invitation_status(inv: Dict[str, Any], now: str) -> str:
+    if inv.get("accepted_at"):
+        return "accepted"
+    if inv.get("revoked_at"):
+        return "revoked"
+    return "expired" if str(inv["expires_at"]) <= now else "pending"
+
+
 def _now() -> str:
     return datetime.utcnow().isoformat()
 
@@ -104,6 +147,9 @@ class MemoryStore:
         self.events: List[Dict[str, Any]] = []
         self.impacts: List[Dict[str, Any]] = []
         self.audit: List[Dict[str, Any]] = []
+        self.orgs: Dict[str, Dict[str, Any]] = {}
+        self.users: Dict[str, Dict[str, Any]] = {}
+        self.invitations: Dict[str, Dict[str, Any]] = {}
         self.signals: Dict[Tuple[str, str], Dict[str, Any]] = {}
         # (source, external_id) -> (vector, model, text hash)
         self.embeddings: Dict[Tuple[str, str], Tuple[List[float], str, str]] = {}
@@ -369,6 +415,119 @@ class MemoryStore:
 
     async def list_source_runs(self) -> Dict[str, Dict[str, Any]]:
         return dict(self.source_runs)
+
+    # --- accounts -----------------------------------------------------------
+    def _user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        email = (email or "").lower()
+        return next((u for u in self.users.values() if u["email"] == email), None)
+
+    async def find_login_user(self, email: str) -> Optional[Dict[str, Any]]:
+        user = self._user_by_email(email)
+        return dict(user) if user else None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        user = self.users.get(str(user_id))
+        return {k: v for k, v in user.items() if k != "hashed_password"} if user else None
+
+    async def create_organization(self, name: str, industry: str = "general") -> str:
+        org = str(uuid.uuid4())
+        self.orgs[org] = {"id": org, "name": name, "industry": industry}
+        return org
+
+    async def create_user(self, org: str, email: str, name: str, hashed_password: str,
+                          roles: List[str]) -> Dict[str, Any]:
+        if self._user_by_email(email):
+            raise EmailExists(email)
+        user = {"id": str(uuid.uuid4()), "organization_id": org, "email": email.lower(), "name": name,
+                "hashed_password": hashed_password, "roles": list(roles), "is_active": True,
+                "mfa_secret": None, "mfa_enabled": False, "created_at": _now(), "last_login_at": None}
+        self.users[user["id"]] = user
+        return _member(user)
+
+    async def list_members(self, org: str) -> List[Dict[str, Any]]:
+        return [_member(u) for u in self.users.values() if u["organization_id"] == org]
+
+    async def update_member(self, org: str, user_id: str, roles: Optional[List[str]] = None,
+                            is_active: Optional[bool] = None) -> Optional[Dict[str, Any]]:
+        user = self.users.get(str(user_id))
+        if not user or user["organization_id"] != org:
+            return None
+        new_roles = list(roles) if roles is not None else user["roles"]
+        new_active = user["is_active"] if is_active is None else bool(is_active)
+        # Only a change that takes away an active admin can leave the organization without one.
+        removes_admin = user["is_active"] and "admin" in user["roles"] and not (new_active and "admin" in new_roles)
+        others = [u for u in self.users.values() if u["organization_id"] == org and u["is_active"]
+                  and "admin" in u["roles"] and u["id"] != user["id"]]
+        if removes_admin and not others:
+            raise LastAdmin(org)
+        user.update(roles=new_roles, is_active=new_active)
+        return _member(user)
+
+    async def create_invitation(self, org: str, email: str, roles: List[str], invited_by: Optional[str],
+                                ttl_hours: int = INVITATION_TTL_HOURS) -> Tuple[Dict[str, Any], str]:
+        if self._user_by_email(email):
+            raise EmailExists(email)
+        from datetime import timedelta
+        token, digest = new_invitation_token()
+        inv = {"id": str(uuid.uuid4()), "organization_id": org, "email": email.lower(), "roles": list(roles),
+               "token_hash": digest, "invited_by": invited_by, "created_at": _now(),
+               "expires_at": (datetime.utcnow() + timedelta(hours=ttl_hours)).isoformat(),
+               "accepted_at": None, "revoked_at": None}
+        self.invitations[inv["id"]] = inv
+        return self._invitation_view(inv), token
+
+    def _invitation_view(self, inv: Dict[str, Any]) -> Dict[str, Any]:
+        view = {k: inv.get(k) for k in ("id", "email", "roles", "invited_by", "created_at", "expires_at",
+                                        "accepted_at", "revoked_at")}
+        return {**view, "status": _invitation_status(inv, _now())}
+
+    async def list_invitations(self, org: str) -> List[Dict[str, Any]]:
+        found = [self._invitation_view(i) for i in self.invitations.values() if i["organization_id"] == org]
+        return sorted(found, key=lambda i: i["created_at"], reverse=True)
+
+    async def revoke_invitation(self, org: str, invitation_id: str) -> bool:
+        inv = self.invitations.get(str(invitation_id))
+        if not inv or inv["organization_id"] != org or inv["accepted_at"] or inv["revoked_at"]:
+            return False
+        inv["revoked_at"] = _now()
+        return True
+
+    def _live_invitation(self, token: str) -> Optional[Dict[str, Any]]:
+        digest = invitation_hash(token)
+        inv = next((i for i in self.invitations.values() if i["token_hash"] == digest), None)
+        return inv if inv and _invitation_status(inv, _now()) == "pending" else None
+
+    async def lookup_invitation(self, token: str) -> Optional[Dict[str, Any]]:
+        inv = self._live_invitation(token)
+        if not inv:
+            return None
+        org = self.orgs.get(inv["organization_id"], {})
+        return {"id": inv["id"], "organization_id": inv["organization_id"],
+                "organization_name": org.get("name", ""), "email": inv["email"], "roles": inv["roles"],
+                "expires_at": inv["expires_at"]}
+
+    async def accept_invitation(self, token: str, name: str, hashed_password: str) -> Optional[Dict[str, Any]]:
+        inv = self._live_invitation(token)
+        if not inv:
+            return None
+        if self._user_by_email(inv["email"]):
+            raise EmailExists(inv["email"])
+        inv["accepted_at"] = _now()
+        user = await self.create_user(inv["organization_id"], inv["email"], name, hashed_password, inv["roles"])
+        return {"user_id": user["id"], "organization_id": inv["organization_id"], "email": inv["email"],
+                "roles": inv["roles"]}
+
+    async def set_mfa_secret(self, org: str, user_id: str, secret: Optional[str]) -> bool:
+        user = self.users.get(str(user_id))
+        if not user or user["organization_id"] != org:
+            return False
+        user.update(mfa_secret=secret, mfa_enabled=bool(secret))
+        return True
+
+    async def record_login(self, org: str, user_id: str) -> None:
+        user = self.users.get(str(user_id))
+        if user and user["organization_id"] == org:
+            user["last_login_at"] = _now()
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
@@ -964,6 +1123,144 @@ class PostgresStore:
 
     async def list_source_runs(self) -> Dict[str, Dict[str, Any]]:
         return {r["source"]: _jsonable(r) for r in await self._all(None, "SELECT * FROM public_sources")}
+
+    # --- accounts -----------------------------------------------------------
+    @staticmethod
+    def _account(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = _jsonable(row)
+        out["roles"] = list(out.get("roles") or [])
+        return out
+
+    async def find_login_user(self, email: str) -> Optional[Dict[str, Any]]:
+        rows = await self._all(None, "SELECT * FROM scirm_login_lookup(:e)", {"e": (email or "").lower()})
+        return self._account(rows[0]) if rows else None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        if not _is_uuid(user_id):
+            return None
+        rows = await self._all(None, "SELECT * FROM scirm_user_by_id(CAST(:i AS uuid))", {"i": str(user_id)})
+        return self._account(rows[0]) if rows else None
+
+    async def create_organization(self, name: str, industry: str = "general") -> str:
+        org = str(uuid.uuid4())
+        await self._exec(org, [("INSERT INTO organizations (id, name, industry) VALUES (CAST(:id AS uuid), :n, :i)",
+                                {"id": org, "n": name, "i": industry})])
+        return org
+
+    _MEMBER_COLUMNS = "id, email, name, roles::text[] AS roles, is_active, mfa_enabled, created_at, last_login_at"
+
+    async def create_user(self, org: str, email: str, name: str, hashed_password: str,
+                          roles: List[str]) -> Dict[str, Any]:
+        if await self.find_login_user(email):
+            raise EmailExists(email)
+        from sqlalchemy.exc import IntegrityError
+        try:
+            rows = await self._all(org, (
+                "INSERT INTO users (email, name, hashed_password, roles, organization_id, is_active) "
+                "VALUES (:e, :n, :h, CAST(:r AS varchar[]), CAST(:org AS uuid), true) "
+                f"RETURNING {self._MEMBER_COLUMNS}"),
+                {"e": email.lower(), "n": name, "h": hashed_password, "r": list(roles), "org": org})
+        except IntegrityError:
+            raise EmailExists(email)
+        return self._account(rows[0])
+
+    async def list_members(self, org: str) -> List[Dict[str, Any]]:
+        rows = await self._all(org, f"SELECT {self._MEMBER_COLUMNS} FROM users ORDER BY created_at, email")
+        return [self._account(r) for r in rows]
+
+    async def update_member(self, org: str, user_id: str, roles: Optional[List[str]] = None,
+                            is_active: Optional[bool] = None) -> Optional[Dict[str, Any]]:
+        if not _is_uuid(user_id):
+            return None
+        from sqlalchemy import text
+        async with self._tx(org) as conn:
+            # Lock the organization's active admins so two admins demoting each other at
+            # the same moment cannot leave it with none.
+            admins = [dict(r._mapping) for r in await conn.execute(text(
+                "SELECT id FROM users WHERE is_active AND 'admin' = ANY(roles) FOR UPDATE"))]
+            current = [dict(r._mapping) for r in await conn.execute(text(
+                "SELECT roles::text[] AS roles, is_active FROM users WHERE id = CAST(:i AS uuid) FOR UPDATE"),
+                {"i": user_id})]
+            if not current:
+                return None
+            old_roles = list(current[0]["roles"] or [])
+            new_roles = list(roles) if roles is not None else old_roles
+            new_active = current[0]["is_active"] if is_active is None else bool(is_active)
+            # Only a change that takes away an active admin can leave the organization without one.
+            removes_admin = current[0]["is_active"] and "admin" in old_roles and not (new_active and "admin" in new_roles)
+            others = [a for a in admins if str(a["id"]) != str(user_id)]
+            if removes_admin and not others:
+                raise LastAdmin(org)
+            result = await conn.execute(text(
+                "UPDATE users SET roles = CAST(:r AS varchar[]), is_active = :a, updated_at = now() "
+                f"WHERE id = CAST(:i AS uuid) RETURNING {self._MEMBER_COLUMNS}"),
+                {"r": new_roles, "a": new_active, "i": user_id})
+            row = result.first()
+            return self._account(dict(row._mapping)) if row else None
+
+    async def create_invitation(self, org: str, email: str, roles: List[str], invited_by: Optional[str],
+                                ttl_hours: int = INVITATION_TTL_HOURS) -> Tuple[Dict[str, Any], str]:
+        if await self.find_login_user(email):
+            raise EmailExists(email)
+        token, digest = new_invitation_token()
+        rows = await self._all(org, (
+            "INSERT INTO invitations (organization_id, email, roles, token_hash, invited_by, expires_at) "
+            "VALUES (CAST(:org AS uuid), :e, CAST(:r AS text[]), :h, CAST(:by AS uuid), "
+            "now() + make_interval(hours => :ttl)) "
+            "RETURNING id, email, roles, invited_by, created_at, expires_at, accepted_at, revoked_at, "
+            f"{_INVITATION_STATUS_SQL}"),
+            {"org": org, "e": email.lower(), "r": list(roles), "h": digest,
+             "by": invited_by if _is_uuid(invited_by) else None, "ttl": int(ttl_hours)})
+        return self._invitation_row(rows[0]), token
+
+    @staticmethod
+    def _invitation_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = _jsonable(row)
+        out["roles"] = list(out.get("roles") or [])
+        for k in ("created_at", "expires_at", "accepted_at", "revoked_at"):
+            if out.get(k) is not None and not isinstance(out[k], str):
+                out[k] = out[k].isoformat()
+        return out
+
+    async def list_invitations(self, org: str) -> List[Dict[str, Any]]:
+        rows = await self._all(org, (
+            "SELECT id, email, roles, invited_by, created_at, expires_at, accepted_at, revoked_at, "
+            f"{_INVITATION_STATUS_SQL} FROM invitations ORDER BY created_at DESC"))
+        return [self._invitation_row(r) for r in rows]
+
+    async def revoke_invitation(self, org: str, invitation_id: str) -> bool:
+        if not _is_uuid(invitation_id):
+            return False
+        rows = await self._all(org, (
+            "UPDATE invitations SET revoked_at = now() WHERE id = CAST(:i AS uuid) "
+            "AND accepted_at IS NULL AND revoked_at IS NULL RETURNING id"), {"i": invitation_id})
+        return bool(rows)
+
+    async def lookup_invitation(self, token: str) -> Optional[Dict[str, Any]]:
+        rows = await self._all(None, "SELECT * FROM scirm_invitation_lookup(:h)", {"h": invitation_hash(token)})
+        return self._account(rows[0]) if rows else None
+
+    async def accept_invitation(self, token: str, name: str, hashed_password: str) -> Optional[Dict[str, Any]]:
+        from sqlalchemy.exc import IntegrityError
+        try:
+            rows = await self._all(None, "SELECT * FROM scirm_accept_invitation(:h, :n, :p)",
+                                   {"h": invitation_hash(token), "n": name, "p": hashed_password})
+        except IntegrityError:
+            raise EmailExists("")
+        return self._account(rows[0]) if rows else None
+
+    async def set_mfa_secret(self, org: str, user_id: str, secret: Optional[str]) -> bool:
+        if not _is_uuid(user_id):
+            return False
+        rows = await self._all(org, (
+            "UPDATE users SET mfa_secret = :s, mfa_enabled = :on, updated_at = now() "
+            "WHERE id = CAST(:i AS uuid) RETURNING id"), {"s": secret, "on": bool(secret), "i": user_id})
+        return bool(rows)
+
+    async def record_login(self, org: str, user_id: str) -> None:
+        if _is_uuid(user_id):
+            await self._exec(org, [("UPDATE users SET last_login_at = now() WHERE id = CAST(:i AS uuid)",
+                                    {"i": user_id})])
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:

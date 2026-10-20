@@ -176,6 +176,97 @@ class TestPublicSignals:
         assert rows_a == rows_b and rows_a[0][0] >= 1
 
 
+class TestAccounts:
+    """Users and invitations (migration 015): tenant RLS, and the pre-tenant lookup functions."""
+
+    def _user(self, db, org, email):
+        with db["owner"].cursor() as cur:
+            cur.execute("INSERT INTO users (email, name, hashed_password, roles, organization_id) "
+                        "VALUES (%s, 'U', '$2b$fake', ARRAY['analyst'], %s) RETURNING id", (email, org))
+            return str(cur.fetchone()[0])
+
+    def test_users_are_tenant_scoped(self, db):
+        self._user(db, db["a"], "rls-a@example.com")
+        assert as_org(db["app"], db["b"], "SELECT email FROM users WHERE email = 'rls-a@example.com'") == []
+        assert as_org(db["app"], db["a"], "SELECT email FROM users WHERE email = 'rls-a@example.com'") ==             [("rls-a@example.com",)]
+        assert as_org(db["app"], db["b"], "UPDATE users SET name = 'x' WHERE email = 'rls-a@example.com'") == 0
+
+    def test_emails_are_unique_regardless_of_case(self, db):
+        self._user(db, db["a"], "case@example.com")
+        with db["owner"].cursor() as cur, pytest.raises(psycopg2.errors.UniqueViolation):
+            cur.execute("INSERT INTO users (email, name, hashed_password, organization_id) "
+                        "VALUES ('CASE@example.com', 'U', 'h', %s)", (db["b"],))
+
+    def test_login_lookup_works_before_any_tenant_is_known(self, db):
+        self._user(db, db["a"], "lookup@example.com")
+        rows = as_org(db["app"], "", "SELECT email, organization_id::text FROM scirm_login_lookup('LOOKUP@example.com')")
+        assert rows == [("lookup@example.com", db["a"])]
+
+    def test_lookup_functions_are_not_public(self, db):
+        with db["owner"].cursor() as cur:
+            cur.execute("DROP ROLE IF EXISTS scirm_outsider")
+            cur.execute("CREATE ROLE scirm_outsider LOGIN PASSWORD 'outsider'")
+            cur.execute("GRANT USAGE ON SCHEMA public TO scirm_outsider")
+        url = pg_support._with(db["urls"]["owner"], user="scirm_outsider", password="outsider")
+        outsider = psycopg2.connect(url)
+        try:
+            result = as_org(outsider, "", "SELECT * FROM scirm_login_lookup('lookup@example.com')")
+            assert isinstance(result, psycopg2.errors.InsufficientPrivilege)
+        finally:
+            outsider.close()
+
+    def test_lookups_work_when_the_owner_is_not_a_superuser(self, db):
+        """Managed PostgreSQL: the table owner is an ordinary role. RLS is enabled but not
+        forced on users, so the SECURITY DEFINER lookups (running as the owner) still see rows."""
+        self._user(db, db["a"], "managed@example.com")
+        with db["owner"].cursor() as cur:
+            cur.execute("DROP ROLE IF EXISTS scirm_plain_owner")
+            cur.execute("CREATE ROLE scirm_plain_owner NOSUPERUSER NOBYPASSRLS")
+            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations"):
+                cur.execute(f"ALTER {obj} OWNER TO scirm_plain_owner")
+            for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
+                       "scirm_accept_invitation(text, text, text)"):
+                cur.execute(f"ALTER FUNCTION {fn} OWNER TO scirm_plain_owner")
+        try:
+            rows = as_org(db["app"], "", "SELECT email FROM scirm_login_lookup('managed@example.com')")
+            assert rows == [("managed@example.com",)]
+        finally:
+            with db["owner"].cursor() as cur:
+                cur.execute("SELECT current_user")
+                me = cur.fetchone()[0]
+                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations"):
+                    cur.execute(f"ALTER {obj} OWNER TO {me}")
+                for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
+                           "scirm_accept_invitation(text, text, text)"):
+                    cur.execute(f"ALTER FUNCTION {fn} OWNER TO {me}")
+
+    def test_an_invitation_can_be_accepted_only_once_even_concurrently(self, db):
+        import hashlib
+        import threading
+        digest = hashlib.sha256(b"concurrent-token").hexdigest()
+        with db["owner"].cursor() as cur:
+            cur.execute("INSERT INTO invitations (organization_id, email, roles, token_hash, expires_at) "
+                        "VALUES (%s, 'race@example.com', ARRAY['analyst'], %s, now() + interval '1 day')",
+                        (db["a"], digest))
+        results, barrier = [], threading.Barrier(2)
+
+        def attempt():
+            conn = psycopg2.connect(db["urls"]["app"])
+            try:
+                barrier.wait()
+                results.append(as_org(conn, "", "SELECT user_id FROM scirm_accept_invitation(%s, 'Racer', 'h')",
+                                      (digest,)))
+            finally:
+                conn.close()
+
+        threads = [threading.Thread(target=attempt) for _ in range(2)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        accepted = [r for r in results if isinstance(r, list) and r]
+        assert len(accepted) == 1, results
+        assert as_org(db["app"], db["a"], "SELECT count(*) FROM users WHERE email = 'race@example.com'") == [(1,)]
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

@@ -8,7 +8,7 @@ import hmac
 import os
 import secrets
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from urllib.parse import quote, urlencode
 from uuid import uuid4
 
@@ -28,7 +28,7 @@ from libs.common.auth import (
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
-from libs.common.store import create_store
+from libs.common.store import ROLES, EmailExists, LastAdmin, create_store
 from libs.common.tenancy import internal_headers
 from libs.integrations.manager import erp_manager
 
@@ -75,7 +75,7 @@ app = FastAPI(
 
 _AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 # Recorded by the handlers themselves, with the account email.
-_SELF_AUDITED_PATHS = {"/api/v1/auth/login"}
+_SELF_AUDITED_PATHS = {"/api/v1/auth/login", "/api/v1/invitations/accept", "/api/v1/invitations/lookup"}
 
 
 async def _audit_auth(action: str, email: str, user_info: Optional[Dict[str, Any]], ok: bool) -> None:
@@ -133,7 +133,8 @@ async def audit_writes(request: Request, call_next):
 
 
 setup_cors(app)
-setup_rate_limiting(app, requests_per_minute=100, burst=200)
+setup_rate_limiting(app, requests_per_minute=int(os.getenv("RATE_LIMIT_PER_MINUTE", "100")),
+                    burst=int(os.getenv("RATE_LIMIT_BURST", "200")))
 setup_monitoring(app, service_name="api-gateway")
 
 class HealthResponse(BaseModel):
@@ -148,9 +149,7 @@ class SignupRequest(BaseModel):
     email: str
     password: str
     name: str
-
-# In-memory user store for development (production would use database)
-_registered_users: Dict[str, Dict[str, Any]] = {}
+    organization_name: Optional[str] = Field(None, max_length=255)
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -197,26 +196,44 @@ else:
     DEV_USERS = {}
 
 
-def _find_user(email: str) -> Optional[Dict[str, Any]]:
-    return _registered_users.get(email) or DEV_USERS.get(email)
+# Self-service signup creates a new organization. Off outside development: customers are
+# onboarded by an operator (scripts/create_tenant.py) and add teammates by invitation.
+SIGNUP_MODE = os.getenv("SIGNUP_MODE", "open" if IS_DEV else "closed").lower()
+# Base for invitation links. Configured, never taken from the request's Host header.
+PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:3000" if IS_DEV else "").rstrip("/")
+# Checked for unknown emails too, so response time does not reveal which accounts exist.
+_DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(16))
 
 
-def _find_user_by_id(user_id: str) -> Optional[tuple]:
-    for store in (_registered_users, DEV_USERS):
-        for email, info in store.items():
-            if info["id"] == user_id:
-                return email, info
+def _account_info(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {"id": str(row["id"]), "name": row["name"], "roles": list(row["roles"] or []),
+            "org_id": str(row["organization_id"]), "mfa_secret": row.get("mfa_secret"), "stored": True}
+
+
+async def _find_user_by_id(user_id: str) -> Optional[tuple]:
+    """(email, info) for an active account, from the demo accounts (development) or the database."""
+    for email, info in DEV_USERS.items():
+        if info["id"] == user_id:
+            return email, info
+    row = await audit_store.get_user_by_id(user_id)
+    if row and row["is_active"]:
+        return row["email"], _account_info(row)
     return None
 
 
-def _check_password(email: str, password: str) -> Optional[Dict[str, Any]]:
-    registered = _registered_users.get(email)
-    if registered:
-        return registered if verify_password(password, registered["hashed_password"]) else None
+async def _check_password(email: str, password: str) -> Optional[Dict[str, Any]]:
+    email = (email or "").strip().lower()
     dev_user = DEV_USERS.get(email)
-    if dev_user and DEV_PASSWORD and hmac.compare_digest(password.encode(), DEV_PASSWORD.encode()):
-        return dev_user
-    return None
+    if dev_user:
+        ok = bool(DEV_PASSWORD) and hmac.compare_digest(password.encode(), DEV_PASSWORD.encode())
+        return dev_user if ok else None
+    row = await audit_store.find_login_user(email)
+    if not row:
+        verify_password(password, _DUMMY_PASSWORD_HASH)
+        return None
+    if not verify_password(password, row["hashed_password"]) or not row["is_active"]:
+        return None
+    return _account_info(row)
 
 
 def _issue_tokens(email: str, user_info: Dict[str, Any]) -> Dict[str, str]:
@@ -239,7 +256,7 @@ class MFAVerifyRequest(BaseModel):
 @app.post("/api/v1/auth/login")
 async def login(request: LoginRequest):
     """Authenticate user. If MFA is enabled, returns mfa_required=true with a temporary token."""
-    user_info = _check_password(request.email, request.password)
+    user_info = await _check_password(request.email, request.password)
     # Record the attempt with the email (never the password); the middleware cannot read bodies.
     await _audit_auth("auth.login", request.email, user_info, ok=bool(user_info))
     if not user_info:
@@ -248,12 +265,21 @@ async def login(request: LoginRequest):
     # Check if MFA is required
     if MFA_ENABLED and user_info.get("mfa_secret"):
         mfa_token = create_access_token(
-            data={"sub": user_info["id"], "type": TOKEN_TYPE_MFA_PENDING, "email": request.email},
+            data={"sub": user_info["id"], "type": TOKEN_TYPE_MFA_PENDING, "email": request.email.strip().lower()},
             expires_delta=timedelta(minutes=5),
         )
         return {"mfa_required": True, "mfa_token": mfa_token, "token_type": "bearer"}
 
-    return _issue_tokens(request.email, user_info)
+    await _record_login(user_info)
+    return _issue_tokens(request.email.strip().lower(), user_info)
+
+
+async def _record_login(user_info: Dict[str, Any]) -> None:
+    if user_info.get("stored"):
+        try:
+            await audit_store.record_login(user_info["org_id"], user_info["id"])
+        except Exception as exc:
+            logger.warning("Could not record login time", error=type(exc).__name__)
 
 
 @app.post("/api/v1/auth/mfa/verify")
@@ -264,8 +290,8 @@ async def verify_mfa(request: MFAVerifyRequest):
     never from the request body.
     """
     payload = decode_token(request.mfa_token, TOKEN_TYPE_MFA_PENDING)
-    found = _find_user_by_id(payload["sub"])
-    if not found or found[0] != payload.get("email"):
+    found = await _find_user_by_id(payload["sub"])
+    if not found or found[0] != (payload.get("email") or "").lower():
         raise HTTPException(status_code=401, detail="Invalid MFA token")
     email, user_info = found
     if not user_info.get("mfa_secret"):
@@ -274,6 +300,7 @@ async def verify_mfa(request: MFAVerifyRequest):
     if not verify_totp(user_info["mfa_secret"], request.totp_code):
         raise HTTPException(status_code=401, detail="Invalid TOTP code")
 
+    await _record_login(user_info)
     return _issue_tokens(email, user_info)
 
 
@@ -284,10 +311,13 @@ async def setup_mfa(token: str = Depends(security)):
     secret = generate_totp_secret()
     uri = get_totp_uri(secret, user.email)
 
-    # Store secret (in production, persist to DB)
-    user_info = _find_user(user.email)
-    if user_info:
-        user_info["mfa_secret"] = secret
+    # Demo accounts keep it in memory; real accounts in the database. Note: stored in plain
+    # text for now; encrypting TOTP secrets at rest is a follow-up.
+    demo = DEV_USERS.get(user.email.lower())
+    if demo:
+        demo["mfa_secret"] = secret
+    elif not await audit_store.set_mfa_secret(user.organization_id, user.id, secret):
+        raise HTTPException(status_code=404, detail="Account not found")
 
     return {"secret": secret, "otpauth_uri": uri, "message": "Scan the QR code with your authenticator app"}
 
@@ -300,12 +330,155 @@ async def refresh_token(body: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="refresh_token required")
 
     payload = decode_token(refresh, TOKEN_TYPE_REFRESH)
-    found = _find_user_by_id(payload["sub"])
-    if not found:
+    found = await _find_user_by_id(payload["sub"])
+    if not found:  # unknown, or deactivated since the refresh token was issued
         raise HTTPException(status_code=401, detail="User not found")
 
     tokens = _issue_tokens(*found)
     return {"access_token": tokens["access_token"], "token_type": "bearer"}
+
+
+# ---------------------------------------------------------------------------
+# Team: members and invitations (tenant onboarding)
+# ---------------------------------------------------------------------------
+
+class InviteRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    roles: List[str] = Field(default_factory=lambda: ["analyst"], min_length=1, max_length=4)
+
+
+class MemberUpdate(BaseModel):
+    roles: Optional[List[str]] = Field(None, min_length=1, max_length=4)
+    is_active: Optional[bool] = None
+
+
+class InvitationTokenBody(BaseModel):
+    # The token travels in the request body, never the URL: request paths are written to
+    # the append-only audit log and to access logs.
+    token: str = Field(..., min_length=20, max_length=200)
+
+
+class AcceptInvitationRequest(InvitationTokenBody):
+    name: str = Field(..., min_length=1, max_length=255)
+    password: str
+
+
+def _require_admin(user) -> None:
+    if "admin" not in user.roles:
+        raise HTTPException(status_code=403, detail="Only administrators can manage the team")
+
+
+def _valid_roles(roles: List[str]) -> List[str]:
+    roles = list(dict.fromkeys(r.strip().lower() for r in roles))
+    unknown = [r for r in roles if r not in ROLES]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown role(s): {', '.join(unknown)}. Allowed: {', '.join(ROLES)}")
+    return roles
+
+
+def _valid_email(email: str) -> str:
+    email = email.strip().lower()
+    local, _, domain = email.partition("@")
+    if not local or "." not in domain or " " in email:
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    return email
+
+
+def _password_ok(password: str) -> None:
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise HTTPException(status_code=400, detail=f"Password must be at most {MAX_PASSWORD_BYTES} bytes")
+
+
+@app.get("/api/v1/org/members")
+async def list_members(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return {"members": await audit_store.list_members(user.organization_id)}
+
+
+@app.patch("/api/v1/org/members/{member_id}")
+async def update_member(member_id: str, body: MemberUpdate, token: str = Depends(security)):
+    """Change a member's roles or deactivate them. Deactivation takes effect at their next
+    token refresh (access tokens are not revoked early)."""
+    user = await verify_token(token.credentials)
+    _require_admin(user)
+    if member_id == user.id and body.is_active is False:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+    roles = _valid_roles(body.roles) if body.roles is not None else None
+    try:
+        member = await audit_store.update_member(user.organization_id, member_id, roles=roles, is_active=body.is_active)
+    except LastAdmin:
+        raise HTTPException(status_code=409, detail="The organization must keep at least one active administrator")
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return member
+
+
+@app.post("/api/v1/org/invitations")
+async def create_invitation(body: InviteRequest, token: str = Depends(security)):
+    """Invite someone to this organization. Returns the invitation link once. There is no
+    email service yet, so the administrator shares it. Treat it as a credential."""
+    user = await verify_token(token.credentials)
+    _require_admin(user)
+    email = _valid_email(body.email)
+    roles = _valid_roles(body.roles)
+    if DEV_USERS.get(email):
+        raise HTTPException(status_code=409, detail="That email already has an account")
+    try:
+        invitation, invite_token = await audit_store.create_invitation(user.organization_id, email, roles, user.id)
+    except EmailExists:
+        raise HTTPException(status_code=409, detail="That email already has an account")
+    link = f"{PUBLIC_APP_URL}/invite#{invite_token}" if PUBLIC_APP_URL else f"/invite#{invite_token}"
+    return {"invitation": invitation, "invite_url": link,
+            "note": "Share this link with the invitee only. It works once and expires; it cannot be shown again."}
+
+
+@app.get("/api/v1/org/invitations")
+async def list_invitations(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user)
+    return {"invitations": await audit_store.list_invitations(user.organization_id)}
+
+
+@app.delete("/api/v1/org/invitations/{invitation_id}")
+async def revoke_invitation(invitation_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user)
+    if not await audit_store.revoke_invitation(user.organization_id, invitation_id):
+        raise HTTPException(status_code=404, detail="No pending invitation with that id")
+    return {"revoked": True}
+
+
+@app.post("/api/v1/invitations/lookup")
+async def lookup_invitation(body: InvitationTokenBody):
+    """Public: what an invitation link is for, so the invitee can confirm before joining."""
+    invitation = await audit_store.lookup_invitation(body.token)
+    if not invitation:  # unknown, used, revoked and expired all look the same
+        raise HTTPException(status_code=404, detail="This invitation is not valid. Ask for a new one.")
+    return {k: invitation[k] for k in ("organization_name", "email", "roles", "expires_at")}
+
+
+@app.post("/api/v1/invitations/accept")
+async def accept_invitation(body: AcceptInvitationRequest):
+    """Public: create the account an invitation is for, and sign in. The email and
+    organization come from the invitation, never from the request."""
+    _password_ok(body.password)
+    try:
+        accepted = await audit_store.accept_invitation(body.token, body.name.strip(), get_password_hash(body.password))
+    except EmailExists:
+        raise HTTPException(status_code=409, detail="That email already has an account. Sign in instead.")
+    if not accepted:
+        raise HTTPException(status_code=404, detail="This invitation is not valid. Ask for a new one.")
+    user_info = {"id": str(accepted["user_id"]), "name": body.name.strip(), "roles": list(accepted["roles"]),
+                 "org_id": str(accepted["organization_id"])}
+    try:
+        await audit_store.record_audit(user_info["org_id"], {
+            "user_id": user_info["id"], "actor_type": "user", "actor": accepted["email"],
+            "action": "invitation.accepted", "resource_type": "auth", "status_code": 200})
+    except Exception as exc:
+        logger.error("Audit write failed", error=type(exc).__name__, action="invitation.accepted")
+    return _issue_tokens(accepted["email"], user_info)
 
 
 OAUTH_PROVIDERS = {
@@ -350,7 +523,10 @@ async def signup(request: SignupRequest):
     Each signup gets its own new organization. Joining an existing organization
     must go through an invitation flow, never a client-supplied organization_id.
     """
-    if _find_user(request.email):
+    if SIGNUP_MODE != "open":
+        raise HTTPException(status_code=403, detail="Sign-up is by invitation. Ask your organization's administrator.")
+    email = request.email.strip().lower()
+    if DEV_USERS.get(email) or await audit_store.find_login_user(email):
         raise HTTPException(status_code=409, detail="Email already registered")
 
     # Validate password strength
@@ -359,22 +535,20 @@ async def signup(request: SignupRequest):
     if len(request.password.encode("utf-8")) > MAX_PASSWORD_BYTES:
         raise HTTPException(status_code=400, detail=f"Password must be at most {MAX_PASSWORD_BYTES} bytes")
 
-    user_id = str(uuid4())
-    user_info = {
-        "id": user_id,
-        "name": request.name,
-        "roles": ["admin", "analyst"],  # Owner of their own new organization
-        "org_id": str(uuid4()),
-        "hashed_password": get_password_hash(request.password),
-        "mfa_secret": None,
-        "created_at": datetime.utcnow().isoformat(),
-    }
-    _registered_users[request.email] = user_info
+    org_id = await audit_store.create_organization(
+        (request.organization_name or f"{request.name}'s organization").strip()[:255])
+    try:
+        member = await audit_store.create_user(org_id, email, request.name, get_password_hash(request.password),
+                                               ["admin", "analyst"])  # owner of the new organization
+    except EmailExists:
+        raise HTTPException(status_code=409, detail="Email already registered")
+    user_id = member["id"]
+    user_info = {"id": user_id, "name": request.name, "roles": member["roles"], "org_id": org_id}
 
-    logger.info("User registered", email=request.email, user_id=user_id)
+    logger.info("User registered", user_id=user_id)
 
     return {
-        **_issue_tokens(request.email, user_info),
+        **_issue_tokens(email, user_info),
         "user": {
             "id": user_id,
             "email": request.email,

@@ -22,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 os.environ["ENVIRONMENT"] = "test"
 os.environ["DEV_PASSWORD"] = "test-dev-password"
 os.environ["MFA_ENABLED"] = "true"
+# The suite makes far more requests from one client than a person would.
+os.environ["RATE_LIMIT_PER_MINUTE"] = "100000"
+os.environ["RATE_LIMIT_BURST"] = "100000"
 os.environ.pop("JWT_SECRET_KEY", None)
 os.environ.pop("SERVICE_API_KEY", None)
 sys.path.insert(0, str(ROOT))
