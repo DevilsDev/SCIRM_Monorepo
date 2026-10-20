@@ -89,22 +89,23 @@ security-scan: ## Run security scans
 	cd apps/frontend && npm audit
 
 # Build
+SERVICES := coordinator planner researcher executor reviewer risk-scorer discovery ingestion chat simulator procurement component-tracker
+
 build: ## Build all services
 	@echo "🏗️ Building all services..."
-	docker-compose build
+	docker compose -f docker-compose.dev.yml build
 
-build-backend: ## Build backend services
+build-backend: ## Build backend service images (shared Dockerfile, repo-root context)
 	@echo "🏗️ Building backend services..."
-	docker build -t scirm/coordinator:latest services/coordinator/
-	docker build -t scirm/planner:latest services/planner/
-	docker build -t scirm/researcher:latest services/researcher/
-	docker build -t scirm/executor:latest services/executor/
-	docker build -t scirm/reviewer:latest services/reviewer/
-	docker build -t scirm/api-gateway:latest apps/api-gateway/
+	@for svc in $(SERVICES); do \
+		extra=""; \
+		if [ "$$svc" = "researcher" ]; then extra="--build-arg EXTRA_PIP=weaviate-client==3.26.7"; fi; \
+		docker build -f docker/service.Dockerfile --build-arg SERVICE_PATH=services/$$svc $$extra -t scirm/$$svc:latest . || exit 1; \
+	done
+	docker build -f docker/service.Dockerfile --build-arg SERVICE_PATH=apps/api-gateway -t scirm/api-gateway:latest .
 
 build-frontend: ## Build frontend application
 	@echo "🏗️ Building frontend..."
-	cd apps/frontend && npm run build
 	docker build -t scirm/frontend:latest apps/frontend/
 
 # Documentation
