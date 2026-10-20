@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
+import SupplierScanPage from './pages/SupplierScanPage';
 import DashboardPage from './pages/DashboardPage';
 import RiskListPage from './pages/RiskListPage';
 import RiskDetailPage from './pages/RiskDetailPage';
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/assessments/new" element={<NewAssessmentPage />} />
             <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/scan" element={<SupplierScanPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/supply-chain" element={<SupplyChainMapPage />} />
             <Route path="/predictions" element={<PredictionsPage />} />

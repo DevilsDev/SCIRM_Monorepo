@@ -64,3 +64,26 @@ def regulatory_history_score(events: Iterable[Dict[str, Any]], as_of: date,
 def recall_history_score(events: Iterable[Dict[str, Any]], as_of: date) -> float:
     """Recalls only: the original baseline rule."""
     return regulatory_history_score(events, as_of, kinds=("recall",))
+
+
+def watch_from_matches(matches: Iterable[Dict[str, Any]], as_of: date) -> Dict[str, Any]:
+    """The back-tested Watch flag from a supplier's matched records.
+
+    Only recalls matched by exact normalized name count, one entry per FDA recall event:
+    that is how the back-test identifies firms, so neither a similar name nor a subsidiary
+    ("Hospira, a Pfizer company") raises the score.
+    """
+    events: Dict[str, Dict[str, Any]] = {}
+    for m in matches:
+        signal = m["signal"]
+        if signal.get("signal_type") != "recall" or m.get("match_type") != "name_exact":
+            continue
+        raw = signal.get("raw") or {}
+        key = str(raw.get("event_id") or signal.get("external_id"))
+        published = date.fromisoformat(str(signal["published_at"])[:10])
+        entry = events.setdefault(key, {"published": published, "classes": []})
+        entry["published"] = min(entry["published"], published)
+        entry["classes"].append(raw.get("classification"))
+    score = recall_history_score(
+        [{"published": e["published"], "classification": most_severe(e["classes"])} for e in events.values()], as_of)
+    return {"recall_score": score, "watch": score >= WATCH_THRESHOLD and score > 0}

@@ -219,6 +219,17 @@ export interface EvidenceAnswer {
   method: string;
 }
 
+export interface ScanResult {
+  report: {
+    generated_at: string;
+    summary: { scanned: number; with_records: number; watch: number; to_check: number; by_type: Record<string, number> };
+    suppliers: Array<{ name: string; watch: boolean; records: unknown[] }>;
+  };
+  warnings: string[];
+  /** Self-contained HTML report (no scripts). */
+  html: string;
+}
+
 export interface PublicSourceStatus {
   label: string;
   status: 'ok' | 'error' | 'rate_limited' | 'never_run';
@@ -238,6 +249,11 @@ export const api = {
   async verifyMfa(mfaToken: string, totpCode: string): Promise<LoginResponse> {
     const response = await apiClient.post('/api/v1/auth/mfa/verify', { mfa_token: mfaToken, totp_code: totpCode });
     return response.data;
+  },
+
+  // Supplier scan: the list is processed in memory and not stored.
+  async scanSuppliers(csv: string, preparedFor = ''): Promise<ScanResult> {
+    return (await apiClient.post('/api/v1/scan', { csv, prepared_for: preparedFor }, { timeout: 120000 })).data;
   },
 
   // Registration
