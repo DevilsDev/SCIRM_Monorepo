@@ -148,6 +148,10 @@ DEMO_SUPPLIERS: List[Dict[str, Any]] = [
     {"id": "c0000000-0000-0000-0000-000000000004", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-DELTA", "name": "Supplier Delta", "supplier_type": "sensor_components", "country_code": "JP", "region": "Asia Pacific", "risk_score": 28.0, "risk_tier": "low", "contact_name": "Yuki Tanaka", "contact_email": "yuki@supplier-delta.jp", "is_active": True},
     {"id": "c0000000-0000-0000-0000-000000000005", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-EPSILON", "name": "Supplier Epsilon", "supplier_type": "biocompatible_materials", "country_code": "US", "region": "North America", "risk_score": 55.0, "risk_tier": "medium", "contact_name": "Sarah Johnson", "contact_email": "sarah@supplier-epsilon.com", "is_active": True},
 ]
+# Fictional demo suppliers: their scores are sample values, so they carry a demo note
+# (shown as a Demo badge) like the real-name demo suppliers below.
+for _s in DEMO_SUPPLIERS:
+    _s["demo_note"] = "Fictional supplier for demonstration; its details and scores are sample values."
 # Demo suppliers named after real companies, so the demo tenant shows real public
 # records (FDA recalls and shortages) matched to them. The signals are genuine;
 # the supplier relationships, contacts and scores are not.

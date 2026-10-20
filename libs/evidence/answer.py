@@ -97,8 +97,13 @@ def summary_note(retrieved: Dict[str, Any], shown: int) -> str:
 
 
 def _extractive(evidence: Dict[str, Dict[str, Any]], results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [{"text": f"{describe(record, r['match'].get('matched_on', ''))} [{sid}]", "citations": [sid]}
-            for (sid, record), r in zip(evidence.items(), results)]
+    # Records that read the same (one recall event's products, for example) become one
+    # sentence citing all of them, instead of the same sentence once per record.
+    sentences: Dict[str, List[str]] = {}
+    for (sid, record), r in zip(evidence.items(), results):
+        sentences.setdefault(describe(record, r["match"].get("matched_on", "")), []).append(sid)
+    return [{"text": f"{text} {''.join(f'[{sid}]' for sid in sids)}", "citations": sids}
+            for text, sids in sentences.items()]
 
 
 async def _llm_claims(question: str, supplier_name: str, evidence: Dict[str, Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:

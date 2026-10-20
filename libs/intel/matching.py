@@ -187,3 +187,25 @@ def match_all(suppliers: List[Dict[str, Any]], signals: List[Dict[str, Any]],
         found.sort(key=lambda m: (m["confidence"], m["signal"].get("published_at") or ""), reverse=True)
         out[str(supplier.get("id"))] = found
     return out
+
+
+_SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
+def event_key(signal: Dict[str, Any]) -> str:
+    """One FDA recall event covers a recall number per product (each strength, pack size
+    or lot). Records of the same event share this key; any other record is its own event."""
+    raw = signal.get("raw") or {}
+    if signal.get("source") == "fda_recalls" and raw.get("event_id"):
+        return f"fda_recalls:event:{raw['event_id']}"
+    return f"{signal.get('source')}:{signal.get('external_id') or signal.get('id')}"
+
+
+def group_events(matches: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+    """Matches grouped by event, in the order each event first appears. Within a group the
+    most severe, then strongest, match comes first and stands for the event."""
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for m in matches:
+        groups.setdefault(event_key(m["signal"]), []).append(m)
+    return [sorted(g, key=lambda m: (-_SEVERITY_ORDER.get(m["signal"].get("severity"), 0), -m["confidence"]))
+            for g in groups.values()]

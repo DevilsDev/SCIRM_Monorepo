@@ -196,3 +196,18 @@ class TestLLMPath:
 
 def test_llm_models_are_per_provider():
     assert "claude" in llm.ANTHROPIC_MODEL and "gpt" in llm.OPENAI_MODEL
+
+
+def test_records_that_read_the_same_become_one_sentence():
+    """One recall event's products give the same sentence; it is said once, citing all of them."""
+    from libs.evidence import answer as answer_module
+
+    def recall(number):
+        return {"signal_type": "recall", "published_at": "2026-09-02", "title": "Class II recall: EXAMPLETINIB",
+                "entity_names": ["Example Inc."], "raw": {"classification": "Class II", "recalling_firm": "Example Inc.",
+                                                          "reason_for_recall": "Subpotent Drug", "recall_number": number}}
+    evidence = {"S1": recall("D-1"), "S2": recall("D-2"), "S3": {**recall("D-3"), "published_at": "2026-01-05"}}
+    results = [{"match": {"matched_on": "Example Inc."}}] * 3
+    claims = answer_module._extractive(evidence, results)
+    assert [c["citations"] for c in claims] == [["S1", "S2"], ["S3"]]
+    assert claims[0]["text"].endswith("[S1][S2]")

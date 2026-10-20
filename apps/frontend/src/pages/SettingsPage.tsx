@@ -4,86 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/Toast';
 import Toggle from '../components/Toggle';
-import { Slider } from '../components/ui';
 import TeamSettings from '../components/TeamSettings';
 import PilotMetrics from '../components/PilotMetrics';
-
-function AlertThresholds() {
-  const { t } = useTranslation();
-  const { addToast } = useToast();
-  const [severityThreshold, setSeverityThreshold] = useState(() => Number(localStorage.getItem('scirm_sev_threshold') || '70'));
-  const [probabilityThreshold, setProbabilityThreshold] = useState(() => Number(localStorage.getItem('scirm_prob_threshold') || '60'));
-
-  const handleSave = () => {
-    localStorage.setItem('scirm_sev_threshold', String(severityThreshold));
-    localStorage.setItem('scirm_prob_threshold', String(probabilityThreshold));
-    addToast('success', t('settings.thresholdsSaved', 'Alert thresholds saved'));
-  };
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.alertThresholds', 'Alert Thresholds')}</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('settings.thresholdsDesc', 'Set minimum thresholds for triggering alerts. Risks below these thresholds will not generate alerts.')}</p>
-      <div className="space-y-5">
-        <Slider label={t('settings.severityThreshold', 'Severity Score Threshold')} value={severityThreshold} onChange={setSeverityThreshold} min={0} max={100} suffix="%" />
-        <Slider label={t('settings.probabilityThreshold', 'Probability Threshold')} value={probabilityThreshold} onChange={setProbabilityThreshold} min={0} max={100} suffix="%" />
-        <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">{t('settings.savePreferences', 'Save Preferences')}</button>
-      </div>
-    </div>
-  );
-}
-
-const RISK_DIMENSIONS = [
-  { key: 'financial', label: 'Financial / Liquidity' },
-  { key: 'geopolitical', label: 'Geopolitical / Regulatory' },
-  { key: 'environmental', label: 'Natural / Environmental' },
-  { key: 'operational', label: 'Operational / Quality' },
-  { key: 'compliance', label: 'Reputational / Compliance' },
-  { key: 'cyber', label: 'Cybersecurity' },
-  { key: 'resilience', label: 'Supply Chain Resilience' },
-];
-
-function ScoringWeights() {
-  const { t } = useTranslation();
-  const { addToast } = useToast();
-  const [weights, setWeights] = useState<Record<string, number>>(() => {
-    const saved = localStorage.getItem('scirm_scoring_weights');
-    if (saved) return JSON.parse(saved);
-    const defaults: Record<string, number> = {};
-    RISK_DIMENSIONS.forEach((d) => { defaults[d.key] = Math.round(100 / RISK_DIMENSIONS.length); });
-    return defaults;
-  });
-
-  const total = Object.values(weights).reduce((a, b) => a + b, 0);
-
-  const updateWeight = (key: string, value: number) => {
-    setWeights((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleSave = () => {
-    localStorage.setItem('scirm_scoring_weights', JSON.stringify(weights));
-    addToast('success', t('settings.weightsSaved', 'Scoring weights saved'));
-  };
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.scoringWeights', 'Risk Scoring Weights')}</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('settings.weightsDesc', 'Customize how each risk dimension contributes to the overall risk score')}</p>
-      <div className="space-y-4">
-        {RISK_DIMENSIONS.map((dim) => (
-          <Slider key={dim.key} label={dim.label} value={weights[dim.key] || 0} onChange={(v) => updateWeight(dim.key, v)} min={0} max={100} suffix="%" />
-        ))}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700">
-          <span className={`text-sm font-medium ${total === 100 ? 'text-green-600' : 'text-yellow-600'}`}>
-            {t('settings.totalWeight', 'Total')}: {total}%
-            {total !== 100 && ` (${t('settings.shouldBe100', 'should be 100%')})`}
-          </span>
-          <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">{t('settings.savePreferences', 'Save Preferences')}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -101,9 +23,6 @@ export default function SettingsPage() {
   const { t, i18n } = useTranslation();
 
   const [language, setLanguage] = useState(() => i18n.language || 'en');
-  const [emailAlerts, setEmailAlerts] = useState(() => localStorage.getItem('scirm_email_alerts') !== 'false');
-  const [slackAlerts, setSlackAlerts] = useState(() => localStorage.getItem('scirm_slack_alerts') !== 'false');
-  const [criticalOnly, setCriticalOnly] = useState(() => localStorage.getItem('scirm_critical_only') === 'true');
 
   // Password change
   const [currentPassword, setCurrentPassword] = useState('');
@@ -115,13 +34,6 @@ export default function SettingsPage() {
     setLanguage(code);
     i18n.changeLanguage(code);
     addToast('success', t('settings.languageUpdated', 'Language updated'), t('settings.languageSetTo', 'Language set to {{language}}', { language: LANGUAGES.find((l) => l.code === code)?.label }));
-  };
-
-  const handleNotificationSave = () => {
-    localStorage.setItem('scirm_email_alerts', String(emailAlerts));
-    localStorage.setItem('scirm_slack_alerts', String(slackAlerts));
-    localStorage.setItem('scirm_critical_only', String(criticalOnly));
-    addToast('success', t('settings.preferencesSaved', 'Notification preferences saved'));
   };
 
   const handlePasswordChange = () => {
@@ -206,19 +118,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Notifications */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.notifications', 'Notifications')}</h2>
-        <div className="space-y-4">
-          <Toggle enabled={emailAlerts} onChange={setEmailAlerts} label={t('settings.emailAlerts', 'Email alerts')} description={t('settings.emailAlertsDesc', 'Receive risk alerts via email')} />
-          <Toggle enabled={slackAlerts} onChange={setSlackAlerts} label={t('settings.slackAlerts', 'Slack alerts')} description={t('settings.slackAlertsDesc', 'Send alerts to Slack channel')} />
-          <Toggle enabled={criticalOnly} onChange={setCriticalOnly} label={t('settings.criticalOnly', 'Critical only')} description={t('settings.criticalOnlyDesc', 'Only notify for critical/high severity risks')} />
-          <button onClick={handleNotificationSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-            {t('settings.savePreferences', 'Save Preferences')}
-          </button>
-        </div>
-      </div>
-
       {/* Change Password */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.changePassword', 'Change Password')}</h2>
@@ -254,12 +153,6 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
-
-      {/* Alert Thresholds */}
-      <AlertThresholds />
-
-      {/* Risk Scoring Weights */}
-      <ScoringWeights />
 
       {/* Export */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

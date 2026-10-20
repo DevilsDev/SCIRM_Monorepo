@@ -71,7 +71,7 @@
     "passwordMedium": "보통",
     "passwordStrong": "강함",
     "passwordTooShortLabel": "너무 짧음",
-    "devCredentials": "Dev mode — check console for test credentials"
+    "devCredentials": "Dev mode: demo accounts use DEV_PASSWORD, or the password printed in the api-gateway log"
   },
   "risks": {
     "title": "위험 개요",

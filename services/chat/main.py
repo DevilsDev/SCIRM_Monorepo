@@ -120,7 +120,10 @@ async def _handle_supplier_info(headers: Dict[str, str]) -> tuple:
     lines = [f"**{len(suppliers)} suppliers** tracked:\n"]
     for s in suppliers[:10]:
         tier_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(s.get("risk_tier"), "⚪")
-        lines.append(f"- {tier_emoji} **{s['name']}** ({s.get('country_code','')}) — Risk: {s.get('risk_score',0):.0f}/100 ({s.get('risk_tier','?')})")
+        # Unassessed suppliers have no score; say so rather than print a placeholder.
+        risk = (f"Risk: {s['risk_score']:.0f}/100 ({s.get('risk_tier') or 'untiered'})"
+                if s.get("risk_score") is not None else "not assessed")
+        lines.append(f"- {tier_emoji} **{s['name']}** ({s.get('country_code') or ''}) — {risk}")
     return "\n".join(lines), {"suppliers": suppliers}
 
 
