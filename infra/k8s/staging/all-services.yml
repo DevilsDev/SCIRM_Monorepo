@@ -357,6 +357,9 @@ spec:
         # Names must match what libs/common/auth.py and the gateway read.
         - name: ENVIRONMENT
           value: "staging"
+        # Base URL for invitation links (scripts/create_tenant.py, Settings > Team).
+        - name: PUBLIC_APP_URL
+          value: "REPLACE_WITH_STAGING_APP_URL"
         - name: JWT_SECRET_KEY
           valueFrom:
             secretKeyRef:

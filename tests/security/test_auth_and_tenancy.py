@@ -130,7 +130,9 @@ class TestSignup:
 
     def test_password_is_stored_hashed_and_verifies(self, client, login, apps):
         client.post("/api/v1/auth/signup", json={"email": "hashed@example.com", "password": "longenough1", "name": "H"})
-        assert "longenough1" not in str(apps["gateway"]._registered_users["hashed@example.com"])
+        import asyncio
+        stored = asyncio.run(apps["gateway"].audit_store.find_login_user("hashed@example.com"))
+        assert stored and "longenough1" not in str(stored) and stored["hashed_password"].startswith("$2")
         assert login("hashed@example.com", "longenough1").status_code == 200
         assert login("hashed@example.com", "wrong-password").status_code == 401
 
@@ -421,6 +423,21 @@ class TestFailClosedConfig:
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip().endswith("0")
+
+    def test_production_signup_is_closed(self):
+        code = (
+            f"import sys, importlib.util; sys.path.insert(0, r'{ROOT}');"
+            f"s = importlib.util.spec_from_file_location('gw', r'{ROOT / 'apps/api-gateway/main.py'}');"
+            "m = importlib.util.module_from_spec(s); s.loader.exec_module(m);"
+            "from fastapi.testclient import TestClient; c = TestClient(m.app);"
+            "r = c.post('/api/v1/auth/signup', json={'email': 'x@example.com', 'password': 'a-good-password', 'name': 'X'});"
+            "print(m.SIGNUP_MODE, r.status_code)"
+        )
+        env = {k: v for k, v in os.environ.items() if k not in ("DEV_PASSWORD", "SIGNUP_MODE")}
+        env.update({"ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key", **PROD_DB})
+        result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.split()[-2:] == ["closed", "403"]
 
     def test_service_key_enforced_when_configured(self):
         code = (
