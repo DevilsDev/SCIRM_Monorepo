@@ -36,6 +36,8 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: redis-url
+        - name: STORE_BACKEND
+          value: "postgres"
         - name: WEAVIATE_URL
           value: "http://weaviate:8080"
         - name: LOG_LEVEL

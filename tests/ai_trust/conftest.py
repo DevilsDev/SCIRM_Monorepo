@@ -25,7 +25,16 @@ def _load_service(name: str):
     path = ROOT / "services" / name / "main.py"
     spec = importlib.util.spec_from_file_location(f"ai_trust_{name.replace('-', '_')}", path)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # These tests inspect the in-memory store; force it even if a run selected postgres.
+    previous = os.environ.get("STORE_BACKEND")
+    os.environ["STORE_BACKEND"] = "memory"
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if previous is None:
+            os.environ.pop("STORE_BACKEND", None)
+        else:
+            os.environ["STORE_BACKEND"] = previous
     return module
 
 

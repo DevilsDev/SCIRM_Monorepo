@@ -122,9 +122,9 @@ docs-deploy: ## Deploy documentation to GitHub Pages
 	mkdocs gh-deploy --force
 
 # Database
-db-migrate: ## Run database migrations
+db-migrate: ## Run migrations, configure the scirm_app role and seed demo tenants (Compose)
 	@echo "🗄️ Running database migrations..."
-	alembic upgrade head
+	docker compose -f docker-compose.dev.yml run --rm migrate
 
 db-reset: ## Reset database
 	@echo "🗄️ Resetting database..."

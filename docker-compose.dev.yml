@@ -3,7 +3,9 @@ version: '3.8'
 services:
   # Databases
   postgres:
-    image: postgres:15
+    # pgvector for the RAG work (migration 010). Moving from postgres:15 needs a fresh
+    # volume: docker compose -f docker-compose.dev.yml down -v
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: scirm_dev
       POSTGRES_USER: scirm
@@ -12,12 +14,27 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scirm"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Applies migrations as the owner, creates the restricted scirm_app role the
+  # services connect as (row-level security applies to it) and seeds demo tenants.
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: apps/api-gateway
+    environment:
+      - DATABASE_OWNER_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - DATABASE_APP_PASSWORD=dev_app_password
+    command: python scripts/db_setup.py --seed-demo
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -55,7 +72,8 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - STORE_BACKEND=postgres
+      - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
       - PLANNER_SERVICE_URL=http://planner:8000
@@ -65,8 +83,8 @@ services:
       - DISCOVERY_SERVICE_URL=http://discovery:8000
       - LOG_LEVEL=DEBUG
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       weaviate:
@@ -340,7 +358,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - STORE_BACKEND=postgres
+      - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - COORDINATOR_SERVICE_URL=http://coordinator:8000
       - PLANNER_SERVICE_URL=http://planner:8000
@@ -361,8 +380,8 @@ services:
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
       - LOG_LEVEL=DEBUG
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       coordinator:

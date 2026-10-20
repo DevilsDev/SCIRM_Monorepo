@@ -14,7 +14,7 @@ from uuid import uuid4
 
 import httpx
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 import structlog
@@ -23,11 +23,12 @@ from libs.common.auth import (
     verify_token, decode_token, require_write_access, create_access_token,
     create_refresh_token, verify_password, get_password_hash, generate_totp_secret,
     get_totp_uri, verify_totp, MFA_ENABLED, IS_DEV, MAX_PASSWORD_BYTES,
-    TOKEN_TYPE_REFRESH, TOKEN_TYPE_MFA_PENDING,
+    TOKEN_TYPE_ACCESS, TOKEN_TYPE_REFRESH, TOKEN_TYPE_MFA_PENDING,
 )
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
+from libs.common.store import create_store
 from libs.common.tenancy import internal_headers
 from libs.integrations.manager import erp_manager
 
@@ -54,10 +55,15 @@ def _svc_headers(user) -> Dict[str, str]:
     """Identity headers for internal services. The org always comes from the verified token."""
     return internal_headers(user.organization_id, user.id)
 
+# Audit trail (and, later, other gateway-owned data). Memory in development/tests.
+audit_store = create_store()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting SCIRM API Gateway")
     yield
+    await audit_store.close()
     logger.info("Shutting down SCIRM API Gateway")
 
 app = FastAPI(
@@ -66,6 +72,65 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+_AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# Recorded by the handlers themselves, with the account email.
+_SELF_AUDITED_PATHS = {"/api/v1/auth/login"}
+
+
+async def _audit_auth(action: str, email: str, user_info: Optional[Dict[str, Any]], ok: bool) -> None:
+    try:
+        await audit_store.record_audit(user_info["org_id"] if user_info else None, {
+            "user_id": user_info["id"] if user_info else None,
+            "actor_type": "user",
+            "actor": email,
+            "action": action if ok else f"{action}_failed",
+            "resource_type": "auth",
+            "status_code": 200 if ok else 401,
+        })
+    except Exception as exc:
+        logger.error("Audit write failed", error=str(exc), action=action)
+
+
+def _caller(request: Request) -> Dict[str, Any]:
+    """Identity for the audit record, from the bearer token if it is valid."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        try:
+            payload = decode_token(auth[7:], TOKEN_TYPE_ACCESS)
+            return {"org": payload.get("org_id"), "user_id": payload.get("sub"), "actor": payload.get("email")}
+        except HTTPException:
+            pass
+    return {"org": None, "user_id": None, "actor": None}
+
+
+@app.middleware("http")
+async def audit_writes(request: Request, call_next):
+    """Record every state-changing API call — who, which tenant, what, and the outcome."""
+    response = await call_next(request)
+    if (request.method in _AUDITED_METHODS and request.url.path.startswith("/api/v1/")
+            and request.url.path not in _SELF_AUDITED_PATHS):
+        caller = _caller(request)
+        route = request.scope.get("route")
+        template = getattr(route, "path", request.url.path)
+        parts = request.url.path.split("/")  # ["", "api", "v1", resource, id, ...]
+        params = request.scope.get("path_params", {})
+        try:
+            await audit_store.record_audit(caller["org"], {
+                "user_id": caller["user_id"],
+                "actor_type": "user" if caller["user_id"] else "anonymous",
+                "actor": caller["actor"],
+                "action": f"{request.method} {template}",
+                "resource_type": parts[3] if len(parts) > 3 else "unknown",
+                "resource_id": next(iter(params.values()), None),
+                "status_code": response.status_code,
+                "ip_address": request.client.host if request.client else None,
+                "details": {"path": request.url.path},
+            })
+        except Exception as exc:  # never lose the error silently
+            logger.error("Audit write failed", error=str(exc), path=request.url.path)
+    return response
+
 
 setup_cors(app)
 setup_rate_limiting(app, requests_per_minute=100, burst=200)
@@ -175,6 +240,8 @@ class MFAVerifyRequest(BaseModel):
 async def login(request: LoginRequest):
     """Authenticate user. If MFA is enabled, returns mfa_required=true with a temporary token."""
     user_info = _check_password(request.email, request.password)
+    # Record the attempt with the email (never the password); the middleware cannot read bodies.
+    await _audit_auth("auth.login", request.email, user_info, ok=bool(user_info))
     if not user_info:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -982,6 +1049,16 @@ async def list_risk_dimensions(token: str = Depends(security)):
         raise HTTPException(status_code=500, detail="Risk scoring service unavailable")
 
 # --- ERP Integration ---
+
+@app.get("/api/v1/audit")
+async def list_audit_log(limit: int = 100, token: str = Depends(security)):
+    """Audit trail for the caller's organization (admins and auditors only)."""
+    user = await verify_token(token.credentials)
+    if not {"admin", "auditor"} & set(user.roles):
+        raise HTTPException(status_code=403, detail="Admins and auditors only")
+    entries = await audit_store.list_audit(user.organization_id, limit=min(max(limit, 1), 1000))
+    return {"entries": entries, "total": len(entries)}
+
 
 @app.get("/api/v1/erp/status")
 async def erp_status(token: str = Depends(security)):

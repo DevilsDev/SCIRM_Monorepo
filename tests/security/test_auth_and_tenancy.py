@@ -176,7 +176,8 @@ class TestTenantIsolation:
         other = client.get("/api/v1/suppliers", headers=bearer(sarah["access_token"])).json()["suppliers"][0]["id"]
         response = client.put(f"/api/v1/suppliers/{other}", json={"name": "pwned"}, headers=bearer(lisa["access_token"]))
         assert response.status_code != 200
-        assert apps["coordinator"]._suppliers[other]["name"] != "pwned"
+        owner_view = client.get(f"/api/v1/suppliers/{other}", headers=bearer(sarah["access_token"])).json()
+        assert owner_view["name"] != "pwned"
 
     def test_created_supplier_is_forced_into_callers_org(self, client, sarah):
         response = client.post("/api/v1/suppliers", json={"name": "New Co", "organization_id": ORG_2},
@@ -187,7 +188,8 @@ class TestTenantIsolation:
     def test_supplier_cannot_be_moved_to_another_org(self, client, apps, sarah):
         own = client.get("/api/v1/suppliers", headers=bearer(sarah["access_token"])).json()["suppliers"][0]["id"]
         client.put(f"/api/v1/suppliers/{own}", json={"organization_id": ORG_2}, headers=bearer(sarah["access_token"]))
-        assert apps["coordinator"]._suppliers[own]["organization_id"] == ORG_1
+        owner_view = client.get(f"/api/v1/suppliers/{own}", headers=bearer(sarah["access_token"])).json()
+        assert owner_view["organization_id"] == ORG_1
 
     def test_risks_are_scoped_to_their_org(self, client, sarah, lisa):
         risk_id = client.post("/api/v1/risks", json={"title": "Org1-only risk"},
@@ -248,6 +250,41 @@ class TestRoles:
 
 
 # ---------------------------------------------------------------------------
+# Audit trail
+# ---------------------------------------------------------------------------
+
+class TestAudit:
+    def test_writes_are_audited_with_actor_and_outcome(self, client, sarah):
+        created = client.post("/api/v1/suppliers", json={"name": "Audited Co"}, headers=bearer(sarah["access_token"]))
+        assert created.status_code == 200
+        entries = client.get("/api/v1/audit", headers=bearer(sarah["access_token"])).json()["entries"]
+        match = [e for e in entries if e["action"] == "POST /api/v1/suppliers" and e["status_code"] == 200]
+        assert match, entries[:3]
+        assert match[0]["actor"] == "sarah.chen@pharmacorp.com"
+        assert match[0]["resource_type"] == "suppliers"
+
+    def test_rejected_writes_are_audited_too(self, client, auditor):
+        client.post("/api/v1/suppliers", json={"name": "x"}, headers=bearer(auditor["access_token"]))
+        entries = client.get("/api/v1/audit", headers=bearer(auditor["access_token"])).json()["entries"]
+        assert any(e["action"] == "POST /api/v1/suppliers" and e["status_code"] == 403 for e in entries)
+
+    def test_audit_log_is_tenant_scoped(self, client, sarah, lisa):
+        client.post("/api/v1/suppliers", json={"name": "Org1 Only Co"}, headers=bearer(sarah["access_token"]))
+        lisa_entries = client.get("/api/v1/audit", headers=bearer(lisa["access_token"])).json()["entries"]
+        assert all(e.get("actor") != "sarah.chen@pharmacorp.com" for e in lisa_entries)
+
+    def test_sign_ins_are_audited_with_the_account_email(self, client, login, sarah):
+        login("sarah.chen@pharmacorp.com")
+        entries = client.get("/api/v1/audit", headers=bearer(sarah["access_token"])).json()["entries"]
+        assert any(e["action"] == "auth.login" and e["actor"] == "sarah.chen@pharmacorp.com" for e in entries)
+
+    def test_only_admins_and_auditors_read_the_audit_log(self, client, apps):
+        analyst = apps["gateway"].create_access_token({"sub": "b0000000-0000-0000-0000-0000000000aa",
+                                                       "roles": ["analyst"], "org_id": ORG_1})
+        assert client.get("/api/v1/audit", headers=bearer(analyst)).status_code == 403
+
+
+# ---------------------------------------------------------------------------
 # WebSocket
 # ---------------------------------------------------------------------------
 
@@ -283,7 +320,17 @@ def _import_in_subprocess(module: str, env_overrides: dict) -> subprocess.Comple
     )
 
 
+# Production refuses the in-memory store; these processes get a Postgres URL that is
+# never contacted (the engine connects lazily) so the other checks can run.
+PROD_DB = {"STORE_BACKEND": "postgres", "DATABASE_URL": "postgresql://unused:unused@127.0.0.1:1/unused"}
+
+
 class TestFailClosedConfig:
+    def test_production_refuses_in_memory_store(self):
+        result = _import_in_subprocess("libs.common.store; libs.common.store.create_store()",
+                                       {"ENVIRONMENT": "production", "STORE_BACKEND": "memory"})
+        assert result.returncode != 0 and "not allowed" in result.stderr
+
     def test_production_requires_jwt_secret(self):
         result = _import_in_subprocess("libs.common.auth", {"ENVIRONMENT": "production"})
         assert result.returncode != 0 and "JWT_SECRET_KEY must be set" in result.stderr
@@ -303,7 +350,7 @@ class TestFailClosedConfig:
             "m = importlib.util.module_from_spec(s); s.loader.exec_module(m); print(len(m.DEV_USERS))"
         )
         env = {k: v for k, v in os.environ.items() if k not in ("DEV_PASSWORD",)}
-        env.update({"ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key"})
+        env.update({"ENVIRONMENT": "production", "JWT_SECRET_KEY": "k" * 40, "SERVICE_API_KEY": "svc-key", **PROD_DB})
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip().endswith("0")
@@ -314,12 +361,13 @@ class TestFailClosedConfig:
             f"s = importlib.util.spec_from_file_location('c', r'{ROOT / 'services/coordinator/main.py'}');"
             "m = importlib.util.module_from_spec(s); s.loader.exec_module(m);"
             "from fastapi.testclient import TestClient; c = TestClient(m.app);"
-            "h = {'X-Org-Id': 'o'};"
-            "print(c.get('/suppliers', headers=h).status_code,"
-            " c.get('/suppliers', headers={**h, 'X-Service-Key': 'bad'}).status_code,"
-            " c.get('/suppliers', headers={**h, 'X-Service-Key': 'svc-key'}).status_code)"
+            "h = {'X-Org-Id': 'o'}; body = {'affected_suppliers': []};"
+            "print(c.post('/scenarios/simulate', json=body, headers=h).status_code,"
+            " c.post('/scenarios/simulate', json=body, headers={**h, 'X-Service-Key': 'bad'}).status_code,"
+            " c.post('/scenarios/simulate', json=body, headers={**h, 'X-Service-Key': 'svc-key'}).status_code)"
         )
-        env = dict(os.environ, ENVIRONMENT="production", SERVICE_API_KEY="svc-key")
+        env = dict(os.environ, ENVIRONMENT="production", SERVICE_API_KEY="svc-key", **PROD_DB)
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
-        assert result.stdout.split()[-3:] == ["403", "403", "200"]
+        # 400 = authenticated and reached the handler (which rejects the empty scenario).
+        assert result.stdout.split()[-3:] == ["403", "403", "400"]

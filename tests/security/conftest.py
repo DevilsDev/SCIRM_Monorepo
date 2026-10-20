@@ -26,6 +26,20 @@ os.environ.pop("JWT_SECRET_KEY", None)
 os.environ.pop("SERVICE_API_KEY", None)
 sys.path.insert(0, str(ROOT))
 
+# The suite runs against either backend: STORE_BACKEND=memory (default) or
+# STORE_BACKEND=postgres with TEST_POSTGRES_URL — same tests, proving parity.
+STORE_BACKEND = os.environ.setdefault("STORE_BACKEND", "memory")
+if STORE_BACKEND == "postgres":
+    sys.path.insert(0, str(ROOT / "tests"))
+    import pg_support
+
+    if not pg_support.postgres_url():
+        raise RuntimeError("STORE_BACKEND=postgres needs TEST_POSTGRES_URL (a superuser URL)")
+    _urls = pg_support.fresh_database("scirm_test_security")
+    # Services connect as the restricted role, exactly as in production.
+    os.environ["DATABASE_URL"] = _urls["app"]
+    os.environ["DB_POOL"] = "null"
+
 DEV_PASSWORD = os.environ["DEV_PASSWORD"]
 ORG_1 = "a0000000-0000-0000-0000-000000000001"
 ORG_2 = "a0000000-0000-0000-0000-000000000002"

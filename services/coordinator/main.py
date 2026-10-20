@@ -28,6 +28,7 @@ from libs.common.models import (
 )
 from libs.common.monitoring import setup_monitoring, track_agent_task
 from libs.common.security import setup_cors
+from libs.common.store import create_store
 from libs.common.tenancy import tenant_org
 
 # ---------------------------------------------------------------------------
@@ -41,44 +42,23 @@ REVIEWER_URL = os.getenv("REVIEWER_SERVICE_URL", "http://localhost:8005")
 DISCOVERY_URL = os.getenv("DISCOVERY_SERVICE_URL", "http://localhost:8007")
 AGENT_TIMEOUT = float(os.getenv("AGENT_TIMEOUT_SECONDS", "30"))
 AUTO_REFRESH_INTERVAL = int(os.getenv("AUTO_REFRESH_INTERVAL_MINUTES", "15"))
-AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "true").lower() == "true"
+# Off by default: each refresh stores a new copy of every risk, so persisted data
+# would grow without bound. Re-enable once refreshes supersede earlier results.
+AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "false").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 logger = structlog.get_logger()
 
-# In-memory task store — production would use Redis / DB
-_tasks: Dict[str, Dict[str, Any]] = {}
-_manual_risks: Dict[str, Dict[str, Any]] = {}  # Manually created risks (not from assessments)
+# Tenant data: MemoryStore in development/tests, PostgresStore otherwise (see libs/common/store.py).
+store = create_store()
 
 # Shared HTTP client
 _http_client: Optional[httpx.AsyncClient] = None
 
 
-def _org_completed_tasks(org_id: str):
-    """Yield (task_id, task) for completed tasks belonging to one organization."""
-    for task_id, task in list(_tasks.items()):
-        if (task.get("organization_id") == org_id
-                and task.get("status") == "completed" and task.get("result")):
-            yield task_id, task
-
-
-def _org_risks(org_id: str) -> List[Dict[str, Any]]:
-    risks = [r for r in _manual_risks.values() if r.get("organization_id") == org_id]
-    for _, task in _org_completed_tasks(org_id):
-        risks.extend(task["result"].get("risks", []))
-    return risks
-
-
-def _find_org_risk(org_id: str, risk_id: str) -> Optional[Dict[str, Any]]:
-    for risk in _org_risks(org_id):
-        if risk.get("id") == risk_id:
-            return risk
-    return None
-
-
-def _get_org_supplier(org_id: str, supplier_id: str) -> Dict[str, Any]:
-    supplier = _suppliers.get(supplier_id)
-    if not supplier or supplier.get("organization_id") != org_id:
+async def _get_org_supplier(org_id: str, supplier_id: str) -> Dict[str, Any]:
+    supplier = await store.get_supplier(org_id, supplier_id)
+    if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
     return supplier
 
@@ -107,6 +87,7 @@ async def lifespan(app: FastAPI):
     if refresh_task:
         refresh_task.cancel()
     await _http_client.aclose()
+    await store.close()
     logger.info("Coordinator agent stopped")
 
 
@@ -138,16 +119,7 @@ async def _auto_refresh_loop():
             logger.info("Auto-refresh: starting scheduled re-assessment")
 
             # Collect unique entities from previous assessments, per organization
-            entities_by_org: Dict[str, List[Dict[str, Any]]] = {}
-            seen_ids = set()
-            for task in list(_tasks.values()):
-                org_id = task.get("organization_id")
-                if org_id and task.get("status") == "completed" and task.get("request"):
-                    for entity in task["request"].get("entities", []):
-                        eid = entity.get("id", "")
-                        if eid and (org_id, eid) not in seen_ids:
-                            entities_by_org.setdefault(org_id, []).append(entity)
-                            seen_ids.add((org_id, eid))
+            entities_by_org = await store.refresh_candidates()
 
             if not entities_by_org:
                 logger.info("Auto-refresh: no entities to re-assess, skipping")
@@ -165,17 +137,9 @@ async def _auto_refresh_loop():
                 )
 
                 task_id = f"refresh-{uuid.uuid4().hex[:8]}"
-                _tasks[task_id] = {
-                    "status": "processing",
-                    "organization_id": org_id,
-                    "started_at": datetime.utcnow().isoformat(),
-                    "request": request.model_dump(mode="json"),
-                }
-
+                await store.create_task(org_id, task_id, request.model_dump(mode="json"))
                 result = await _run_pipeline(task_id, request)
-                _tasks[task_id]["status"] = "completed"
-                _tasks[task_id]["completed_at"] = datetime.utcnow().isoformat()
-                _tasks[task_id]["result"] = result.model_dump(mode="json")
+                await store.complete_task(org_id, task_id, result.model_dump(mode="json"))
 
                 logger.info(
                     "Auto-refresh: completed",
@@ -354,12 +318,14 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
     recommendations_raw = executor_result.get("recommendations", [])
 
     # Generate alerts for high/critical risks
+    pipeline_org = request_dict.get("context", {}).get("organization_id")
+    new_alerts: List[Dict[str, Any]] = []
     for risk in risks_raw:
         sev = risk.get("severity", "medium")
         if sev in ("high", "critical"):
-            _alerts.append({
+            new_alerts.append({
                 "id": str(uuid.uuid4()),
-                "organization_id": request_dict.get("context", {}).get("organization_id"),
+                "organization_id": pipeline_org,
                 "risk_id": risk.get("id"),
                 "alert_type": "risk_detected",
                 "severity": sev,
@@ -369,6 +335,9 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
                 "metadata": {"task_id": task_id, "risk_category": risk.get("risk_category")},
                 "created_at": datetime.utcnow().isoformat(),
             })
+
+    if pipeline_org:
+        await store.add_alerts(pipeline_org, new_alerts)
 
     # ── Step 4: Reviewer (Quality Validation) ─────────────────────────
     reviewer_result = await _call_agent(
@@ -457,26 +426,18 @@ async def assess_risk(request: RiskAssessmentRequest, org_id: str = Depends(tena
     # The tenant comes from the authenticated caller, never from the request body.
     request.context = {**(request.context or {}), "organization_id": org_id}
     task_id = f"task-{uuid.uuid4().hex[:12]}"
-    _tasks[task_id] = {
-        "status": "processing",
-        "organization_id": org_id,
-        "started_at": datetime.utcnow().isoformat(),
-        "request": request.model_dump(mode="json"),
-    }
+    await store.create_task(org_id, task_id, request.model_dump(mode="json"))
 
     try:
         result = await _run_pipeline(task_id, request)
-        _tasks[task_id]["status"] = "completed"
-        _tasks[task_id]["completed_at"] = datetime.utcnow().isoformat()
-        _tasks[task_id]["result"] = result.model_dump(mode="json")
+        await store.complete_task(org_id, task_id, result.model_dump(mode="json"))
         return result
-    except HTTPException:
-        _tasks[task_id]["status"] = "failed"
+    except HTTPException as exc:
+        await store.fail_task(org_id, task_id, str(exc.detail))
         raise
     except Exception as exc:
         logger.error("Pipeline failed", task_id=task_id, error=str(exc))
-        _tasks[task_id]["status"] = "failed"
-        _tasks[task_id]["error"] = str(exc)
+        await store.fail_task(org_id, task_id, str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Assessment pipeline failed: {exc}",
@@ -504,8 +465,8 @@ async def process(payload: Dict[str, Any], org_id: str = Depends(tenant_org)):
 @app.get("/tasks/{task_id}/status")
 async def task_status(task_id: str, org_id: str = Depends(tenant_org)):
     """Poll task status."""
-    task = _tasks.get(task_id)
-    if not task or task.get("organization_id") != org_id:
+    task = await store.get_task(org_id, task_id)
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return {
         "task_id": task_id,
@@ -519,8 +480,8 @@ async def task_status(task_id: str, org_id: str = Depends(tenant_org)):
 @app.get("/tasks/{task_id}/result")
 async def task_result(task_id: str, org_id: str = Depends(tenant_org)):
     """Retrieve the full result of a completed task."""
-    task = _tasks.get(task_id)
-    if not task or task.get("organization_id") != org_id:
+    task = await store.get_task(org_id, task_id)
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     if task["status"] != "completed":
         raise HTTPException(status_code=409, detail=f"Task is {task['status']}, not completed")
@@ -534,17 +495,8 @@ async def task_result(task_id: str, org_id: str = Depends(tenant_org)):
 @app.get("/risks/history")
 async def risk_history(limit: int = 100, org_id: str = Depends(tenant_org)):
     """Get historical risk data from all completed assessments."""
-    history = []
-    for task_id, task in _org_completed_tasks(org_id):
-        for risk in task["result"].get("risks", []):
-            history.append({
-                **risk,
-                "assessment_task_id": task_id,
-                "assessment_completed_at": task.get("completed_at"),
-            })
-    history.sort(key=lambda r: r.get("detected_at", ""), reverse=True)
-    return {"history": history[:limit], "total": len(history)}
-
+    history, total = await store.risk_history(org_id, limit)
+    return {"history": history, "total": total}
 
 @app.get("/risks")
 async def list_risks(limit: int = 50, offset: int = 0, severity: str = None, org_id: str = Depends(tenant_org)):
@@ -552,23 +504,18 @@ async def list_risks(limit: int = 50, offset: int = 0, severity: str = None, org
     List risks from completed assessments.
     In production this would query the database; for now it aggregates from in-memory tasks.
     """
-    all_risks = _org_risks(org_id)
-
-    if severity:
-        all_risks = [r for r in all_risks if r.get("severity") == severity]
-
+    risks, total = await store.list_risks(org_id, severity=severity, limit=limit, offset=offset)
     return {
-        "risks": all_risks[offset : offset + limit],
-        "total": len(all_risks),
+        "risks": risks,
+        "total": total,
         "limit": limit,
         "offset": offset,
     }
 
-
 @app.get("/risks/{risk_id}")
 async def get_risk(risk_id: str, org_id: str = Depends(tenant_org)):
     """Get a single risk by ID."""
-    risk = _find_org_risk(org_id, risk_id)
+    risk = await store.get_risk(org_id, risk_id)
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
     return risk
@@ -577,9 +524,7 @@ async def get_risk(risk_id: str, org_id: str = Depends(tenant_org)):
 @app.post("/risks")
 async def create_risk(body: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Create a manual risk entry."""
-    import uuid
-    from datetime import datetime
-    risk_id = f"risk-{uuid.uuid4().hex[:8]}"
+    risk_id = str(uuid.uuid4())
     risk = {
         "id": risk_id,
         "organization_id": org_id,
@@ -596,80 +541,55 @@ async def create_risk(body: Dict[str, Any], org_id: str = Depends(tenant_org)):
         "status": body.get("status", "open"),
         "owner": body.get("owner"),
     }
-    _manual_risks[risk_id] = risk
-    return risk
+    return await store.create_risk(org_id, risk)
 
 
 @app.put("/risks/{risk_id}")
 async def update_risk(risk_id: str, body: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Update a risk entry."""
-    risk = _find_org_risk(org_id, risk_id)
+    # Identity and tenancy fields are not client-editable (enforced by the store).
+    risk = await store.update_risk(org_id, risk_id, body)
     if not risk:
         raise HTTPException(status_code=404, detail="Risk not found")
-    # Identity and tenancy fields are not client-editable.
-    risk.update({k: v for k, v in body.items() if k not in ("id", "organization_id")})
     return risk
 
 
 @app.get("/recommendations/{risk_id}")
 async def get_recommendations_for_risk(risk_id: str, org_id: str = Depends(tenant_org)):
     """Get recommendations associated with a specific risk."""
-    for _, task in _org_completed_tasks(org_id):
-        matching = [
-            r for r in task["result"].get("recommendations", [])
-            if r.get("risk_id") == risk_id
-        ]
-        if matching:
-            return {"risk_id": risk_id, "recommendations": matching}
-    return {"risk_id": risk_id, "recommendations": []}
-
+    return {"risk_id": risk_id, "recommendations": await store.recommendations_for_risk(org_id, risk_id)}
 
 # ---------------------------------------------------------------------------
 # Supplier Management (in-memory for dev, DB in production)
 # ---------------------------------------------------------------------------
 
-_suppliers = {
-    "c0000000-0000-0000-0000-000000000001": {"id": "c0000000-0000-0000-0000-000000000001", "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": "SUP-ALPHA", "name": "Supplier Alpha", "supplier_type": "api_manufacturer", "country_code": "US", "region": "North America", "risk_score": 35.0, "risk_tier": "low", "contact_name": "John Smith", "contact_email": "john@supplier-alpha.com", "is_active": True},
-    "c0000000-0000-0000-0000-000000000002": {"id": "c0000000-0000-0000-0000-000000000002", "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": "SUP-BETA", "name": "Supplier Beta", "supplier_type": "excipient_supplier", "country_code": "DE", "region": "Europe", "risk_score": 62.0, "risk_tier": "medium", "contact_name": "Hans Mueller", "contact_email": "hans@supplier-beta.de", "is_active": True},
-    "c0000000-0000-0000-0000-000000000003": {"id": "c0000000-0000-0000-0000-000000000003", "organization_id": "a0000000-0000-0000-0000-000000000001", "supplier_code": "SUP-GAMMA", "name": "Supplier Gamma", "supplier_type": "packaging", "country_code": "CN", "region": "Asia Pacific", "risk_score": 78.0, "risk_tier": "high", "contact_name": "Wei Zhang", "contact_email": "wei@supplier-gamma.cn", "is_active": True},
-    "c0000000-0000-0000-0000-000000000004": {"id": "c0000000-0000-0000-0000-000000000004", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-DELTA", "name": "Supplier Delta", "supplier_type": "sensor_components", "country_code": "JP", "region": "Asia Pacific", "risk_score": 28.0, "risk_tier": "low", "contact_name": "Yuki Tanaka", "contact_email": "yuki@supplier-delta.jp", "is_active": True},
-    "c0000000-0000-0000-0000-000000000005": {"id": "c0000000-0000-0000-0000-000000000005", "organization_id": "a0000000-0000-0000-0000-000000000002", "supplier_code": "SUP-EPSILON", "name": "Supplier Epsilon", "supplier_type": "biocompatible_materials", "country_code": "US", "region": "North America", "risk_score": 55.0, "risk_tier": "medium", "contact_name": "Sarah Johnson", "contact_email": "sarah@supplier-epsilon.com", "is_active": True},
-}
-
-_alerts: List[Dict[str, Any]] = []
-
-
 @app.get("/suppliers")
 async def list_suppliers(risk_tier: str = None, limit: int = 50, org_id: str = Depends(tenant_org)):
     """List suppliers with optional filters."""
-    suppliers = [s for s in _suppliers.values() if s.get("organization_id") == org_id]
-    if risk_tier:
-        suppliers = [s for s in suppliers if s.get("risk_tier") == risk_tier]
-    return {"suppliers": suppliers[:limit], "total": len(suppliers)}
+    suppliers, total = await store.list_suppliers(org_id, risk_tier=risk_tier, limit=limit)
+    return {"suppliers": suppliers, "total": total}
 
 
 @app.get("/suppliers/{supplier_id}")
 async def get_supplier(supplier_id: str, org_id: str = Depends(tenant_org)):
     """Get a single supplier profile."""
-    return _get_org_supplier(org_id, supplier_id)
+    return await _get_org_supplier(org_id, supplier_id)
 
 
 @app.post("/suppliers")
 async def create_supplier(supplier: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Create a new supplier."""
-    supplier_id = str(uuid.uuid4())
-    supplier["id"] = supplier_id
-    supplier["organization_id"] = org_id
-    _suppliers[supplier_id] = supplier
-    return supplier
+    # The store assigns the id and the caller's organization.
+    return await store.create_supplier(org_id, supplier)
 
 
 @app.put("/suppliers/{supplier_id}")
 async def update_supplier(supplier_id: str, updates: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Update supplier details."""
-    supplier = _get_org_supplier(org_id, supplier_id)
-    # Identity and tenancy fields are not client-editable.
-    supplier.update({k: v for k, v in updates.items() if k not in ("id", "organization_id")})
+    # Identity and tenancy fields are not client-editable (enforced by the store).
+    supplier = await store.update_supplier(org_id, supplier_id, updates)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
     return supplier
 
 
@@ -680,23 +600,17 @@ async def update_supplier(supplier_id: str, updates: Dict[str, Any], org_id: str
 @app.get("/alerts")
 async def list_alerts(status_filter: str = None, severity: str = None, limit: int = 50, org_id: str = Depends(tenant_org)):
     """List alerts with optional filters."""
-    alerts = [a for a in _alerts if a.get("organization_id") == org_id]
-    if status_filter:
-        alerts = [a for a in alerts if a.get("status") == status_filter]
-    if severity:
-        alerts = [a for a in alerts if a.get("severity") == severity]
-    return {"alerts": alerts[:limit], "total": len(alerts)}
+    alerts, total = await store.list_alerts(org_id, status=status_filter, severity=severity, limit=limit)
+    return {"alerts": alerts, "total": total}
 
 
 @app.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: str, org_id: str = Depends(tenant_org)):
     """Acknowledge an alert."""
-    for alert in _alerts:
-        if alert.get("id") == alert_id and alert.get("organization_id") == org_id:
-            alert["status"] = "acknowledged"
-            alert["acknowledged_at"] = datetime.utcnow().isoformat()
-            return alert
-    raise HTTPException(status_code=404, detail="Alert not found")
+    alert = await store.acknowledge_alert(org_id, alert_id)
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
 
 
 # ---------------------------------------------------------------------------
@@ -706,9 +620,7 @@ async def acknowledge_alert(alert_id: str, org_id: str = Depends(tenant_org)):
 @app.get("/predictions")
 async def get_predictions(org_id: str = Depends(tenant_org)):
     """Generate 7-day disruption predictions based on current risk landscape."""
-    all_risks = []
-    for _, task in _org_completed_tasks(org_id):
-        all_risks.extend(task["result"].get("risks", []))
+    all_risks = await store.assessment_risks(org_id)
 
     if not all_risks:
         return {"predictions": [], "horizon_days": 7, "model": "rule-based"}
@@ -761,9 +673,8 @@ async def supply_chain_map(org_id: str = Depends(tenant_org)):
 
     # Organization nodes
     orgs_used = set()
-    for s in _suppliers.values():
-        if s.get("organization_id") != org_id:
-            continue
+    suppliers, _ = await store.list_suppliers(org_id)
+    for s in suppliers:
         org_oid = s.get("organization_id", "unknown")
         if org_oid not in orgs_used:
             nodes.append({
@@ -791,22 +702,21 @@ async def supply_chain_map(org_id: str = Depends(tenant_org)):
         })
 
     # Add risk nodes from recent assessments
-    for _, task in _org_completed_tasks(org_id):
-        for risk in task["result"].get("risks", []):
-            nodes.append({
-                "id": risk.get("id", str(uuid.uuid4())),
-                "type": "risk",
-                "label": risk.get("title", "Unknown Risk"),
-                "severity": risk.get("severity", "medium"),
-                "risk_category": risk.get("risk_category", ""),
+    for risk in await store.assessment_risks(org_id):
+        nodes.append({
+            "id": risk.get("id", str(uuid.uuid4())),
+            "type": "risk",
+            "label": risk.get("title", "Unknown Risk"),
+            "severity": risk.get("severity", "medium"),
+            "risk_category": risk.get("risk_category", ""),
+        })
+        # Link risks to affected entities
+        for entity_id in risk.get("affected_entities", []):
+            edges.append({
+                "source": risk.get("id"),
+                "target": entity_id,
+                "relationship": "affects",
             })
-            # Link risks to affected entities
-            for entity_id in risk.get("affected_entities", []):
-                edges.append({
-                    "source": risk.get("id"),
-                    "target": entity_id,
-                    "relationship": "affects",
-                })
 
     return {"nodes": nodes, "edges": edges, "total_nodes": len(nodes), "total_edges": len(edges)}
 
@@ -829,8 +739,8 @@ async def simulate_scenario(scenario: Dict[str, Any], org_id: str = Depends(tena
     # Find affected suppliers
     impacted = []
     for sid in affected_suppliers:
-        supplier = _suppliers.get(sid)
-        if supplier and supplier.get("organization_id") == org_id:
+        supplier = await store.get_supplier(org_id, sid)
+        if supplier:
             impacted.append(supplier)
 
     if not impacted and not scenario.get("description"):
@@ -874,10 +784,6 @@ async def simulate_scenario(scenario: Dict[str, Any], org_id: str = Depends(tena
 # Sub-Tier Discovery
 # ---------------------------------------------------------------------------
 
-_risk_events: List[Dict[str, Any]] = []
-_event_impacts: List[Dict[str, Any]] = []
-
-
 @app.post("/discover-subtiers")
 async def discover_subtiers(payload: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Discover sub-tier suppliers using the Discovery Agent."""
@@ -908,22 +814,16 @@ async def create_risk_event(event: Dict[str, Any], org_id: str = Depends(tenant_
     event["organization_id"] = org_id
     event["detected_at"] = datetime.utcnow().isoformat()
     event.setdefault("status", "active")
-    _risk_events.append(event)
+    event = await store.create_event(org_id, event)
 
     # Propagate impact through supplier graph
-    org_suppliers = {sid: sup for sid, sup in _suppliers.items() if sup.get("organization_id") == org_id}
+    org_suppliers = {sup["id"]: sup for sup in (await store.list_suppliers(org_id))[0]}
     affected_ids = [sid for sid in event.get("affected_supplier_ids", []) if sid in org_suppliers]
     impacts: List[Dict[str, Any]] = []
     if affected_ids:
-        # Build adjacency from known supplier relationships
-        supplier_graph: Dict[str, List[Dict[str, Any]]] = {}
-        # Simple: each supplier connects to the org
-        for sid, info in org_suppliers.items():
-            supplier_graph.setdefault(sid, [])
-            # Add any known sub-tier connections from discovery
-            for rel in _event_impacts:
-                if rel.get("source_supplier_id") == sid:
-                    supplier_graph[sid].append({"target_id": rel["target_supplier_id"]})
+        # Supplier-to-supplier links are not modelled yet (confirmed sub-tier
+        # relationships arrive with the multi-tier map), so impact stays at tier 1.
+        supplier_graph: Dict[str, List[Dict[str, Any]]] = {sid: [] for sid in org_suppliers}
 
         impacts = propagate_impact(
             event_id=event_id,
@@ -934,12 +834,13 @@ async def create_risk_event(event: Dict[str, Any], org_id: str = Depends(tenant_
         )
         for impact in impacts:
             impact["organization_id"] = org_id
-        _event_impacts.extend(impacts)
+        await store.add_impacts(org_id, impacts)
 
         # Auto-generate alerts for impacted suppliers
+        event_alerts = []
         for impact in impacts:
             if impact["impact_severity"] in ("critical", "high"):
-                _alerts.append({
+                event_alerts.append({
                     "id": str(uuid.uuid4()),
                     "organization_id": org_id,
                     "alert_type": "event_impact",
@@ -950,6 +851,7 @@ async def create_risk_event(event: Dict[str, Any], org_id: str = Depends(tenant_
                     "metadata": {"event_id": event_id, "impact_id": impact["id"]},
                     "created_at": datetime.utcnow().isoformat(),
                 })
+        await store.add_alerts(org_id, event_alerts)
 
     return {"event": event, "impacts": impacts, "total_impacts": len(impacts)}
 
@@ -957,17 +859,14 @@ async def create_risk_event(event: Dict[str, Any], org_id: str = Depends(tenant_
 @app.get("/events")
 async def list_risk_events(limit: int = 50, org_id: str = Depends(tenant_org)):
     """List all risk events."""
-    events = sorted(
-        (e for e in _risk_events if e.get("organization_id") == org_id),
-        key=lambda e: e.get("detected_at", ""), reverse=True,
-    )
-    return {"events": events[:limit], "total": len(events)}
+    events, total = await store.list_events(org_id, limit=limit)
+    return {"events": events, "total": total}
 
 
 @app.get("/events/{event_id}/impacts")
 async def get_event_impacts(event_id: str, org_id: str = Depends(tenant_org)):
     """Get all impacts for a specific risk event."""
-    impacts = [i for i in _event_impacts if i.get("event_id") == event_id and i.get("organization_id") == org_id]
+    impacts = await store.event_impacts(org_id, event_id)
     return {"event_id": event_id, "impacts": impacts, "total": len(impacts)}
 
 

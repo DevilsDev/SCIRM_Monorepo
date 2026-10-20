@@ -352,6 +352,8 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: redis-url
+        - name: STORE_BACKEND
+          value: "postgres"
         # Names must match what libs/common/auth.py and the gateway read.
         - name: ENVIRONMENT
           value: "staging"
