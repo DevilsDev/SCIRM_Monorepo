@@ -90,6 +90,9 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        run: npm test
+
       - name: Production build
         run: npm run build
 
@@ -125,15 +128,29 @@ jobs:
           --build-arg SERVICE_PATH=${{ matrix.service.path }}
           --build-arg "EXTRA_PIP=${{ matrix.service.extra_pip }}"
           -t scirm/${{ matrix.service.name }}:ci .
-      - name: Start the container and check it serves /ready as a non-root user
+      - name: Start the container hardened as in Kubernetes and check it serves /ready as a non-root user
+        # Same constraints as the staging manifests: read-only root filesystem with a
+        # writable /tmp, all capabilities dropped, no privilege escalation.
         run: |
-          docker run -d --name svc -e ENVIRONMENT=test -p 8000:8000 scirm/${{ matrix.service.name }}:ci
+          docker run -d --name svc -e ENVIRONMENT=test -p 8000:8000             --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges             scirm/${{ matrix.service.name }}:ci
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8000/ready && break
             sleep 1
           done
           curl -fsS http://127.0.0.1:8000/ready || { docker logs svc; exit 1; }
           test "$(docker exec svc id -u)" = "10001"
+
+  manifests:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate against the Kubernetes schemas
+        # secrets.example.yml is a template with placeholders; it is still schema-valid.
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          ./kubeconform -strict -summary -kubernetes-version 1.30.0 infra/k8s/staging/*.yml
 
   frontend-image:
     name: Build image (frontend)

@@ -20,6 +20,7 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: scirm-service-account
       containers:
       - name: coordinator
         image: ghcr.io/devilsdev/scirm_monorepo/coordinator:latest  # deploy.yml pins the release tag
@@ -57,6 +58,10 @@ spec:
           value: "http://executor:8000"
         - name: REVIEWER_SERVICE_URL
           value: "http://reviewer:8000"
+        - name: DISCOVERY_SERVICE_URL
+          value: "http://discovery:8000"
+        - name: INGESTION_SERVICE_URL
+          value: "http://ingestion:8000"
         resources:
           requests:
             memory: "256Mi"
