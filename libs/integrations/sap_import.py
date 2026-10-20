@@ -168,6 +168,7 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
     decisions = decisions or {}
     by_number = {str(s["sap_supplier_number"]): s for s in existing if s.get("sap_supplier_number")}
     by_id = {str(s["id"]): s for s in existing}
+    by_code = {str(s.get("supplier_code") or "").upper(): s for s in existing}
     manual_by_name: Dict[str, Dict[str, Any]] = {}
     for s in existing:
         if not s.get("sap_supplier_number") and s.get("name"):
@@ -181,7 +182,11 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
         target = _target(row)
         # SAP sets "active" only when its block changes, or when a supplier this import
         # deactivated as missing is back; a person's own deactivation otherwise stands.
-        if kind != "link" and current.get("sap_blocked") == row["blocked"] and not current.get("sap_missing"):
+        if kind == "link":
+            # Linking adopts SAP's block, but does not re-activate a supplier someone deactivated.
+            if not row["blocked"] and current.get("is_active", True) is False:
+                target.pop("is_active")
+        elif current.get("sap_blocked") == row["blocked"] and not current.get("sap_missing"):
             target.pop("is_active")
         if current.get("sap_missing"):
             target["sap_missing"] = False
@@ -222,6 +227,18 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
             linked.add(decision[5:])
             update_action(row, target_supplier, kind="link")
             continue
+        code = f"SAP-{row['number']}"
+        taken = by_code.get(code.upper())
+        if taken is not None and taken.get("sap_supplier_number"):
+            actions.append({"action": "skip", "number": row["number"], "name": row["name"],
+                            "reason": f"supplier code {code} is used by SAP supplier {taken['sap_supplier_number']}"})
+            continue
+        if taken is not None and decision == "create":
+            actions.append({"action": "skip", "number": row["number"], "name": row["name"],
+                            "reason": f"supplier code {code} is already used by {taken.get('name')}; link to it instead"})
+            continue
+        if taken is not None and not clash:
+            clash = taken  # a supplier entered by hand already has this code: a person decides
         if clash and decision != "create":
             duplicates.append({"number": row["number"], "name": row["name"], "country_code": row["country_code"],
                                "existing_id": str(clash["id"]), "existing_name": clash.get("name"),
@@ -230,7 +247,8 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
                             "reason": f"same name as {clash.get('name')} ({clash.get('supplier_code')})"})
             continue
         actions.append({"action": "create", "number": row["number"], "name": row["name"],
-                        "fields": {**_target(row), "supplier_code": f"SAP-{row['number']}", "aliases": row["aliases"]}})
+                        "fields": {**_target(row), "supplier_code": code, "aliases": row["aliases"]}})
+        by_code[code.upper()] = {"supplier_code": code, "sap_supplier_number": row["number"]}
 
     in_file = {r["number"] for r in rows}
     missing = [s for n, s in by_number.items() if n not in in_file and s.get("is_active", True)]

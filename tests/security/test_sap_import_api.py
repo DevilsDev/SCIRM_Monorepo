@@ -83,6 +83,26 @@ class TestImport:
         [s] = by_number(apps, ORG_1, n)
         assert s["id"] == manual["id"] and s["supplier_code"] == manual["supplier_code"]
 
+    def test_a_taken_supplier_code_does_not_break_the_import(self, client, sarah, apps):
+        """A supplier entered by hand with code SAP-<n>: no unique-constraint failure mid-import."""
+        n = numbered().lstrip("0")
+        manual = client.post("/api/v1/suppliers", json={"name": f"Hand Entered {n} Ltd", "supplier_code": f"SAP-{n}"},
+                             headers=bearer(sarah["access_token"]))
+        assert manual.status_code == 200, manual.text
+        other = numbered()
+        result = post(client, sarah, extract([n, "Different Name GmbH", "", "DE", "", ""],
+                                             [other, "Fine Supplier GmbH", "", "DE", "", ""]), apply=True)
+        assert result.status_code == 200, result.text
+        assert result.json()["summary"] == {"needs_decision": 1, "create": 1} and result.json()["written"] == 1
+
+    def test_a_failed_batch_writes_nothing(self, apps):
+        store = apps["coordinator"].store
+        name = f"Atomic {uuid.uuid4().hex[:6]} GmbH"
+        with pytest.raises(KeyError):
+            asyncio.run(store.write_suppliers(ORG_1, [{"name": name, "supplier_code": f"SAP-{uuid.uuid4().hex[:6]}"}],
+                                              [(str(uuid.uuid4()), {"name": "nobody"})]))
+        assert not any(s.get("name") == name for s in suppliers(apps, ORG_1))
+
     def test_bad_files_are_a_clear_400(self, client, sarah):
         response = post(client, sarah, "Vendor,Company\n1,Acme\n")
         assert response.status_code == 400 and "LIFNR" in response.json()["detail"]

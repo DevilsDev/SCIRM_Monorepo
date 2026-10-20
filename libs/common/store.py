@@ -270,6 +270,17 @@ class MemoryStore:
         supplier.update({k: v for k, v in updates.items() if k not in ("id", "organization_id")})
         return supplier
 
+    async def write_suppliers(self, org: str, creates: List[Dict[str, Any]],
+                              updates: List[Tuple[str, Dict[str, Any]]]) -> int:
+        """Create and update suppliers together: all of them, or none if any update target is missing."""
+        if any([await self.get_supplier(org, sid) is None for sid, _ in updates]):
+            raise KeyError("supplier not found")
+        for sid, fields in updates:
+            await self.update_supplier(org, sid, fields)
+        for supplier in creates:
+            await self.create_supplier(org, supplier)
+        return len(creates) + len(updates)
+
     # --- alerts -------------------------------------------------------------
     async def add_alerts(self, org: str, alerts: List[Dict[str, Any]]) -> None:
         self.alerts.extend({**a, "organization_id": org} for a in alerts)
@@ -873,6 +884,35 @@ class PostgresStore:
             "tier_level = :tier_level, metadata = CAST(:metadata AS json), updated_at = now() "
             "WHERE id = CAST(:id AS uuid)", params)])
         return await self.get_supplier(org, supplier_id)
+
+    async def write_suppliers(self, org: str, creates: List[Dict[str, Any]],
+                              updates: List[Tuple[str, Dict[str, Any]]]) -> int:
+        """Create and update suppliers in one transaction: all of them, or none."""
+        from sqlalchemy import text
+        if creates:
+            await self._ensure_org(org)
+        async with self._tx(org) as conn:
+            for sid, fields in updates:
+                rows = [dict(r._mapping) for r in await conn.execute(
+                    text("SELECT * FROM suppliers WHERE id = CAST(:id AS uuid) FOR UPDATE"), {"id": sid})]
+                if not rows:
+                    raise KeyError("supplier not found")
+                current = self._supplier_row(rows[0])
+                merged = {**current, **{k: v for k, v in fields.items() if k not in ("id", "organization_id")}}
+                await conn.execute(text(
+                    "UPDATE suppliers SET supplier_code = :supplier_code, name = :name, supplier_type = :supplier_type, "
+                    "country_code = :country_code, region = :region, risk_score = :risk_score, risk_tier = :risk_tier, "
+                    "contact_name = :contact_name, contact_email = :contact_email, is_active = :is_active, "
+                    "tier_level = :tier_level, metadata = CAST(:metadata AS json), updated_at = now() "
+                    "WHERE id = CAST(:id AS uuid)"), {**self._supplier_params(merged), "id": sid})
+            for supplier in creates:
+                await conn.execute(text(
+                    "INSERT INTO suppliers (id, organization_id, supplier_code, name, supplier_type, country_code, region, "
+                    "risk_score, risk_tier, contact_name, contact_email, is_active, tier_level, metadata) VALUES "
+                    "(CAST(:id AS uuid), CAST(:org AS uuid), :supplier_code, :name, :supplier_type, :country_code, :region, "
+                    ":risk_score, :risk_tier, :contact_name, :contact_email, :is_active, :tier_level, CAST(:metadata AS json))"),
+                    {**self._supplier_params(supplier), "id": str(uuid.uuid4()), "org": org})
+        return len(creates) + len(updates)
 
     # --- alerts -------------------------------------------------------------
     async def add_alerts(self, org: str, alerts: List[Dict[str, Any]]) -> None:

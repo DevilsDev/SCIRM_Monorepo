@@ -167,3 +167,24 @@ class TestPlan:
         suppliers = stored(plan_import(parse(extract(*(row(str(n), f"Firm {n} GmbH") for n in range(1, 11))))[0], []))
         plan = plan_import(parse(extract(row("1", "Firm 1 GmbH")))[0], suppliers, deactivate_missing=True)
         assert plan["guard"] and not plan["missing_deactivated"] and "deactivate" not in plan["summary"]
+
+    def test_a_code_already_used_by_hand_waits_for_a_decision(self):
+        manual = [{"id": "m1", "supplier_code": "SAP-100", "name": "Something Else Entirely"}]
+        rows, _ = parse(extract(row("0000000100", "Acme Pharma GmbH")))
+        plan = plan_import(rows, manual)
+        assert plan["summary"] == {"needs_decision": 1} and plan["duplicates"][0]["existing_id"] == "m1"
+        assert plan_import(rows, manual, {"100": "create"})["summary"] == {"skip": 1}  # the code is taken
+        assert plan_import(rows, manual, {"100": "link:m1"})["summary"] == {"link": 1}
+
+    def test_a_code_used_by_another_sap_number_is_skipped(self):
+        other = [{"id": "s1", "supplier_code": "SAP-100", "name": "Old", "sap_supplier_number": "ABC"}]
+        plan = plan_import(parse(extract(row("100", "Acme Pharma GmbH")))[0], other)
+        assert plan["summary"] == {"skip": 1} and "SAP-100" in plan["actions"][0]["reason"]
+
+    def test_linking_does_not_reactivate_a_manual_deactivation(self):
+        manual = [{"id": "m1", "supplier_code": "SUP-ACME", "name": "Acme Pharma GmbH", "is_active": False}]
+        rows, _ = parse(extract(row("1", "Acme Pharma GmbH")))
+        assert stored(plan_import(rows, manual, {"1": "link:m1"}), manual)[0]["is_active"] is False
+        blocked, _ = parse(extract(row("1", "Acme Pharma GmbH", blocked="X")))
+        active = [{**manual[0], "is_active": True}]
+        assert stored(plan_import(blocked, active, {"1": "link:m1"}), active)[0]["is_active"] is False

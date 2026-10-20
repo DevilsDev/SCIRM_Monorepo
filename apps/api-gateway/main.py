@@ -825,6 +825,8 @@ async def import_sap_suppliers(body: SupplierImportBody, token: str = Depends(se
         if e.response.status_code in (400, 422):
             detail = e.response.json().get("detail")
             raise HTTPException(status_code=400, detail=detail if isinstance(detail, str) else "The file could not be read")
+        if e.response.status_code == 409:
+            raise HTTPException(status_code=409, detail=e.response.json().get("detail"))
         raise HTTPException(status_code=502, detail="The import failed")
     except httpx.HTTPError:
         raise HTTPException(status_code=503, detail="Supplier service unavailable")

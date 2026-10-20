@@ -593,14 +593,14 @@ async def import_sap_suppliers(body: SupplierImport, org_id: str = Depends(tenan
     plan = sap_import.plan_import(rows, existing, body.decisions, body.deactivate_missing)
     written = 0
     if body.apply:
-        for action in plan["actions"]:
-            if action["action"] == "create":
-                await store.create_supplier(org_id, {"supplier_type": "general", **action["fields"]})
-            elif action["action"] in ("update", "link", "deactivate"):
-                await store.update_supplier(org_id, action["supplier_id"], action["fields"])
-            else:
-                continue
-            written += 1
+        creates = [{"supplier_type": "general", **a["fields"]} for a in plan["actions"] if a["action"] == "create"]
+        updates = [(a["supplier_id"], a["fields"]) for a in plan["actions"]
+                   if a["action"] in ("update", "link", "deactivate")]
+        try:
+            # One transaction: a failure leaves the suppliers as they were.
+            written = await store.write_suppliers(org_id, creates, updates)
+        except KeyError:
+            raise HTTPException(status_code=409, detail="Suppliers changed during the import. Preview again.")
     return {"applied": body.apply, "written": written, "rows": len(rows), "warnings": warnings,
             "summary": plan["summary"], "duplicates": plan["duplicates"], "missing": plan["missing"],
             "missing_deactivated": plan["missing_deactivated"], "guard": plan["guard"],
