@@ -31,6 +31,7 @@ from libs.common.monitoring import setup_monitoring, track_agent_task
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
+from libs.integrations import sap_import
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -570,6 +571,41 @@ async def list_suppliers(risk_tier: str = None, limit: int = 50, org_id: str = D
     """List suppliers with optional filters."""
     suppliers, total = await store.list_suppliers(org_id, risk_tier=risk_tier, limit=limit)
     return {"suppliers": suppliers, "total": total}
+
+
+class SupplierImport(BaseModel):
+    content: str = Field(..., min_length=1, max_length=20_000_000)
+    column_map: Dict[str, str] = Field(default_factory=dict)
+    # Possible duplicates: {SAP number: "create" | "link:<supplier id>"}.
+    decisions: Dict[str, str] = Field(default_factory=dict)
+    deactivate_missing: bool = False
+    apply: bool = False
+
+
+@app.post("/suppliers/import/sap")
+async def import_sap_suppliers(body: SupplierImport, org_id: str = Depends(tenant_org)):
+    """Supplier master from an SAP LFA1 extract. With apply=false (the default) nothing is
+    written: the response is the preview. Applying re-plans against current data."""
+    rows, warnings = sap_import.parse_extract(body.content, body.column_map)
+    if not rows:
+        raise HTTPException(status_code=400, detail=" ".join(warnings) or "No suppliers found in the file")
+    existing, _ = await store.list_suppliers(org_id, limit=None)
+    plan = sap_import.plan_import(rows, existing, body.decisions, body.deactivate_missing)
+    written = 0
+    if body.apply:
+        creates = [{"supplier_type": "general", **a["fields"]} for a in plan["actions"] if a["action"] == "create"]
+        updates = [(a["supplier_id"], a["fields"]) for a in plan["actions"]
+                   if a["action"] in ("update", "link", "deactivate")]
+        try:
+            # One transaction: a failure leaves the suppliers as they were.
+            written = await store.write_suppliers(org_id, creates, updates)
+        except KeyError:
+            raise HTTPException(status_code=409, detail="Suppliers changed during the import. Preview again.")
+    return {"applied": body.apply, "written": written, "rows": len(rows), "warnings": warnings,
+            "summary": plan["summary"], "duplicates": plan["duplicates"], "missing": plan["missing"],
+            "missing_deactivated": plan["missing_deactivated"], "guard": plan["guard"],
+            # Unchanged suppliers are only counted, to keep the response small.
+            "actions": [a for a in plan["actions"] if a["action"] != "unchanged"][:2000]}
 
 
 @app.get("/suppliers/{supplier_id}")
