@@ -2,7 +2,7 @@
 
 **Status**: Accepted  
 **Date**: 2025-08-21  
-**Categories**: Architecture, AI & ML, Performance & Scalability  
+**Categories**: Architecture, Performance & Scalability  
 **DRI**: @Architect  
 
 ---
