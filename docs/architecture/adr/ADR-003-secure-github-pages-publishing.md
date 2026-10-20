@@ -100,6 +100,29 @@ Implement secure GitHub Pages publishing with:
 
 ---
 
+## Status Update (2026-10-21)
+
+The decision stands; publishing is **off** until it can be met.
+
+- **Why it is off:** organisation-only Pages needs GitHub Enterprise Cloud, and this
+  repository is public. Enabling Pages here would publish the documentation, including
+  the deployment runbook and architecture records, to the open web, which this ADR
+  rules out.
+- **What runs instead:** the Documentation workflow (`.github/workflows/docs.yml`)
+  builds the site strictly on every relevant change, excludes `docs/dashboards/`, and
+  attaches the site and every service's OpenAPI spec to the run as artifacts. Team
+  members download them from the run, or build locally with `make docs-serve`.
+- **How publishing would be switched on:** only after moving the repository to an
+  Enterprise organisation with private Pages, or after a new ADR that supersedes this
+  one for a curated public subset. Then enable Pages (source: GitHub Actions) and set
+  the repository variable `DOCS_PAGES_ENABLED=true`; pushes to `main` deploy.
+- **Corrections:** the evidence path and the "sub-5 minute publication" benchmark
+  below were recorded when this ADR was written. The `compliance/artifacts` path does
+  not exist in the repository, and nothing has been published, so no publication time
+  has been measured.
+
+---
+
 ## Evidence & Compliance Links
 
 - **Compliance Evidence**: `/compliance/artifacts/2025-08-21-0800/pages-security/`
