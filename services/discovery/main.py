@@ -75,6 +75,10 @@ class DiscoverResponse(BaseModel):
     total_discovered: int
     max_depth_reached: int
     discovery_method: str
+    # Every returned sub-tier is a hypothesis until a supplier or document confirms it.
+    verification_status: str = "unconfirmed"
+    notice: str = ("Sub-tier suppliers are suggestions, not verified relationships. "
+                   "Confirm them through a supplier assessment before relying on them.")
 
 
 @app.get("/health")
@@ -122,7 +126,11 @@ Generate 2-5 realistic sub-tier suppliers based on industry knowledge."""
             for st in llm_subtiers:
                 sub_id = str(uuid.uuid4())
                 st["id"] = sub_id
-                st["discovered_by"] = "llm"
+                # The model infers plausible suppliers from general knowledge; it has
+                # no evidence these companies supply this one. Cap confidence and label.
+                st["discovered_by"] = "llm_suggestion"
+                st["verification_status"] = "unconfirmed"
+                st["confidence"] = min(float(st.get("confidence", 0.3)), 0.5)
                 discovered.append(st)
                 relationships.append({
                     "id": str(uuid.uuid4()),
@@ -131,8 +139,9 @@ Generate 2-5 realistic sub-tier suppliers based on industry knowledge."""
                     "target_supplier_name": st["name"],
                     "relationship_type": st.get("type", "sub_supplier"),
                     "tier_level": st.get("tier", 2),
-                    "confidence_score": st.get("confidence", 0.6),
-                    "discovered_by": "llm",
+                    "confidence_score": st["confidence"],
+                    "discovered_by": "llm_suggestion",
+                    "verification_status": "unconfirmed",
                 })
 
             if discovered:
@@ -142,7 +151,7 @@ Generate 2-5 realistic sub-tier suppliers based on industry knowledge."""
                     relationships=relationships,
                     total_discovered=len(discovered),
                     max_depth_reached=max(s.get("tier", 2) for s in discovered),
-                    discovery_method="llm",
+                    discovery_method="llm_suggestion",
                 )
         except Exception as exc:
             logger.warning("LLM discovery failed, using knowledge base", error=str(exc))
@@ -155,7 +164,8 @@ Generate 2-5 realistic sub-tier suppliers based on industry knowledge."""
             **st,
             "id": sub_id,
             "discovered_by": "knowledge_base",
-            "confidence": 0.8,
+            "verification_status": "unconfirmed",
+            "confidence": 0.6,
         })
         relationships.append({
             "id": str(uuid.uuid4()),
@@ -164,8 +174,9 @@ Generate 2-5 realistic sub-tier suppliers based on industry knowledge."""
             "target_supplier_name": st["name"],
             "relationship_type": st.get("type", "sub_supplier"),
             "tier_level": st.get("tier", 2),
-            "confidence_score": 0.8,
+            "confidence_score": 0.6,
             "discovered_by": "knowledge_base",
+            "verification_status": "unconfirmed",
         })
 
     # Store discovered data
@@ -179,7 +190,8 @@ Generate 2-5 realistic sub-tier suppliers based on industry knowledge."""
         relationships=relationships,
         total_discovered=len(discovered),
         max_depth_reached=max((s.get("tier", 2) for s in discovered), default=1),
-        discovery_method="llm" if llm_client.is_configured() else "knowledge_base",
+        # Report what produced these results, not what is configured.
+        discovery_method="knowledge_base" if discovered else "none",
     )
 
 

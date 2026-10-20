@@ -76,27 +76,19 @@ async def trigger_ingestion():
     """Trigger a manual ingestion cycle from all configured sources."""
     new_docs = []
 
-    # News feed
-    news_docs = await _fetch_news()
-    new_docs.extend(news_docs)
-    _sources_status["news"] = {"last_fetched": datetime.utcnow().isoformat(), "documents": len(news_docs), "status": "active"}
+    for source, fetch in (("news", _fetch_news), ("weather", _fetch_weather),
+                          ("regulatory", _fetch_regulatory), ("financial", _fetch_financial)):
+        docs = await fetch()
+        added = _store_new(docs)
+        new_docs.extend(added)
+        demo = bool(docs) and all(d.get("is_demo") for d in docs)
+        _sources_status[source] = {
+            "last_fetched": datetime.utcnow().isoformat(),
+            "documents": len(added),
+            # "demo" = built-in sample items, not a live feed. Never report it as active.
+            "status": "demo" if demo else "live",
+        }
 
-    # Weather feed
-    weather_docs = await _fetch_weather()
-    new_docs.extend(weather_docs)
-    _sources_status["weather"] = {"last_fetched": datetime.utcnow().isoformat(), "documents": len(weather_docs), "status": "active"}
-
-    # Regulatory feed
-    reg_docs = await _fetch_regulatory()
-    new_docs.extend(reg_docs)
-    _sources_status["regulatory"] = {"last_fetched": datetime.utcnow().isoformat(), "documents": len(reg_docs), "status": "active"}
-
-    # Financial feed
-    fin_docs = await _fetch_financial()
-    new_docs.extend(fin_docs)
-    _sources_status["financial"] = {"last_fetched": datetime.utcnow().isoformat(), "documents": len(fin_docs), "status": "active"}
-
-    _documents.extend(new_docs)
     logger.info("Ingestion cycle complete", total_new=len(new_docs), total_stored=len(_documents))
 
     return IngestResult(
@@ -135,39 +127,43 @@ async def _fetch_news() -> List[Dict[str, Any]]:
     if NEWS_API_KEY:
         try:
             async with httpx.AsyncClient() as client:
+                # Key in a header, not the URL: httpx error messages include the URL.
                 resp = await client.get(
                     "https://newsapi.org/v2/everything",
-                    params={"q": "supply chain disruption", "sortBy": "publishedAt", "pageSize": 10, "apiKey": NEWS_API_KEY},
+                    params={"q": "supply chain disruption", "sortBy": "publishedAt", "pageSize": 10},
+                    headers={"X-Api-Key": NEWS_API_KEY},
                     timeout=15.0,
                 )
                 resp.raise_for_status()
                 articles = resp.json().get("articles", [])
                 return [
-                    _normalize_doc("news", a.get("title", ""), a.get("description", ""), a.get("url"), "medium", "Global")
+                    _normalize_doc("news", a.get("title", ""), a.get("description", ""), a.get("url"), "medium",
+                                   "Global", published_at=a.get("publishedAt"))
                     for a in articles[:10]
                 ]
         except Exception as exc:
-            logger.warning("News API failed, using built-in", error=str(exc))
+            logger.warning("News API failed, using built-in sample items", error=type(exc).__name__)
 
-    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"]) for f in LIVE_FEEDS if f["source"] == "news"]
+    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"], is_demo=True) for f in LIVE_FEEDS if f["source"] == "news"]
 
 
 async def _fetch_weather() -> List[Dict[str, Any]]:
     """Fetch weather alerts or use built-in feed."""
-    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"]) for f in LIVE_FEEDS if f["source"] == "weather"]
+    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"], is_demo=True) for f in LIVE_FEEDS if f["source"] == "weather"]
 
 
 async def _fetch_regulatory() -> List[Dict[str, Any]]:
     """Fetch regulatory updates or use built-in feed."""
-    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"]) for f in LIVE_FEEDS if f["source"] == "regulatory"]
+    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"], is_demo=True) for f in LIVE_FEEDS if f["source"] == "regulatory"]
 
 
 async def _fetch_financial() -> List[Dict[str, Any]]:
     """Fetch financial data or use built-in feed."""
-    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"]) for f in LIVE_FEEDS if f["source"] == "financial"]
+    return [_normalize_doc(f["source"], f["title"], f["content"], None, f["severity"], f["region"], is_demo=True) for f in LIVE_FEEDS if f["source"] == "financial"]
 
 
-def _normalize_doc(source: str, title: str, content: str, url: str = None, severity: str = "medium", region: str = "Global") -> Dict[str, Any]:
+def _normalize_doc(source: str, title: str, content: str, url: str = None, severity: str = "medium",
+                   region: str = "Global", is_demo: bool = False, published_at: str = None) -> Dict[str, Any]:
     return {
         "id": str(uuid.uuid4()),
         "source": source,
@@ -177,7 +173,19 @@ def _normalize_doc(source: str, title: str, content: str, url: str = None, sever
         "severity": severity,
         "region": region,
         "ingested_at": datetime.utcnow().isoformat(),
+        "published_at": published_at,
+        # Built-in sample items: shown for demos, never presented as live intelligence.
+        "is_demo": is_demo,
     }
+
+
+def _store_new(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Store documents not already stored (by source + url/title), so repeated ingest
+    runs don't re-add the same item with a fresh timestamp and make it look new."""
+    seen = {(d["source"], d.get("url") or d["title"]) for d in _documents}
+    added = [d for d in docs if (d["source"], d.get("url") or d["title"]) not in seen]
+    _documents.extend(added)
+    return added
 
 
 if __name__ == "__main__":

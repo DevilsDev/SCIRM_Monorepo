@@ -64,7 +64,15 @@ def apps():
         kwargs.pop("transport", None)
         return real_client(*args, transport=router, **kwargs)
 
-    gateway.httpx.AsyncClient = routed_client
+    class GatewayHttpx:
+        """Stands in for the httpx module inside the gateway only, so the patch
+        doesn't leak into other test modules through the shared httpx module."""
+        AsyncClient = staticmethod(routed_client)
+
+        def __getattr__(self, name):
+            return getattr(httpx, name)
+
+    gateway.httpx = GatewayHttpx()
     chat._http = real_client(transport=router, timeout=15.0)
 
     return {"gateway": gateway, "coordinator": coordinator, "router": router}

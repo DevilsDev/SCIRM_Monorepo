@@ -31,7 +31,10 @@ class OracleAdapter(ERPAdapter):
             logger.info("Oracle ERP not configured — using mock data")
             self.connected = False
             return False
-
+
+        # Close the previous client: connect() runs on every sync.
+        if self._client:
+            await self._client.aclose()
         self._client = httpx.AsyncClient(
             base_url=ORACLE_BASE_URL,
             auth=(ORACLE_USERNAME, ORACLE_PASSWORD),
