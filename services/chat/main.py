@@ -75,6 +75,11 @@ async def _fetch(path: str, headers: Dict[str, str], params: Dict[str, Any] = No
     return resp.json()
 
 
+# Same switch as the gateway: 7-day "predictions" are an unvalidated formula, offered
+# only where sample features are enabled (development and test by default).
+_DEV = os.getenv("ENVIRONMENT", "development").lower() in {"development", "dev", "local", "test"}
+SAMPLE_FEATURES = (os.getenv("SAMPLE_FEATURES") or ("true" if _DEV else "false")).lower() == "true"
+
 # Intent patterns and their handlers
 INTENTS = {
     "risk_summary": {"keywords": ["how many risks", "risk summary", "total risks", "risk overview", "dashboard"], "description": "Get risk count and severity breakdown"},
@@ -191,7 +196,10 @@ Keep your answer under 100 words."""
         except Exception:
             pass
 
-    return "I can help you with: risk summaries, supplier info, high-risk items, predictions, alerts, events, and risk scoring. Try asking something like \"How many risks do we have?\" or \"Show me high-risk suppliers\".", {}
+    topics = "risk summaries, supplier info, high-risk items, alerts and events"
+    if SAMPLE_FEATURES:
+        topics = "risk summaries, supplier info, high-risk items, predictions (sample formula), alerts and events"
+    return f"I can help you with: {topics}. Try asking something like \"How many risks do we have?\" or \"Show me high-risk suppliers\".", {}
 
 
 @app.get("/health")
@@ -214,7 +222,7 @@ async def chat(request: ChatRequest, org_id: str = Depends(tenant_org)):
         "risk_summary": _handle_risk_summary,
         "supplier_info": _handle_supplier_info,
         "high_risk": _handle_high_risk,
-        "predictions": _handle_predictions,
+        **({"predictions": _handle_predictions} if SAMPLE_FEATURES else {}),
         "alerts": _handle_alerts,
         "events": _handle_events,
     }

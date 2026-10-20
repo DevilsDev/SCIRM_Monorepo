@@ -67,10 +67,10 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">{t('onboarding.tourSubtitle', "Here's what you can do with SCIRM")}</p>
               <div className="space-y-3">
                 {[
-                  { title: t('onboarding.tourRisk', 'Run Risk Assessments'), desc: t('onboarding.tourRiskDesc', 'AI agents analyze suppliers across 7 risk dimensions') },
-                  { title: t('onboarding.tourSuppliers', 'Track Suppliers'), desc: t('onboarding.tourSuppliersDesc', 'Monitor risk scores, discover sub-tier suppliers') },
-                  { title: t('onboarding.tourSimulate', 'Simulate Disruptions'), desc: t('onboarding.tourSimulateDesc', 'Monte Carlo digital twin for what-if scenarios') },
-                  { title: t('onboarding.tourAlerts', 'Get Real-time Alerts'), desc: t('onboarding.tourAlertsDesc', 'Auto-generated alerts when risks cross thresholds') },
+                  { title: t('onboarding.tourImport', 'Bring in your suppliers'), desc: t('onboarding.tourImportDesc', 'Import them from SAP, upload a list, or add them one by one') },
+                  { title: t('onboarding.tourRecords', 'See their public records'), desc: t('onboarding.tourRecordsDesc', 'FDA recalls, warning letters, import alerts and shortages, matched to each supplier, with a Watch flag') },
+                  { title: t('onboarding.tourAsk', 'Ask with citations'), desc: t('onboarding.tourAskDesc', 'Every sentence of an answer links to the record it comes from') },
+                  { title: t('onboarding.tourRate', 'Tell us what is useful'), desc: t('onboarding.tourRateDesc', 'Rate records and answers; your ratings tune what SCIRM shows') },
                 ].map((item, i) => (
                   <div key={i} className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                     <span className="text-blue-600 font-bold text-lg">{i + 1}</span>

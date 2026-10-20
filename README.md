@@ -9,9 +9,9 @@ SCIRM watches a company's suppliers against public regulatory and disaster recor
 tells procurement and quality teams, with a source for every statement, when something
 concerns one of them. It is built first for pharmaceutical and healthcare supply chains.
 
-> **Status: beta (Phase 1).** The core flows below are working and tested. Some pages
-> (the scenario simulator, "Alternatives", Predictions and Components) still run on
-> built-in sample data; see [Project status](#project-status).
+> **Status: beta (Phase 1).** The core flows below are working and tested. Pages that
+> still run on built-in sample data (scenario simulator, "Alternatives", Predictions,
+> Components) are hidden outside development; see [Project status](#project-status).
 
 ---
 
@@ -176,6 +176,7 @@ most important:
 | `PUBLIC_APP_URL` | Base URL used in invitation links. |
 | `SIGNUP_MODE` | `open` in development, `closed` elsewhere (people join by invitation). |
 | `MFA_ENABLED` | Enables TOTP multi-factor sign-in. |
+| `SAMPLE_FEATURES` | Shows the sample-data pages and allows their API endpoints. Defaults to on in development and test, off elsewhere; keep it off for pilots. |
 | `LLM_PROVIDER`, `BEDROCK_REGION`, `BEDROCK_MODEL_ID`, `EMBEDDINGS_PROVIDER` | Optional AI. EU-only by default (`LLM_EU_ONLY=true`). |
 | `OPENFDA_API_KEY` | Optional; raises openFDA rate limits. |
 
@@ -293,7 +294,9 @@ and the workflow file explains how to enable publishing.
 
 **Not yet production-grade:**
 - **Sample data:** the scenario simulator, "Alternatives" suggestions, Predictions and
-  Components use built-in sample data.
+  Components use built-in sample data. They are hidden, and their endpoints refused,
+  unless `SAMPLE_FEATURES` is on (the development default). When shown, they carry a
+  "Sample data" banner.
 - **Risk scores:** no supplier risk assessment is recorded yet, so scores read
   *Not assessed*.
 - **Not yet built:**

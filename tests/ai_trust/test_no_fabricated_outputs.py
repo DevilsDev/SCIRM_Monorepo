@@ -140,6 +140,25 @@ class TestChat:
         assert "healthy" not in body["reply"].lower()
         assert "assessment" in body["reply"].lower()
 
+    def test_unassessed_suppliers_are_not_given_a_score(self, chat, router_factory):
+        from fastapi import FastAPI
+        coordinator = FastAPI()
+
+        @coordinator.get("/suppliers")
+        async def suppliers():
+            return {"suppliers": [{"name": "Acme", "country_code": "DE", "risk_score": None, "risk_tier": None}]}
+
+        self._set_coordinator(chat, router_factory, coordinator)
+        body = TestClient(chat.app).post("/chat", json={"message": "list suppliers"}, headers={"X-Org-Id": ORG}).json()
+        assert "not assessed" in body["reply"] and "/100" not in body["reply"]
+
+    def test_predictions_are_not_offered_when_sample_features_are_off(self, chat, router_factory, monkeypatch):
+        monkeypatch.setattr(chat, "SAMPLE_FEATURES", False)
+        self._set_coordinator(chat, router_factory)
+        body = TestClient(chat.app).post("/chat", json={"message": "predict disruption next week"},
+                                         headers={"X-Org-Id": ORG}).json()
+        assert "predict" not in body["reply"].lower() and body["degraded"] is False
+
 
 # ---------------------------------------------------------------------------
 # Discovery

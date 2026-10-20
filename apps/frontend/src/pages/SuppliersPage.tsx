@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import SupplierSignals from '../components/SupplierSignals';
 import SupplierAsk from '../components/SupplierAsk';
 import SeverityBadge from '../components/SeverityBadge';
+import { useFeatures } from '../services/features';
 
 const tierColors: Record<string, string> = {
   low: 'bg-green-100 text-green-800',
@@ -38,6 +39,7 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [signalSummary, setSignalSummary] = useState<Record<string, SupplierSignalSummary> | null>(null);
   const { t } = useTranslation();
+  const { samplePages } = useFeatures();
   const { addToast } = useToast();
 
   // CRUD state
@@ -241,8 +243,12 @@ export default function SuppliersPage() {
                       <button onClick={() => setDeletingSupplier(s)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title={t('common.delete', 'Delete')}>
                         <TrashIcon className="h-4 w-4" />
                       </button>
-                      <Link to="/simulator" className="text-[10px] text-blue-600 hover:text-blue-800 font-medium leading-8">{t('suppliers.simulate', 'Simulate')}</Link>
-                      <Link to="/procurement" className="text-[10px] text-purple-600 hover:text-purple-800 font-medium leading-8">{t('suppliers.alternatives', 'Alternatives')}</Link>
+                      {samplePages && (
+                        <>
+                          <Link to="/simulator" className="text-[10px] text-blue-600 hover:text-blue-800 font-medium leading-8">{t('suppliers.simulate', 'Simulate')}</Link>
+                          <Link to="/procurement" className="text-[10px] text-purple-600 hover:text-purple-800 font-medium leading-8">{t('suppliers.alternatives', 'Alternatives')}</Link>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

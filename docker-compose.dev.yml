@@ -297,6 +297,7 @@ services:
         SERVICE_PATH: services/chat
     environment:
       - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - SAMPLE_FEATURES=${SAMPLE_FEATURES:-}
       - COORDINATOR_SERVICE_URL=http://coordinator:8000
       - RISK_SCORER_SERVICE_URL=http://risk-scorer:8000
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -389,6 +390,7 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
       - DEV_PASSWORD=${DEV_PASSWORD:-}
       - ENVIRONMENT=development
+      - SAMPLE_FEATURES=${SAMPLE_FEATURES:-}
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000
       - LOG_LEVEL=DEBUG
     depends_on:

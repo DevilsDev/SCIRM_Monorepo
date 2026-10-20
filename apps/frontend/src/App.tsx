@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
 import Layout from './components/Layout';
+import SampleRoute from './components/SampleRoute';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -51,12 +52,12 @@ export default function App() {
             <Route path="/suppliers/import/sap" element={<SapImportPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/supply-chain" element={<SupplyChainMapPage />} />
-            <Route path="/predictions" element={<PredictionsPage />} />
+            <Route path="/predictions" element={<SampleRoute><PredictionsPage /></SampleRoute>} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/intelligence" element={<IntelligenceFeedPage />} />
-            <Route path="/simulator" element={<SimulatorPage />} />
-            <Route path="/procurement" element={<ProcurementPage />} />
-            <Route path="/components" element={<ComponentsPage />} />
+            <Route path="/simulator" element={<SampleRoute><SimulatorPage /></SampleRoute>} />
+            <Route path="/procurement" element={<SampleRoute><ProcurementPage /></SampleRoute>} />
+            <Route path="/components" element={<SampleRoute><ComponentsPage /></SampleRoute>} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

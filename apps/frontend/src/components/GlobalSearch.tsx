@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { isSamplePath, useFeatures } from '../services/features';
 
 const SEARCH_ITEMS = [
   { tKey: 'nav.dashboard', fallback: 'Dashboard', path: '/dashboard', keywords: 'dashboard home overview' },
@@ -25,6 +26,8 @@ export default function GlobalSearch() {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
+  const { samplePages } = useFeatures();
+  const items = SEARCH_ITEMS.filter((item) => samplePages || !isSamplePath(item.path));
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -45,8 +48,8 @@ export default function GlobalSearch() {
   const getLabel = (item: typeof SEARCH_ITEMS[0]) => t(item.tKey, item.fallback);
 
   const filtered = query.length > 0
-    ? SEARCH_ITEMS.filter((item) => (getLabel(item) + ' ' + item.fallback + ' ' + item.keywords).toLowerCase().includes(query.toLowerCase()))
-    : SEARCH_ITEMS.slice(0, 6);
+    ? items.filter((item) => (getLabel(item) + ' ' + item.fallback + ' ' + item.keywords).toLowerCase().includes(query.toLowerCase()))
+    : items.slice(0, 6);
 
   const handleSelect = (path: string) => {
     navigate(path);

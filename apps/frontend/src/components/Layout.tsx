@@ -27,6 +27,7 @@ import ChatPanel from './ChatPanel';
 import GlobalSearch from './GlobalSearch';
 import NotificationBell from './NotificationBell';
 import Breadcrumbs from './Breadcrumbs';
+import { isSamplePath, useFeatures } from '../services/features';
 
 const navGroups = [
   {
@@ -73,6 +74,7 @@ export default function Layout() {
   const { theme, toggleTheme } = useTheme();
   useKeyboardShortcuts();
   const { t } = useTranslation();
+  const { samplePages } = useFeatures();
 
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('scirm_onboarded'));
 
@@ -107,7 +109,7 @@ export default function Layout() {
             <div key={group.labelKey}>
               <p className="px-3 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{t(group.labelKey, group.fallbackLabel)}</p>
               <div className="space-y-0.5">
-                {group.items.map(({ to, tKey, fallback, icon: Icon }) => (
+                {group.items.filter(({ to }) => samplePages || !isSamplePath(to)).map(({ to, tKey, fallback, icon: Icon }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -122,6 +124,11 @@ export default function Layout() {
                   >
                     <Icon className="h-4 w-4" />
                     {t(tKey, fallback)}
+                    {isSamplePath(to) && (
+                      <span className="ml-auto rounded bg-amber-500/20 px-1 text-[9px] font-bold uppercase text-amber-300">
+                        {t('sample.badge', 'Sample')}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               </div>

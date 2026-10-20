@@ -355,6 +355,11 @@ export const api = {
     return (await apiClient.post('/api/v1/scan', { csv, prepared_for: preparedFor }, { timeout: 120000 })).data;
   },
 
+  // What this deployment shows (sample-data pages are off outside development).
+  async getConfig(): Promise<{ features: { sample_pages: boolean } }> {
+    return (await apiClient.get('/api/v1/config')).data;
+  },
+
   // Team (Settings > Team)
   async listMembers(): Promise<{ members: TeamMember[] }> {
     return (await apiClient.get('/api/v1/org/members')).data;
