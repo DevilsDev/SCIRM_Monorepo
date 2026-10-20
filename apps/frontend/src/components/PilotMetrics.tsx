@@ -58,8 +58,10 @@ export default function PilotMetrics() {
             />
           </div>
           <p className="text-[11px] text-gray-400 mt-3">
-            {t('pilot.note', '{{raters}} people rated. Few ratings make these numbers unreliable; unreported citations count as correct.',
-              { raters: data.raters })}
+            {data.raters === 1
+              ? t('pilot.noteOne', '1 person rated. Few ratings make these numbers unreliable; unreported citations count as correct.')
+              : t('pilot.note', '{{raters}} people rated. Few ratings make these numbers unreliable; unreported citations count as correct.',
+                { raters: data.raters })}
           </p>
         </>
       )}
