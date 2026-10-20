@@ -273,6 +273,18 @@ services:
       - INGESTION_AUTO=true
       - INGESTION_INTERVAL_MINUTES=60
       - OPENFDA_API_KEY=${OPENFDA_API_KEY:-}
+      # Evidence Engine AI on Amazon Bedrock, EU only (docs/bedrock-setup.md). Off unless
+      # AWS credentials are present; answers are then composed from the records alone.
+      - LLM_PROVIDER=bedrock
+      - LLM_EU_ONLY=true
+      - BEDROCK_REGION=${BEDROCK_REGION:-eu-central-1}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-eu.anthropic.claude-sonnet-5-5}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-}
+      - EMBED_MODEL_ID=${EMBED_MODEL_ID:-eu.cohere.embed-v4:0}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_BEARER_TOKEN_BEDROCK=${AWS_BEARER_TOKEN_BEDROCK:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       migrate:
