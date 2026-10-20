@@ -393,6 +393,11 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: jwt-secret
+        - name: MFA_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: mfa-encryption-key
         - name: SERVICE_API_KEY
           valueFrom:
             secretKeyRef:

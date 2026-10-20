@@ -388,6 +388,7 @@ services:
       - COMPONENT_TRACKER_URL=http://component-tracker:8000
       # Empty means a random per-process secret (tokens reset on restart); never a public default.
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
+      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY:-}
       - DEV_PASSWORD=${DEV_PASSWORD:-}
       - ENVIRONMENT=development
       - SAMPLE_FEATURES=${SAMPLE_FEATURES:-}
