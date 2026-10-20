@@ -767,9 +767,34 @@
         "applied": 400,
         "caught": 400,
         "catch_rate": 1.0
+      },
+      "negation": {
+        "applied": 400,
+        "caught": 400,
+        "catch_rate": 1.0
+      },
+      "overgeneralise": {
+        "applied": 400,
+        "caught": 397,
+        "catch_rate": 0.993
+      },
+      "invented_severity": {
+        "applied": 141,
+        "caught": 141,
+        "catch_rate": 1.0
+      },
+      "invented_count": {
+        "applied": 141,
+        "caught": 141,
+        "catch_rate": 1.0
+      },
+      "cross_record_mix": {
+        "applied": 400,
+        "caught": 398,
+        "catch_rate": 0.995
       }
     },
-    "overall_catch_rate": 1.0
+    "overall_catch_rate": 0.998
   },
   "corpus": 7670
 }

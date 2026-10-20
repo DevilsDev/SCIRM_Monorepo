@@ -95,6 +95,19 @@ class TestChecker:
         reasons = self.check(text, citations)
         assert reasons and any(reason.lower() in r.lower() for r in reasons), reasons
 
+    @pytest.mark.parametrize("text, citations", [
+        ("FDA found no problems at Acme Sterile Products Inc. [S1]", ["S1"]),
+        ("Acme Sterile Products Inc. has never had a serious recall [S1]", ["S1"]),
+        ("Acme Sterile Products Inc. recalled all products [S1]", ["S1"]),
+        ("Acme Sterile Products Inc. had three recalls [S1]", ["S1"]),
+        ("FDA did not recall Sodium Chloride Injection from Acme Sterile Products Inc. [S1]", ["S1"]),
+        ("The recall by Acme Sterile Products Inc. was only minor [S1]", ["S1"]),
+        # The letter's date with the recall's class: each half is in a record, the whole in neither.
+        ("On 2026-05-12, FDA published a Class II recall by Acme Sterile Products Inc. [S1][S2]", ["S1", "S2"]),
+    ])
+    def test_meaning_changing_claims_are_caught(self, text, citations):
+        assert self.check(text, citations)
+
     def test_a_reassurance_the_record_does_not_make_is_caught(self):
         reasons = self.check("Acme Sterile Products Inc. is fully approved and safe to buy from [S1]")
         assert any("words not in cited record" in r for r in reasons)

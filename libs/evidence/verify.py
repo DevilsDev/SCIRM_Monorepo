@@ -35,27 +35,22 @@ _NOT_NAMES = {"fda", "us", "u.s.", "usa", "red list", "green list", "class i", "
 # Words an answer may use without finding them in the cited record: function words and
 # the vocabulary of answer sentences. Any other word must come from the record, which
 # catches a swapped company name however it is written ("TAME", "vitus pharm co ltd").
-# A closed vocabulary will reject free paraphrase from an LLM; the answer then falls
-# back to the records' own wording, which is the safe direction.
+# Deliberately NOT free: negations (no, not, never), quantifiers (all, only, most),
+# number words (one, three), and judgements (serious, minor, safe, problems). They can
+# reverse or inflate what a record says ("FDA found no problems", "all products",
+# "three recalls"), so they must appear in the record itself.
+# A closed vocabulary rejects free paraphrase from an LLM; the answer then falls back to
+# the records' own wording, which is the safe direction.
 ANSWER_VOCABULARY = set("""
-a an the and or but nor of to in on at by for with from into onto over under about as than then that this these those
-it its it's they their them he she his her we our you your is are was were be been being has have had do does did
-not no yes also both each either neither any all some most many more less least few several one two three four five
-six seven eight nine ten first second third last latest recent recently earlier later since until while when where
-which who whom whose what why how there here so such very only just still again already ever never per via
-may might can could would should will shall must because due reason reasons cause caused causing following
+a an the and or of to in on at by for with from into as that this these those
+it its they their them is are was were be been being has have had do does did
+since until while when where which who whose there so may can could
 fda gdacs us usa u.s united states food drug administration
-recall recalls recalled recalling published publishes publish posted posts post reported reports report
-reporting issued issue issues sent received listed lists list listing remains remain remained
-warning letter letters import alert alerts red green border detained detention without physical examination
-shortage shortages discontinuation discontinuations discontinued notice notices available unavailable limited
-availability presentations presentation products product supplier suppliers firm firms company companies
-manufacturer manufacturers labeled labelled marketed distributed made manufactured
-class unclassified classified classification serious severe moderate minor risk risks
-disaster disasters alert affecting affected affects affect from between during
-violation violations problem problems issue concern concerns found finding findings cited citing record records
-on about regarding concerning involving related relating relates according
-date dated day days month months year years
+recall recalls recalled published publish posted post reported report issued sent received listed lists
+warning letter letters import alert alerts red list border detained detention without physical examination
+shortage shortages discontinuation discontinued notice available unavailable limited availability presentations
+presentation products product labeled labelled marketed distributed made manufactured
+class unclassified disaster alert affecting affected about regarding concerning involving
 """.split())
 
 TYPE_WORDS = {"recall": "recall", "shortage": "shortage", "discontinu": "discontinuation",
@@ -101,14 +96,28 @@ def _record_dates(record: Dict[str, Any]) -> set:
 
 
 def check_claim(text: str, citations: List[str], evidence: Dict[str, Dict[str, Any]]) -> List[str]:
-    """Reasons the claim is unsupported (empty list: supported)."""
-    reasons = []
+    """Reasons the claim is unsupported (empty list: supported).
+
+    One cited record must support everything the claim states. Checking the union of
+    several records would let a sentence pair one record's date with another's recall
+    class, a statement neither record makes."""
     if not citations:
         return ["no citation"]
     missing = [c for c in citations if c not in evidence]
     if missing:
         return [f"cites unknown record {', '.join(missing)}"]
-    cited = [evidence[c] for c in citations]
+    best: Optional[List[str]] = None
+    for c in citations:
+        reasons = _unsupported(text, [evidence[c]])
+        if not reasons:
+            return []
+        if best is None or len(reasons) < len(best):
+            best = reasons
+    return best or []
+
+
+def _unsupported(text: str, cited: List[Dict[str, Any]]) -> List[str]:
+    reasons = []
     body = " ".join(passage_text(r) for r in cited)
     body_norm = f" {_norm(body)} "
     known_dates = set().union(*(_record_dates(r) for r in cited))

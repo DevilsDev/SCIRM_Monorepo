@@ -130,7 +130,36 @@ CORRUPTIONS = {
                                        if "recall" in c["text"] else c["text"].replace("warning letter", "recall", 1),
                                        "citations": c["citations"]},
     "wrong_citation": lambda c, ctx, rng: {"text": re.sub(r"\[S\d+\]", "[S2]", c["text"]), "citations": ["S2"]},
+    # Meaning-changing errors made of ordinary words, the kind a language model makes.
+    "negation": lambda c, ctx, rng: {"text": _first_sub(c["text"], NEGATIONS), "citations": c["citations"]},
+    "overgeneralise": lambda c, ctx, rng: {"text": _first_sub(c["text"], [(" of ", " of all "), (" about ", " about all ")]),
+                                           "citations": c["citations"]},
+    "invented_severity": lambda c, ctx, rng: {"text": _first_sub(c["text"], [(" a Class", " a minor Class"),
+                                                                             (" a warning letter", " a serious warning letter"),
+                                                                             (" a shortage", " a minor shortage")]),
+                                              "citations": c["citations"]},
+    "invented_count": lambda c, ctx, rng: {"text": _first_sub(c["text"], [(" a Class", " three Class"),
+                                                                          (" a warning letter", " three warning letters"),
+                                                                          (" a shortage", " two shortages")]),
+                                           "citations": c["citations"]},
+    # The date of one record attached to another record's facts, citing both.
+    "cross_record_mix": lambda c, ctx, rng: {"text": _swap_date(c["text"], ctx["other_date"]) + " [S2]",
+                                             "citations": c["citations"] + ["S2"]},
 }
+NEGATIONS = [("FDA published", "FDA never published"), ("FDA posted", "FDA never posted"),
+             ("FDA has listed", "FDA has never listed"), ("has been on", "has never been on")]
+
+
+def _first_sub(text: str, pairs) -> str:
+    for old, new in pairs:
+        if old in text:
+            return text.replace(old, new, 1)
+    return text
+
+
+def _swap_date(text: str, other: str) -> str:
+    found = verify.dates_in(text)
+    return text.replace(found[0], other, 1) if found and other and other != found[0] else text
 
 
 def eval_checker(corpus, n: int = 400, seed: int = 7) -> Dict[str, Any]:
@@ -154,7 +183,7 @@ def eval_checker(corpus, n: int = 400, seed: int = 7) -> Dict[str, Any]:
         other_firm = rng.choice(firms)
         while normalized[other_firm] == normalized[firm]:
             other_firm = rng.choice(firms)
-        ctx = {"firm": firm, "other_firm": other_firm}
+        ctx = {"firm": firm, "other_firm": other_firm, "other_date": str(other.get("published_at"))[:10]}
         for name, corrupt in CORRUPTIONS.items():
             bad = corrupt(claim, ctx, rng)
             if bad["text"] == claim["text"] and bad["citations"] == claim["citations"]:

@@ -42,9 +42,30 @@ partner-labelled gold set the roadmap calls for; that still needs design partner
 | Questions with relevant records but no hit | 0 of 36 | 2 of 34 |
 | "Nothing matches" answered without citing records | 9 of 9 | 9 of 10 |
 
-Citation checker: **0** of 400 correct sentences wrongly rejected. Corrupted
-sentences caught: **100%** at seed 7, and 99.9% across three seeds (1,800
-sentences).
+**Citation checker** (600 sentences × 3 seeds = 1,800 correct sentences from real records):
+**0 wrongly rejected**. Corrupted copies caught, by error type:
+
+| Error | Caught |
+|---|---|
+| no citation / unknown citation / citation to an unrelated record | 100% |
+| wrong date, firm, recall class, record type | 99.7–100% |
+| wrong number | 97–100% (few sentences contain numbers) |
+| negation ("FDA never published…") | 100% |
+| invented severity ("a minor recall") | 100% |
+| invented count ("three recalls") | 99–100% |
+| facts of two records mixed in one sentence | 99.3–99.8% |
+| overgeneralisation ("all products") | 98.5–99.5% (misses: records that themselves say "all") |
+
+An earlier version reported about 100% while measuring only the first two rows.
+Negations, quantifiers, number words and judgements were then free vocabulary, and
+claims were checked against the union of their citations, so "FDA found no problems
+at X [S1]" passed. Both have since been fixed, and the new error types are in the CI
+gate.
+
+**What the checker still cannot catch:** a conclusion that recombines words from
+one record into a false statement, for example reordering who did what to whom
+using only words from that record. That needs an LLM reviewer, planned for when a
+model is configured.
 
 ## Known weaknesses (from set B, not fixed, so B stays honest)
 
