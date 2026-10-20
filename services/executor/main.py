@@ -218,7 +218,8 @@ class ExecutorAgent:
         findings = research_data.get("findings", [])
         
         for finding in findings:
-            if finding.get("risk_level") in ["high", "medium"]:
+            # Low findings are noise at this stage; everything from medium up becomes a risk.
+            if finding.get("risk_level") in ["critical", "high", "medium"]:
                 risk_category = finding.get("type", "general")
                 
                 # Create risk based on finding
@@ -430,9 +431,11 @@ Tailor recommendations to {industry} industry. Be specific and realistic with co
     def _create_priority_matrix(self, recommendations: List[Recommendation]) -> Dict[str, List[str]]:
         """Create priority matrix for recommendations."""
         matrix = {"high": [], "medium": [], "low": []}
-        
+
         for rec in recommendations:
-            matrix[rec.priority].append(rec.title)
+            # LLM output may use priorities outside the three buckets (e.g. "critical").
+            bucket = rec.priority if rec.priority in matrix else ("high" if rec.priority in ("critical", "urgent") else "medium")
+            matrix[bucket].append(rec.title)
         
         return matrix
     

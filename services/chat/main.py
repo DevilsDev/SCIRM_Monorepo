@@ -51,6 +51,28 @@ class ChatResponse(BaseModel):
     data: Dict[str, Any] = {}
     sources: list = []
     timestamp: str
+    # True when the answer could not be based on live platform data.
+    degraded: bool = False
+
+
+class DataUnavailable(Exception):
+    """The coordinator could not be reached or returned an error."""
+
+    def __init__(self, what: str):
+        super().__init__(what)
+        self.what = what
+
+
+async def _fetch(path: str, headers: Dict[str, str], params: Dict[str, Any] = None) -> Dict[str, Any]:
+    """GET from the coordinator; raise DataUnavailable instead of returning an error body as data."""
+    client = await _get_client()
+    try:
+        resp = await client.get(f"{COORDINATOR_URL}{path}", params=params, headers=headers)
+    except httpx.HTTPError as exc:
+        raise DataUnavailable(path.strip("/").split("/")[0]) from exc
+    if resp.status_code != 200:
+        raise DataUnavailable(path.strip("/").split("/")[0])
+    return resp.json()
 
 
 # Intent patterns and their handlers
@@ -79,9 +101,7 @@ def _classify_intent(message: str) -> str:
 
 
 async def _handle_risk_summary(headers: Dict[str, str]) -> tuple:
-    client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/risks", params={"limit": 100}, headers=headers)
-    data = resp.json()
+    data = await _fetch("/risks", headers, {"limit": 100})
     risks = data.get("risks", [])
     total = data.get("total", 0)
     critical = len([r for r in risks if r.get("severity") == "critical"])
@@ -95,9 +115,7 @@ async def _handle_risk_summary(headers: Dict[str, str]) -> tuple:
 
 
 async def _handle_supplier_info(headers: Dict[str, str]) -> tuple:
-    client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/suppliers", headers=headers)
-    data = resp.json()
+    data = await _fetch("/suppliers", headers)
     suppliers = data.get("suppliers", [])
     lines = [f"**{len(suppliers)} suppliers** tracked:\n"]
     for s in suppliers[:10]:
@@ -107,15 +125,13 @@ async def _handle_supplier_info(headers: Dict[str, str]) -> tuple:
 
 
 async def _handle_high_risk(headers: Dict[str, str]) -> tuple:
-    client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/risks", params={"severity": "high", "limit": 10}, headers=headers)
-    data = resp.json()
-    risks = data.get("risks", [])
+    critical = (await _fetch("/risks", headers, {"severity": "critical", "limit": 10})).get("risks", [])
+    high = (await _fetch("/risks", headers, {"severity": "high", "limit": 10})).get("risks", [])
+    risks = critical + high
     if not risks:
-        resp2 = await client.get(f"{COORDINATOR_URL}/risks", params={"severity": "critical", "limit": 10}, headers=headers)
-        risks = resp2.json().get("risks", [])
-    if not risks:
-        return "No high or critical risks found. Your supply chain looks healthy!", {}
+        # Absence of recorded risks is not evidence of health: risks exist only after assessments run.
+        return ("No high or critical risks are currently recorded. "
+                "Risks appear only after an assessment has run, so run one to check current exposure."), {}
     lines = [f"**{len(risks)} high-priority risks:**\n"]
     for r in risks[:5]:
         lines.append(f"- 🔴 **{r['title']}** — {r.get('risk_category','')} (impact: {r.get('impact_score',0):.1f}, probability: {r.get('probability',0):.0%})")
@@ -123,9 +139,7 @@ async def _handle_high_risk(headers: Dict[str, str]) -> tuple:
 
 
 async def _handle_predictions(headers: Dict[str, str]) -> tuple:
-    client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/predictions", headers=headers)
-    data = resp.json()
+    data = await _fetch("/predictions", headers)
     preds = data.get("predictions", [])
     if not preds:
         return "No predictions available yet. Run a risk assessment first to generate 7-day forecasts.", {}
@@ -137,13 +151,11 @@ async def _handle_predictions(headers: Dict[str, str]) -> tuple:
 
 
 async def _handle_alerts(headers: Dict[str, str]) -> tuple:
-    client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/alerts", headers=headers)
-    data = resp.json()
+    data = await _fetch("/alerts", headers)
     alerts = data.get("alerts", [])
     active = [a for a in alerts if a.get("status") == "active"]
     if not active:
-        return "No active alerts. All clear! ✅", {}
+        return "No active alerts are currently recorded.", {}
     lines = [f"**{len(active)} active alerts:**\n"]
     for a in active[:5]:
         lines.append(f"- ⚠️ **{a['title']}** ({a.get('severity','?')})")
@@ -151,9 +163,7 @@ async def _handle_alerts(headers: Dict[str, str]) -> tuple:
 
 
 async def _handle_events(headers: Dict[str, str]) -> tuple:
-    client = await _get_client()
-    resp = await client.get(f"{COORDINATOR_URL}/events", headers=headers)
-    data = resp.json()
+    data = await _fetch("/events", headers)
     events = data.get("events", [])
     if not events:
         return "No risk events recorded.", {}
@@ -207,14 +217,21 @@ async def chat(request: ChatRequest, org_id: str = Depends(tenant_org)):
     }
 
     handler = handlers.get(intent)
+    degraded = False
     if handler:
         try:
             # Coordinator queries run as the caller's organization.
             reply, data = await handler(internal_headers(org_id))
+        except DataUnavailable as exc:
+            logger.warning("Chat data unavailable", intent=intent, source=exc.what)
+            reply = (f"I couldn't retrieve {exc.what} data right now, so I can't answer this reliably. "
+                     "This is not an all-clear. Please try again shortly.")
+            data, degraded = {}, True
         except Exception as exc:
             logger.error("Chat handler failed", intent=intent, error=str(exc))
-            reply = f"I tried to look that up but encountered an error. Try checking the {intent.replace('_', ' ')} page directly."
-            data = {}
+            reply = ("I ran into an error looking that up, so I can't answer this reliably. "
+                     "This is not an all-clear.")
+            data, degraded = {}, True
     else:
         reply, data = await _handle_general(request.message)
 
@@ -223,6 +240,7 @@ async def chat(request: ChatRequest, org_id: str = Depends(tenant_org)):
         data=data,
         sources=[intent],
         timestamp=datetime.utcnow().isoformat(),
+        degraded=degraded,
     )
 
 

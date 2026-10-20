@@ -190,14 +190,24 @@ async def _auto_refresh_loop():
             await asyncio.sleep(60)  # Wait 1 min before retrying on error
 
 
+class AgentUnavailable(Exception):
+    """An optional agent could not be reached; the caller records it as degraded."""
+
+
 async def _call_agent(
     service_name: str,
     url: str,
     endpoint: str,
     payload: Dict[str, Any],
     task_id: str,
+    required: bool = True,
 ) -> Dict[str, Any]:
-    """Call a downstream agent and return its JSON response."""
+    """Call a downstream agent and return its JSON response.
+
+    A required agent that cannot be reached fails the request (503). An optional
+    agent raises AgentUnavailable so the caller can mark the result degraded —
+    never silently treat "unreachable" as "nothing found".
+    """
     full_url = f"{url}{endpoint}"
     step_start = time.time()
 
@@ -216,8 +226,10 @@ async def _call_agent(
         )
         return result
 
-    except httpx.TimeoutException:
+    except httpx.TimeoutException as exc:
         logger.error("Agent timeout", agent=service_name, url=full_url, task_id=task_id)
+        if not required:
+            raise AgentUnavailable(service_name) from exc
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=f"{service_name} agent timed out after {AGENT_TIMEOUT}s",
@@ -234,9 +246,14 @@ async def _call_agent(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"{service_name} agent returned {exc.response.status_code}",
         )
-    except httpx.ConnectError:
-        logger.warning("Agent unreachable", agent=service_name, url=full_url, task_id=task_id)
-        return {}  # graceful degradation — workflow continues without this agent
+    except httpx.TransportError as exc:
+        logger.warning("Agent unreachable", agent=service_name, url=full_url, task_id=task_id, error=type(exc).__name__)
+        if not required:
+            raise AgentUnavailable(service_name) from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{service_name} agent is unavailable",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +265,8 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
     """Execute the full agent pipeline: Planner → Researcher → Executor → Reviewer."""
     reasoning_trail = []
     request_dict = request.model_dump(mode="json")
+    # Degraded-result contract: every way this result is weaker than a full run.
+    data_quality: Dict[str, Any] = {"degraded": False, "unavailable_agents": [], "warnings": []}
 
     # ── Step 1: Planner (CAG) ─────────────────────────────────────────
     planner_result = await _call_agent(
@@ -266,16 +285,31 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
 
     # ── Step 2: Researcher (RAG) — optional, may not be deployed yet ─
     research_data: Dict[str, Any] = {}
-    researcher_result = await _call_agent(
-        "researcher", RESEARCHER_URL, "/research",
-        {
-            "query": f"supply chain risks for {request.assessment_type or 'comprehensive'} assessment",
-            "data_sources": ["weather", "logistics", "news", "regulatory"],
-            "entities": request_dict.get("entities", []),
-            "context": planner_result,
-        },
-        task_id,
-    )
+    try:
+        researcher_result = await _call_agent(
+            "researcher", RESEARCHER_URL, "/research",
+            {
+                "query": f"supply chain risks for {request.assessment_type or 'comprehensive'} assessment",
+                "data_sources": ["weather", "logistics", "news", "regulatory"],
+                "entities": request_dict.get("entities", []),
+                "context": planner_result,
+            },
+            task_id,
+            required=False,
+        )
+    except AgentUnavailable:
+        researcher_result = None
+        data_quality["degraded"] = True
+        data_quality["unavailable_agents"].append("researcher")
+        data_quality["warnings"].append(
+            "External intelligence was not retrieved (researcher agent unavailable); "
+            "risks reflect organizational context only."
+        )
+    if researcher_result and researcher_result.get("metadata", {}).get("demo_data"):
+        data_quality["degraded"] = True
+        data_quality["warnings"].append(
+            "Research used the built-in sample corpus, not live intelligence feeds."
+        )
     if researcher_result:
         research_data = researcher_result
         reasoning_trail.append({
@@ -379,6 +413,7 @@ async def _run_pipeline(task_id: str, request: RiskAssessmentRequest) -> RiskAss
                 "issues": len(reviewer_result.get("quality_issues", [])),
             },
             "pipeline_agents": ["planner", "researcher", "executor", "reviewer"],
+            "data_quality": data_quality,
         },
     )
 
@@ -847,17 +882,16 @@ _event_impacts: List[Dict[str, Any]] = []
 async def discover_subtiers(payload: Dict[str, Any], org_id: str = Depends(tenant_org)):
     """Discover sub-tier suppliers using the Discovery Agent."""
     try:
-        result = await _call_agent(
+        return await _call_agent(
             "discovery", DISCOVERY_URL, "/discover",
             payload,
             f"discovery-{uuid.uuid4().hex[:8]}",
+            required=False,
         )
-        return result if result else {"discovered_subtiers": [], "relationships": [], "total_discovered": 0}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Sub-tier discovery failed", error=str(exc))
-        return {"discovered_subtiers": [], "relationships": [], "total_discovered": 0, "error": str(exc)}
+    except AgentUnavailable:
+        # Say so explicitly; an empty list would read as "no sub-tiers exist".
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="Discovery agent is unavailable; sub-tiers were not searched")
 
 
 # ---------------------------------------------------------------------------

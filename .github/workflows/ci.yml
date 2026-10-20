@@ -1,8 +1,8 @@
 name: CI
 
 on:
+  # All pull requests, including stacked PRs whose base is another feature branch.
   pull_request:
-    branches: [main, develop]
   push:
     branches: [main, develop]
 
@@ -34,8 +34,8 @@ jobs:
       - name: Compile all Python sources
         run: python -m compileall -q libs services apps/api-gateway alembic
 
-      - name: Security regression tests
-        run: pytest tests/security -q
+      - name: Security and AI-trust regression tests
+        run: pytest tests/security tests/ai_trust -q
 
   frontend:
     name: Frontend type check and build

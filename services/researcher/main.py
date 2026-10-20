@@ -434,6 +434,7 @@ async def research(request: ResearchRequest):
     )
 
     # Step 2: Fall back to knowledge base if vector search returned nothing
+    used_sample_corpus = not vector_results
     if not vector_results:
         vector_results = _search_knowledge_base(
             query=request.query,
@@ -445,12 +446,17 @@ async def research(request: ResearchRequest):
     data_sources_used = list({r.get("source", "unknown") for r in vector_results})
 
     # Step 3: LLM synthesis
-    findings = await _synthesize_findings(
-        query=request.query,
-        raw_results=vector_results,
-        entities=request.entities,
-        context=request.context,
-    )
+    with llm_client.track_usage() as llm_usage:
+        findings = await _synthesize_findings(
+            query=request.query,
+            raw_results=vector_results,
+            entities=request.entities,
+            context=request.context,
+        )
+    if used_sample_corpus:
+        # The built-in corpus is a handful of sample documents, not live intelligence.
+        for f in findings:
+            f["is_demo"] = True
 
     # Confidence: average of finding confidences, weighted by result count
     confidences = [f.get("confidence", 0.5) for f in findings]
@@ -467,7 +473,8 @@ async def research(request: ResearchRequest):
         "metadata": {
             "query": request.query,
             "vector_search_used": _weaviate_available and len(vector_results) > 0,
-            "llm_synthesis_used": llm_client.is_configured(),
+            "llm_synthesis_used": llm_usage["calls"] > 0,
+            "demo_data": used_sample_corpus,
             "results_count": len(vector_results),
             "findings_count": len(findings),
             "research_timestamp": datetime.utcnow().isoformat(),
