@@ -75,6 +75,8 @@ export interface Supplier {
   contact_name?: string;
   contact_email?: string;
   is_active: boolean;
+  /** Set on demo suppliers named after real companies: their score is a placeholder. */
+  demo_note?: string;
 }
 
 export interface Alert {
@@ -115,6 +117,61 @@ export interface RiskAssessmentResponse {
     data_sources: string[];
   }>;
   metadata: Record<string, any>;
+}
+
+export interface PublicSignal {
+  id: string;
+  source: string;
+  source_label: string;
+  signal_type: string;
+  title: string;
+  content: string;
+  url: string | null;
+  severity: string;
+  region: string;
+  entity_names: string[];
+  country_codes: string[];
+  published_at: string;
+  occurred_at: string | null;
+  updated_at: string | null;
+  ingested_at: string;
+}
+
+export interface SignalMatch {
+  match_type: 'name_exact' | 'name_contains' | 'name_similar' | 'parent_company' | 'country_exposure';
+  confidence: number;
+  kind: 'incident' | 'exposure';
+  matched_on: string;
+  signal: PublicSignal;
+}
+
+export interface SupplierSignals {
+  supplier_id: string;
+  supplier_name: string;
+  incidents: SignalMatch[];
+  exposures: SignalMatch[];
+  incident_total: number;
+  exposure_total: number;
+}
+
+export interface SupplierSignalSummary {
+  supplier_id: string;
+  supplier_name: string;
+  incidents: number;
+  exposures: number;
+  worst_incident_severity: string | null;
+  latest_incident_published_at: string | null;
+  /** Back-tested recall-history flag (evals/backtest): "watch this supplier", not a prediction. */
+  watch: boolean;
+  recall_score: number | null;
+}
+
+export interface PublicSourceStatus {
+  label: string;
+  status: 'ok' | 'error' | 'rate_limited' | 'never_run';
+  error?: string | null;
+  last_run_at?: string;
+  last_success_at?: string | null;
 }
 
 export const api = {
@@ -289,6 +346,22 @@ export const api = {
     const params: any = { limit };
     if (source) params.source = source;
     const response = await apiClient.get('/api/v1/intelligence/feed', { params });
+    return response.data;
+  },
+
+  async getIntelligenceSources(): Promise<{ sources: Record<string, PublicSourceStatus>; available: string[]; total_documents: number }> {
+    const response = await apiClient.get('/api/v1/intelligence/sources');
+    return response.data;
+  },
+
+  // Public signals matched to suppliers
+  async getSupplierSignals(supplierId: string): Promise<SupplierSignals> {
+    const response = await apiClient.get(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/signals`);
+    return response.data;
+  },
+
+  async getSignalsOverview(sinceDays: number = 365): Promise<{ suppliers: SupplierSignalSummary[] }> {
+    const response = await apiClient.get('/api/v1/signals/suppliers', { params: { since_days: sinceDays } });
     return response.data;
   },
 

@@ -117,6 +117,65 @@ class TestAuditLog:
                     cur.execute(sql)
 
 
+class TestPublicSignals:
+    """Public records: readable and writable by the app role, no tenant scoping."""
+
+    def _run(self, db, coro_factory):
+        import asyncio
+        sys.path.insert(0, str(ROOT))
+        os.environ["DB_POOL"] = "null"
+        from libs.common.store import PostgresStore
+
+        async def go():
+            store = PostgresStore(db["urls"]["app"])
+            try:
+                return await coro_factory(store)
+            finally:
+                await store.close()
+        return asyncio.run(go())
+
+    def test_upsert_is_idempotent_and_filters_by_latest_activity(self, db):
+        signal = {"source": "fda_shortages", "external_id": "db-x", "signal_type": "shortage", "title": "Shortage: X",
+                  "summary": "", "severity": "high", "entity_names": ["Hospira, Inc."], "entity_keys": ["hospira"],
+                  "country_codes": [], "published_at": "2012-02-22", "updated_at": "2026-10-08", "raw": {}}
+
+        async def steps(store):
+            first = await store.upsert_signals([signal])
+            again = await store.upsert_signals([{**signal, "severity": "medium"}])
+            recent, _ = await store.list_signals(since="2026-09-20")
+            candidates = await store.signal_candidates(["hospira"], [], since="2026-09-20")
+            return first, again, recent, candidates
+
+        first, again, recent, candidates = self._run(db, steps)
+        assert (first, again) == (1, 0)
+        assert [s["external_id"] for s in recent] == ["db-x"] and recent[0]["severity"] == "medium"
+        assert [s["external_id"] for s in candidates] == ["db-x"]
+
+    def test_retire_unseen_delists_and_upsert_relists(self, db):
+        base = {"source": "fda_import_alerts", "signal_type": "import_alert", "title": "IA", "summary": "",
+                "severity": "high", "entity_names": ["Acme"], "entity_keys": ["acme"], "country_codes": ["IN"],
+                "published_at": "2024-01-01", "updated_at": "2026-10-20", "raw": {}}
+        a, b = {**base, "external_id": "ia-a"}, {**base, "external_id": "ia-b"}
+
+        async def steps(store):
+            await store.upsert_signals([a, b])
+            retired = await store.retire_unseen("fda_import_alerts", ["ia-a"])
+            after_retire = [s["external_id"] for s in await store.signal_candidates(["acme"], [], limit=10)]
+            again = await store.retire_unseen("fda_import_alerts", ["ia-a"])
+            await store.upsert_signals([b])  # listed again
+            after_relist = sorted(s["external_id"] for s in await store.signal_candidates(["acme"], [], limit=10))
+            return retired, after_retire, again, after_relist
+
+        retired, after_retire, again, after_relist = self._run(db, steps)
+        assert (retired, after_retire, again) == (1, ["ia-a"], 0)
+        assert after_relist == ["ia-a", "ia-b"]
+
+    def test_public_signals_are_visible_to_every_tenant(self, db):
+        rows_a = as_org(db["app"], db["a"], "SELECT count(*) FROM public_signals")
+        rows_b = as_org(db["app"], db["b"], "SELECT count(*) FROM public_signals")
+        assert rows_a == rows_b and rows_a[0][0] >= 1
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

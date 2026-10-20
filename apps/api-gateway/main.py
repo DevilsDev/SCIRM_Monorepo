@@ -550,6 +550,39 @@ async def get_supplier(supplier_id: str, token: str = Depends(security)):
     except httpx.HTTPError as e:
         raise HTTPException(status_code=404, detail="Supplier not found")
 
+async def _coordinator_get(user: dict, path: str, params: dict, failure: str):
+    """GET from the coordinator, passing 404 and 503 through so callers can tell
+    "no such supplier" from "signals temporarily unavailable"."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{COORDINATOR_URL}{path}", params={k: v for k, v in params.items() if v is not None},
+                                        headers=_svc_headers(user), timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (404, 503):
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail", failure))
+        raise HTTPException(status_code=502, detail=failure)
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail=failure)
+
+
+@app.get("/api/v1/suppliers/{supplier_id}/signals")
+async def supplier_signals(supplier_id: str, since_days: int = None, min_confidence: float = None,
+                           token: str = Depends(security)):
+    """Public records (FDA recalls and shortages, disaster alerts) concerning one supplier."""
+    user = await verify_token(token.credentials)
+    return await _coordinator_get(user, f"/suppliers/{quote(supplier_id, safe='')}/signals",
+                                  {"since_days": since_days, "min_confidence": min_confidence},
+                                  "Supplier signals unavailable")
+
+
+@app.get("/api/v1/signals/suppliers")
+async def signals_overview(since_days: int = 365, token: str = Depends(security)):
+    """Public incident and exposure counts for every supplier of the caller's organization."""
+    user = await verify_token(token.credentials)
+    return await _coordinator_get(user, "/signals/suppliers", {"since_days": since_days}, "Supplier signals unavailable")
+
 # --- Alerts ---
 
 @app.get("/api/v1/alerts")
@@ -642,7 +675,7 @@ async def trigger_ingestion(token: str = Depends(security)):
     require_write_access(user)
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{INGESTION_URL}/ingest", headers=_svc_headers(user), timeout=30.0)
+            response = await client.post(f"{INGESTION_URL}/ingest", headers=_svc_headers(user), timeout=180.0)
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:

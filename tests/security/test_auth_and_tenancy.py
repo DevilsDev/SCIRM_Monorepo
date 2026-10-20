@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import jwt as pyjwt
+import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
@@ -237,6 +238,60 @@ class TestTenantIsolation:
 # ---------------------------------------------------------------------------
 # Authorization (roles)
 # ---------------------------------------------------------------------------
+
+class TestPublicSignals:
+    """Public records are shared; which of a tenant's suppliers they concern is not."""
+
+    SUN = "c0000000-0000-0000-0000-000000000103"  # org 1 demo supplier, a real company name
+
+    @pytest.fixture(scope="class")
+    def ingested(self, client, sarah):
+        response = client.post("/api/v1/intelligence/ingest", headers=bearer(sarah["access_token"]))
+        assert response.status_code == 200, response.text
+        assert response.json()["documents_ingested"] > 0
+
+    def test_supplier_signals_show_public_records_for_own_supplier(self, client, sarah, ingested):
+        response = client.get(f"/api/v1/suppliers/{self.SUN}/signals", headers=bearer(sarah["access_token"]))
+        assert response.status_code == 200, response.text
+        incidents = response.json()["incidents"]
+        assert incidents and all(m["kind"] == "incident" and m["signal"]["url"] for m in incidents)
+
+    def test_another_orgs_supplier_signals_are_not_found(self, client, lisa, ingested):
+        response = client.get(f"/api/v1/suppliers/{self.SUN}/signals", headers=bearer(lisa["access_token"]))
+        assert response.status_code == 404
+
+    def test_overview_lists_only_own_suppliers(self, client, sarah, lisa, ingested):
+        org2 = client.get("/api/v1/signals/suppliers", headers=bearer(lisa["access_token"])).json()["suppliers"]
+        # The recorded Sun Pharma recalls are from 2017 and 2023, outside the default 365-day window.
+        org1 = client.get("/api/v1/signals/suppliers", params={"since_days": 3650},
+                          headers=bearer(sarah["access_token"])).json()["suppliers"]
+        assert {r["supplier_name"] for r in org2} == {"Supplier Delta", "Supplier Epsilon"}
+        assert any(r["supplier_id"] == self.SUN and r["incidents"] for r in org1)
+
+    def test_only_the_tenants_suppliers_reach_the_ingestion_service(self, client, apps, lisa, ingested, monkeypatch):
+        sent = []
+        original = apps["ingestion"].matching.match_all
+
+        def spy(suppliers, signals, **kwargs):
+            sent.extend(s.get("name") for s in suppliers)
+            return original(suppliers, signals, **kwargs)
+
+        monkeypatch.setattr(apps["ingestion"].matching, "match_all", spy)
+        client.get("/api/v1/signals/suppliers", headers=bearer(lisa["access_token"]))
+        assert set(sent) == {"Supplier Delta", "Supplier Epsilon"}
+
+    def test_matching_outage_is_a_503_not_an_empty_answer(self, client, apps, sarah, monkeypatch):
+        original = apps["router"].handle_async_request
+
+        async def routed(request):
+            if request.url.port == 8008:  # the ingestion service is down
+                raise httpx.ConnectError("connection refused", request=request)
+            return await original(request)
+
+        monkeypatch.setattr(apps["router"], "handle_async_request", routed)
+        response = client.get(f"/api/v1/suppliers/{self.SUN}/signals", headers=bearer(sarah["access_token"]))
+        assert response.status_code == 503
+
 
 class TestRoles:
     def test_read_only_role_cannot_create_supplier(self, client, auditor):

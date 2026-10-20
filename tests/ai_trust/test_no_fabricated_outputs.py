@@ -172,22 +172,26 @@ class TestDiscovery:
 # ---------------------------------------------------------------------------
 
 class TestIngestion:
+    """The feed used to fall back to built-in sample items; now it holds only public records."""
+
     @pytest.fixture
     def ingestion(self, monkeypatch, load_service):
         module = load_service("ingestion")
-        monkeypatch.setattr(module, "NEWS_API_KEY", "")
+
+        def unreachable(request):
+            raise httpx.ConnectError("no network", request=request)
+
+        monkeypatch.setattr(module, "http_client_factory",
+                            lambda: httpx.AsyncClient(transport=httpx.MockTransport(unreachable)))
         return module
 
-    def test_built_in_items_are_demo_and_not_restamped(self, ingestion):
+    def test_unreachable_sources_yield_an_empty_feed_not_sample_items(self, ingestion):
         client = TestClient(ingestion.app)
-        first = client.post("/ingest").json()["documents_ingested"]
-        second = client.post("/ingest").json()["documents_ingested"]
-        assert first > 0
-        assert second == 0, "re-ingesting sample items must not add them again with a fresh timestamp"
-        docs = client.get("/documents").json()["documents"]
-        assert docs and all(d["is_demo"] for d in docs)
-        statuses = {v["status"] for v in client.get("/sources").json()["sources"].values()}
-        assert statuses == {"demo"}
+        headers = {"X-Org-Id": "a0000000-0000-0000-0000-000000000001"}
+        assert client.post("/ingest", headers=headers).json()["documents_ingested"] == 0
+        assert client.get("/documents", params={"since_days": 3650}, headers=headers).json()["documents"] == []
+        statuses = {v["status"] for v in client.get("/sources", headers=headers).json()["sources"].values()}
+        assert statuses == {"error"}
 
 
 # ---------------------------------------------------------------------------
