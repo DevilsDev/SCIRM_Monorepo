@@ -33,7 +33,31 @@ partner-labelled gold set the roadmap calls for; that still needs design partner
   sentences corrupted on purpose: wrong date, firm, recall class, number or record
   type, a wrong or unknown citation, or no citation at all.
 
-## Results (2026-10-20, PostgreSQL, keyword retrieval v1)
+## Results (2026-10-21, PostgreSQL, keyword retrieval, one record per event first)
+
+**Event recall@10** (added 2026-10-21) asks how many of the distinct relevant events
+the top 10 covers. One FDA recall event is often a dozen records (one per strength or
+pack); record recall rewards returning the same event over and over, which hides a
+supplier's other problems. Retrieval now ranks each event's best record before any
+second record of an event already shown. Nothing is dropped.
+
+| | Set A (tuned on) | **Set B (held out)** |
+|---|---|---|
+| recall@10 | 0.94 (was 0.91) | **0.82** (was 0.83) |
+| event recall@10 | 0.96 (was 0.87) | **0.83** (was 0.78) |
+| MRR | 0.95 (was 0.94) | **0.94** (unchanged) |
+| Questions with relevant records but no hit | 0 of 36 | 2 of 34 |
+| "Nothing matches" answered without citing records | 9 of 9 | 9 of 10 |
+
+The change was judged on A and B only. Set B's small record-recall drop is a single
+question whose duplicate records gave way to the supplier's other events (its event
+recall rose from 0.80 to 1.00). Set C was then run once: recall@10 0.615 → 0.63,
+event recall@10 0.628 → 0.686, MRR 0.582 → 0.61.
+
+While changing retrieval, evaluate with `--sets A_tuned_on B_held_out`, and run
+`C_held_out` once after the change is decided.
+
+## Earlier results (2026-10-20, keyword retrieval v1)
 
 | | Set A (tuned on) | **Set B (held out)** |
 |---|---|---|
@@ -74,9 +98,10 @@ before vector search was tuned and leans on paraphrase keyword search can't
 handle: lay descriptions of defects ("bits floating in it"), FDA actions described
 indirectly ("stuck at US customs"), and British spelling.
 
-**Keyword-only baseline on set C (2026-10-20, PostgreSQL):**
-- recall@10 **0.62**
-- MRR **0.58**
+**Keyword-only baseline on set C (2026-10-21, PostgreSQL, one record per event first):**
+- recall@10 **0.63** (0.62 on 2026-10-20)
+- event recall@10 **0.69**
+- MRR **0.61** (0.58 on 2026-10-20)
 - "Nothing matches" correct: 8 of 10
 
 Hybrid search (`--vectors`, once Bedrock access exists) must beat this, without

@@ -3,9 +3,10 @@ Evidence Engine quality gate, on PostgreSQL (what ships), over the committed pub
 corpus and both question sets (evals/evidence). Fails the build if retrieval or the
 citation checker gets worse.
 
-Thresholds sit a little below the measured results (2026-10-20: set A recall@10
-0.91, set B 0.83; negatives A 9/9, B 9/10; checker catch rate 1.00 with no false
-rejections), so they catch regressions without failing on noise. Set B is the
+Thresholds sit a little below the measured results (2026-10-21: set A recall@10
+0.94, event recall@10 0.96; set B 0.82 and 0.83; negatives A 9/9, B 9/10; checker
+catch rate 1.00 with no false rejections), so they catch regressions without failing
+on noise. Set C is not evaluated here: it is run by hand, once per retrieval change. Set B is the
 honest number: it was written after retrieval was developed and has not been
 tuned on.
 """
@@ -27,8 +28,8 @@ evaluation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(evaluation)
 
 GATE = {
-    "A_tuned_on": {"recall_at_10": 0.85, "mrr": 0.85, "negatives_correct": 0.85},
-    "B_held_out": {"recall_at_10": 0.78, "mrr": 0.85, "negatives_correct": 0.8},
+    "A_tuned_on": {"recall_at_10": 0.85, "event_recall_at_10": 0.9, "mrr": 0.85, "negatives_correct": 0.85},
+    "B_held_out": {"recall_at_10": 0.78, "event_recall_at_10": 0.78, "mrr": 0.85, "negatives_correct": 0.8},
 }
 
 
@@ -51,7 +52,7 @@ def test_retrieval_gate_on_postgres():
     async def go():
         store = PostgresStore(urls["app"])
         try:
-            return await evaluation.run(store)
+            return await evaluation.run(store, sets=list(GATE))
         finally:
             await store.close()
 

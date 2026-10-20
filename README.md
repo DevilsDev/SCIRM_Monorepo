@@ -103,7 +103,9 @@ flagged a firm before its next serious (Class I) FDA recall?
 - Firms with no FDA history cannot be scored, and are reported separately.
 
 **Evidence Engine** ([`evals/evidence`](evals/evidence/README.md)):
-- **Retrieval**, on a held-out question set never used for tuning: recall@10 0.83, MRR 0.94.
+- **Retrieval**, on a held-out question set never used for tuning: recall@10 0.82, MRR
+  0.94, and 83% of the distinct relevant events in the top 10 (a recall covering many
+  products counts once).
 - **Citation checker:** it rejects none of 400 correct sentences, and it catches 99.8% of
   deliberately corrupted ones (wrong dates, firms, classes or numbers, negations,
   invented counts).
