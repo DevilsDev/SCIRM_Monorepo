@@ -219,6 +219,18 @@ def _fuse(*rankings: List[Tuple[Dict[str, Any], Dict[str, Any]]]):
                                                  rm[0].get("updated_at") or rm[0]["published_at"]), reverse=True)
 
 
+def _one_per_event_first(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Each event's best-ranked record first, in rank order; then the rest, in rank order.
+    One FDA recall event is often a dozen records (one per strength or pack), which would
+    otherwise fill the top results and hide the supplier's other events. Nothing is dropped."""
+    seen, first, rest = set(), [], []
+    for item in results:
+        key = matching.event_key(item["record"])
+        (rest if key in seen else first).append(item)
+        seen.add(key)
+    return first + rest
+
+
 async def retrieve(store, question: str, supplier: Dict[str, Any], k: int = 10, embedder=None) -> Dict[str, Any]:
     """The supplier's records most relevant to the question, plus how they were found.
     With an embedder, keyword and vector results are fused; without one, keyword only."""
@@ -270,6 +282,7 @@ async def retrieve(store, question: str, supplier: Dict[str, Any], k: int = 10, 
         if key not in seen:
             seen.add(key)
             unique.append({"record": record, "match": m})
+    unique = _one_per_event_first(unique)
     return {"mode": mode, "types": parsed["types"], "terms": parsed["terms"], "required": required,
             "total": len(unique), "results": unique[:k]}
 

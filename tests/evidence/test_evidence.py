@@ -211,3 +211,16 @@ def test_records_that_read_the_same_become_one_sentence():
     claims = answer_module._extractive(evidence, results)
     assert [c["citations"] for c in claims] == [["S1", "S2"], ["S3"]]
     assert claims[0]["text"].endswith("[S1][S2]")
+
+
+def test_each_event_is_ranked_before_a_second_record_of_an_event():
+    """A recall event filed as a dozen records must not crowd out the supplier's other events."""
+    from libs.evidence.retrieval import _one_per_event_first
+
+    def item(number, event):
+        return {"record": {"source": "fda_recalls", "external_id": number, "raw": {"event_id": event}}, "match": {}}
+    ranked = [item("D-1", "E1"), item("D-2", "E1"), item("D-3", "E1"), item("D-4", "E2"),
+              {"record": {"source": "fda_warning_letters", "external_id": "wl-1", "raw": {}}, "match": {}}]
+    ordered = [i["record"]["external_id"] for i in _one_per_event_first(ranked)]
+    assert ordered == ["D-1", "D-4", "wl-1", "D-2", "D-3"]
+

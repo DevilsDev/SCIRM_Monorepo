@@ -76,6 +76,10 @@ def relevant_ids(question: Dict[str, Any], corpus: List[Dict[str, Any]]) -> set:
 
 async def eval_retrieval(store, corpus, questions, embedder=None) -> Dict[str, Any]:
     rows = []
+    # One FDA recall event is often many records (one per strength or pack). Event recall
+    # asks how many of the distinct relevant events the top K covers; record recall
+    # rewards returning the same event's records over and over.
+    events = {(r["source"], r["external_id"]): matching.event_key(r) for r in corpus}
     for q in questions:
         relevant = relevant_ids(q, corpus)
         supplier = {"name": q["supplier"]}
@@ -86,7 +90,10 @@ async def eval_retrieval(store, corpus, questions, embedder=None) -> Dict[str, A
             first = next((n for n, i in enumerate(ids, 1) if i in relevant), None)
             # Recall@10 is capped by K: a question with 25 relevant records can find at most 10.
             denom = min(len(relevant), K)
+            relevant_events = {events[i] for i in relevant}
+            hit_events = {events[i] for i in hits}
             rows.append({"id": q["id"], "positive": True, "relevant": len(relevant), "recall": len(hits) / denom,
+                         "event_recall": len(hit_events) / min(len(relevant_events), K),
                          "rr": 1 / first if first else 0.0, "returned": len(ids)})
         else:
             count = 0 if got["results"] else await retrieval.supplier_record_count(store, supplier)
@@ -99,6 +106,7 @@ async def eval_retrieval(store, corpus, questions, embedder=None) -> Dict[str, A
     return {
         "questions": len(rows), "positives": len(pos), "negatives": len(neg),
         "recall_at_10": round(sum(r["recall"] for r in pos) / len(pos), 3) if pos else None,
+        "event_recall_at_10": round(sum(r["event_recall"] for r in pos) / len(pos), 3) if pos else None,
         "mrr": round(sum(r["rr"] for r in pos) / len(pos), 3) if pos else None,
         "positives_with_no_hit": [r["id"] for r in pos if r["recall"] == 0],
         "negatives_correct": round(sum(r["correct"] for r in neg) / len(neg), 3) if neg else None,
@@ -219,12 +227,12 @@ async def embed_corpus(store, embedder) -> int:
             return done
 
 
-async def run(store, embedder=None) -> Dict[str, Any]:
+async def run(store, embedder=None, sets=None) -> Dict[str, Any]:
     corpus = load_corpus()
     await store.upsert_signals(corpus)
     embedded = await embed_corpus(store, embedder) if embedder else 0
     retrieval_results = {}
-    for name in QUESTION_SETS:
+    for name in sets or QUESTION_SETS:
         questions = load_questions(name)
         if questions:
             retrieval_results[name] = await eval_retrieval(store, corpus, questions, embedder)
@@ -237,7 +245,7 @@ def report(result: Dict[str, Any]) -> str:
              f"retrieval: {result.get('retrieval_mode', 'keyword')}"]
     for name, r in result["retrieval"].items():
         lines += [f"Retrieval, set {name}: {r['positives']} questions with relevant records, "
-                  f"recall@10 {r['recall_at_10']}, MRR {r['mrr']}; no hit at all: {r['positives_with_no_hit'] or 'none'}",
+                  f"recall@10 {r['recall_at_10']}, event recall@10 {r['event_recall_at_10']}, MRR {r['mrr']}; no hit at all: {r['positives_with_no_hit'] or 'none'}",
                   f"  {r['negatives']} 'nothing matches' questions answered without citing records: {r['negatives_correct']}"
                   f" (wrong: {r['negatives_wrong'] or 'none'})"]
     c = result["checker"]
@@ -255,6 +263,9 @@ def main():
     parser.add_argument("--vectors", action="store_true",
                         help="hybrid retrieval with the configured embedder (EMBEDDINGS_PROVIDER=bedrock, AWS access); "
                              "needs --postgres")
+    parser.add_argument("--sets", nargs="+", choices=list(QUESTION_SETS),
+                        help="question sets to evaluate (default: all). While changing retrieval, use only "
+                             "A_tuned_on and B_held_out; run C_held_out once, after the change is decided.")
     args = parser.parse_args()
 
     app_url = None
@@ -280,7 +291,7 @@ def main():
             from libs.common.store import MemoryStore
             store = MemoryStore(seed_demo=False)
         try:
-            return await run(store, embedder)
+            return await run(store, embedder, args.sets)
         finally:
             await store.close()
 
