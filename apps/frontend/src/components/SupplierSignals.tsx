@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, SignalMatch, SupplierSignals as SupplierSignalsData } from '../services/api';
+import { api, FeedbackVerdict, SignalMatch, SupplierSignals as SupplierSignalsData } from '../services/api';
+import FeedbackButtons, { FeedbackOption } from './FeedbackButtons';
 import SeverityBadge from './SeverityBadge';
 
 // How a record was linked to the supplier, in words a buyer can check.
@@ -20,9 +21,15 @@ function matchReason(m: SignalMatch, t: (key: string, fallback: string, opts?: a
   }
 }
 
-function SignalRow({ m }: { m: SignalMatch }) {
+function SignalRow({ m, supplierId, rating }: { m: SignalMatch; supplierId: string; rating?: FeedbackVerdict }) {
   const { t } = useTranslation();
   const s = m.signal;
+  const options: FeedbackOption[] = [
+    { verdict: 'useful' as const, label: t('feedback.useful', 'Useful') },
+    { verdict: 'not_useful' as const, label: t('feedback.notRelevant', 'Not relevant') },
+  ];
+  // Country exposure is about a place, not a name, so "wrong supplier" does not apply.
+  if (m.kind === 'incident') options.push({ verdict: 'wrong_supplier' as const, label: t('feedback.wrongSupplier', 'Wrong supplier') });
   return (
     <li className="py-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -43,6 +50,15 @@ function SignalRow({ m }: { m: SignalMatch }) {
           </a>
         )}
       </div>
+      <div className="mt-1">
+        <FeedbackButtons
+          target={{ target_type: 'signal_match', target_id: s.id, supplier_id: supplierId,
+            context: { match_type: m.match_type, confidence: m.confidence, source: s.source } }}
+          options={options}
+          initial={rating ?? null}
+          prompt={t('feedback.matchPrompt', 'Is this record useful for this supplier?')}
+        />
+      </div>
     </li>
   );
 }
@@ -50,14 +66,17 @@ function SignalRow({ m }: { m: SignalMatch }) {
 export default function SupplierSignals({ supplierId }: { supplierId: string }) {
   const { t } = useTranslation();
   const [data, setData] = useState<SupplierSignalsData | null>(null);
+  const [ratings, setRatings] = useState<Record<string, FeedbackVerdict>>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     setError('');
-    api.getSupplierSignals(supplierId)
-      .then(setData)
+    // Ratings are optional: without them the rows simply start unrated.
+    Promise.all([api.getSupplierSignals(supplierId),
+      api.getMySupplierFeedback(supplierId).then((r) => r.ratings).catch(() => ({}))])
+      .then(([signals, mine]) => { setData(signals); setRatings(mine); })
       .catch((err) => setError(err?.response?.status === 503
         ? t('signals.unavailable', 'Public signals are temporarily unavailable.')
         : t('signals.failed', 'Could not load public signals.')))
@@ -82,7 +101,7 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
           </p>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-            {data.incidents.map((m) => <SignalRow key={m.signal.id} m={m} />)}
+            {data.incidents.map((m) => <SignalRow key={m.signal.id} m={m} supplierId={supplierId} rating={ratings[m.signal.id]} />)}
           </ul>
         )}
       </section>
@@ -97,7 +116,7 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
             {t('signals.exposureNote', 'These alerts cover the whole country; they do not mean this supplier is affected.')}
           </p>
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-            {data.exposures.map((m) => <SignalRow key={m.signal.id} m={m} />)}
+            {data.exposures.map((m) => <SignalRow key={m.signal.id} m={m} supplierId={supplierId} rating={ratings[m.signal.id]} />)}
           </ul>
         </section>
       )}

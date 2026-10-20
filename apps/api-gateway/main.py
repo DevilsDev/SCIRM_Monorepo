@@ -28,7 +28,7 @@ from libs.common.auth import (
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
-from libs.common.store import ROLES, EmailExists, LastAdmin, create_store
+from libs.common.store import FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin, create_store
 from libs.common.tenancy import internal_headers
 from libs.integrations.manager import erp_manager
 
@@ -807,6 +807,82 @@ async def signals_overview(since_days: int = 365, token: str = Depends(security)
     """Public incident and exposure counts for every supplier of the caller's organization."""
     user = await verify_token(token.credentials)
     return await _coordinator_get(user, "/signals/suppliers", {"since_days": since_days}, "Supplier signals unavailable")
+
+
+# --- Feedback on matches and answers (Phase 1 gate metrics) ---
+
+_REF = r"^[A-Za-z0-9._:\-]{1,200}$"
+
+# Only these context fields are kept, so free text (such as the question asked) is never stored.
+_FEEDBACK_CONTEXT = {
+    "signal_match": {"match_type": str, "confidence": float, "source": str},
+    "answer": {"citations": int, "method": str, "status": str},
+    "citation": {"source": str, "signal_id": str, "match_kind": str},
+}
+
+
+class FeedbackRequest(BaseModel):
+    target_type: str
+    verdict: str
+    # signal_match: the signal id (rated as a match to supplier_id). answer: an id the client
+    # gives the answer it showed. citation: "<answer id>:<citation id>".
+    target_id: str = Field(..., pattern=_REF)
+    supplier_id: Optional[str] = Field(None, pattern=_REF)
+    reason: Optional[str] = Field(None, max_length=500)
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+def _feedback_context(target_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    kept = {}
+    for key, kind in _FEEDBACK_CONTEXT[target_type].items():
+        value = context.get(key)
+        if value is None or isinstance(value, bool):
+            continue
+        try:
+            value = kind(value)
+        except (TypeError, ValueError):
+            continue
+        kept[key] = value[:100] if isinstance(value, str) else value
+    return kept
+
+
+@app.post("/api/v1/feedback")
+async def record_feedback(body: FeedbackRequest, token: str = Depends(security)):
+    """Rate a matched record or an answer. One rating per person per item; rating again replaces it."""
+    user = await verify_token(token.credentials)
+    allowed = FEEDBACK_VERDICTS.get(body.target_type)
+    if allowed is None:
+        raise HTTPException(status_code=400, detail=f"target_type must be one of: {', '.join(FEEDBACK_VERDICTS)}")
+    if body.verdict not in allowed:
+        raise HTTPException(status_code=400, detail=f"verdict for {body.target_type} must be one of: {', '.join(allowed)}")
+    if body.target_type == "signal_match" and not body.supplier_id:
+        raise HTTPException(status_code=400, detail="supplier_id is required when rating a matched record")
+    # A record can match several suppliers; the rating is about this pairing.
+    target_id = f"{body.supplier_id}:{body.target_id}" if body.target_type == "signal_match" else body.target_id
+    reason = (body.reason or "").strip() or None
+    return await audit_store.record_feedback(user.organization_id, user.id, {
+        "target_type": body.target_type, "target_id": target_id, "supplier_id": body.supplier_id,
+        "verdict": body.verdict, "reason": reason, "context": _feedback_context(body.target_type, body.context)})
+
+
+@app.get("/api/v1/suppliers/{supplier_id}/feedback")
+async def my_supplier_feedback(supplier_id: str, token: str = Depends(security)):
+    """The caller's own ratings of this supplier's matched records, keyed by signal id."""
+    user = await verify_token(token.credentials)
+    prefix = f"{supplier_id}:"
+    rows = await audit_store.my_feedback_for_supplier(user.organization_id, user.id, supplier_id)
+    return {"ratings": {k[len(prefix):]: v for k, v in rows.items() if k.startswith(prefix)}}
+
+
+@app.get("/api/v1/feedback/summary")
+async def feedback_summary(since_days: int = 90, token: str = Depends(security)):
+    """Pilot metrics from ratings (admins and auditors only)."""
+    user = await verify_token(token.credentials)
+    if not {"admin", "auditor"} & set(user.roles):
+        raise HTTPException(status_code=403, detail="Admins and auditors only")
+    since_days = min(max(since_days, 1), 3650)
+    summary = await audit_store.feedback_summary(user.organization_id, datetime.utcnow() - timedelta(days=since_days))
+    return {"since_days": since_days, **summary}
 
 # --- Alerts ---
 
