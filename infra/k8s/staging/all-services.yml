@@ -30,6 +30,13 @@ spec:
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -109,6 +116,13 @@ spec:
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -188,6 +202,13 @@ spec:
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -265,6 +286,13 @@ spec:
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -377,6 +405,20 @@ spec:
           value: "http://executor:8000"
         - name: REVIEWER_SERVICE_URL
           value: "http://reviewer:8000"
+        - name: RISK_SCORER_SERVICE_URL
+          value: "http://risk-scorer:8000"
+        - name: DISCOVERY_SERVICE_URL
+          value: "http://discovery:8000"
+        - name: INGESTION_SERVICE_URL
+          value: "http://ingestion:8000"
+        - name: CHAT_SERVICE_URL
+          value: "http://chat:8000"
+        - name: SIMULATOR_SERVICE_URL
+          value: "http://simulator:8000"
+        - name: PROCUREMENT_SERVICE_URL
+          value: "http://procurement:8000"
+        - name: COMPONENT_TRACKER_URL
+          value: "http://component-tracker:8000"
         resources:
           requests:
             memory: "256Mi"
