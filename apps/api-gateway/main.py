@@ -789,6 +789,47 @@ async def supplier_signals(supplier_id: str, since_days: int = None, min_confide
                                   "Supplier signals unavailable")
 
 
+class SiteBody(BaseModel):
+    label: str = Field(..., min_length=1, max_length=100)
+    country: str = Field(..., pattern=r"^[A-Za-z]{2}$")
+    city: Optional[str] = Field(None, max_length=100)
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lon: Optional[float] = Field(None, ge=-180, le=180)
+
+
+async def _coordinator_write(user, method: str, path: str, body: Optional[Dict[str, Any]] = None):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.request(method, f"{COORDINATOR_URL}{path}", json=body,
+                                             headers=_svc_headers(user), timeout=15.0)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (400, 404):
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail"))
+        if e.response.status_code == 422:
+            raise HTTPException(status_code=400, detail="Invalid site")
+        raise HTTPException(status_code=502, detail="Supplier service failed")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Supplier service unavailable")
+
+
+@app.post("/api/v1/suppliers/{supplier_id}/sites")
+async def add_supplier_site(supplier_id: str, body: SiteBody, token: str = Depends(security)):
+    """Add a place the supplier operates (city, or exact coordinates), for site-level disaster exposure."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    return await _coordinator_write(user, "POST", f"/suppliers/{quote(supplier_id, safe='')}/sites", body.model_dump())
+
+
+@app.delete("/api/v1/suppliers/{supplier_id}/sites/{site_id}")
+async def remove_supplier_site(supplier_id: str, site_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    return await _coordinator_write(user, "DELETE",
+                                    f"/suppliers/{quote(supplier_id, safe='')}/sites/{quote(site_id, safe='')}")
+
+
 class SupplierQuestion(BaseModel):
     question: str = Field(..., min_length=3, max_length=500)
 

@@ -38,7 +38,7 @@ _STEMS = {"pharmaceuticals": "pharmaceutical", "laboratories": "laboratory", "la
 
 # Confidence by match type; the threshold for showing a match is the caller's choice.
 CONFIDENCE = {"name_exact": 0.95, "name_contains": 0.8, "name_similar": 0.7, "parent_company": 0.6,
-              "country_exposure": 0.4}
+              "country_exposure": 0.4, "site_proximity": 0.7}
 
 
 def _ascii(text: str) -> str:
@@ -158,11 +158,35 @@ def match_supplier(supplier: Dict[str, Any], signal: Dict[str, Any]) -> Optional
                                 "kind": "incident", "matched_on": raw}
     if best:
         return best
-    country = (supplier.get("country_code") or "").upper()
-    if country and country in (signal.get("country_codes") or []) and signal.get("signal_type") == "disaster":
-        return {"match_type": "country_exposure", "confidence": CONFIDENCE["country_exposure"],
-                "kind": "exposure", "matched_on": country}
+    if signal.get("signal_type") == "disaster":
+        return _exposure(supplier, signal)
     return None
+
+
+def _exposure(supplier: Dict[str, Any], signal: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """A disaster near one of the supplier's located sites; or, when that cannot be judged
+    (no located sites, or an event without a usable point, such as a drought), a disaster
+    anywhere in a country where the supplier operates."""
+    from libs.intel import geo
+    if geo.located_sites(supplier) and geo.event_point(signal):
+        near = geo.nearest_site(supplier, signal)
+        if not near:
+            return None  # elsewhere in the country: counted by the caller, not shown as exposure
+        return {"match_type": "site_proximity", "confidence": CONFIDENCE["site_proximity"], "kind": "exposure",
+                "matched_on": near["site"], "site": near}
+    countries = supplier_countries(supplier)
+    hit = next((c for c in signal.get("country_codes") or [] if c in countries), None)
+    if hit:
+        return {"match_type": "country_exposure", "confidence": CONFIDENCE["country_exposure"],
+                "kind": "exposure", "matched_on": hit}
+    return None
+
+
+def supplier_countries(supplier: Dict[str, Any]) -> List[str]:
+    """The supplier's country and the countries of its sites (ISO-2)."""
+    codes = [(supplier.get("country_code") or "").upper()]
+    codes += [(s.get("country") or "").upper() for s in supplier.get("sites") or [] if isinstance(s, dict)]
+    return sorted({c for c in codes if len(c) == 2})
 
 
 def supplier_index(suppliers: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -170,7 +194,7 @@ def supplier_index(suppliers: List[Dict[str, Any]]) -> Dict[str, Any]:
     keys: Set[str] = set()
     for s in suppliers:
         keys.update(entity_keys([s.get("name") or ""] + _aliases(s)))
-    countries = sorted({(s.get("country_code") or "").upper() for s in suppliers if s.get("country_code")})
+    countries = sorted({c for s in suppliers for c in supplier_countries(s)})
     return {"keys": sorted(keys), "countries": countries}
 
 

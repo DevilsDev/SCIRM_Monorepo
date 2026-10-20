@@ -26,7 +26,7 @@ import io
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from libs.intel import matching
+from libs.intel import geo, matching
 from libs.intel.sources import IMPORT_ALERT_COUNTRIES
 
 MAX_ROWS = 20000
@@ -151,6 +151,26 @@ def parse_extract(text: str, column_map: Optional[Dict[str, str]] = None) -> Tup
     return out, warnings
 
 
+SAP_SITE = "sap_lfa1"
+
+
+def _sites(row: Dict[str, Any], current: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """The supplier's sites with the SAP address site replaced; sites entered by hand stay."""
+    site = geo.site_from_address("Registered address (SAP)", row["city"], row["country_code"], SAP_SITE)
+    new = [{**site, "id": f"{SAP_SITE}:{row['number']}"}] if site else []
+    out, placed = [], False
+    for s in current or []:
+        if not isinstance(s, dict):
+            continue
+        if s.get("source") == SAP_SITE:
+            if not placed:  # keep the SAP site where it was in the list
+                out += new
+                placed = True
+            continue
+        out.append(s)
+    return out if placed else out + new
+
+
 def _target(row: Dict[str, Any]) -> Dict[str, Any]:
     """The supplier fields SAP owns."""
     return {"name": row["name"], "country_code": row["country_code"], "is_active": not row["blocked"],
@@ -194,6 +214,9 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
         previous = [current["name"]] if current.get("name") and             matching.normalize(current["name"]) != matching.normalize(row["name"]) else []
         aliases = list(dict.fromkeys((current.get("aliases") or []) + previous + row["aliases"]))
         changes = {k: v for k, v in target.items() if current.get(k) != v}
+        sites = _sites(row, current.get("sites"))
+        if sites != (current.get("sites") or []):
+            changes["sites"] = sites
         if aliases != list(current.get("aliases") or []):
             changes["aliases"] = aliases
         if kind == "link" or changes:
@@ -249,7 +272,8 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
                             "reason": f"same name as {clash.get('name')} ({clash.get('supplier_code')})"})
             continue
         actions.append({"action": "create", "number": row["number"], "name": row["name"],
-                        "fields": {**_target(row), "supplier_code": code, "aliases": row["aliases"]}})
+                        "fields": {**_target(row), "supplier_code": code, "aliases": row["aliases"],
+                                   "sites": _sites(row, None)}})
         by_code[code.upper()] = {"supplier_code": code, "sap_supplier_number": row["number"]}
 
     in_file = {r["number"] for r in rows}

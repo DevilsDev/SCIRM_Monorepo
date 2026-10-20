@@ -197,9 +197,21 @@ def parse_gdacs(feature: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         occurred_at=published, published_at=published,
         updated_at=(p.get("datemodified") or "")[:10] or published,
         url=(p.get("url") or {}).get("report"),
-        raw={k: p.get(k) for k in ("eventtype", "eventid", "episodeid", "alertlevel", "country", "fromdate",
-                                   "todate", "datemodified", "severitydata")},
+        raw={**{k: p.get(k) for k in ("eventtype", "eventid", "episodeid", "alertlevel", "country", "fromdate",
+                                      "todate", "datemodified", "severitydata")},
+             **_gdacs_point(feature)},
     )
+
+
+def _gdacs_point(feature: Dict[str, Any]) -> Dict[str, float]:
+    """The reported location (GeoJSON Point: [lon, lat]), used for site-level exposure."""
+    geometry = feature.get("geometry") or {}
+    coords = geometry.get("coordinates") if geometry.get("type") == "Point" else None
+    try:
+        lon, lat = float(coords[0]), float(coords[1])
+    except (TypeError, ValueError, IndexError):
+        return {}
+    return {"lat": lat, "lon": lon} if -90 <= lat <= 90 and -180 <= lon <= 180 else {}
 
 
 async def fetch_gdacs(client: httpx.AsyncClient, since: date, until: date) -> SourceResult:

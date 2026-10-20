@@ -9,6 +9,7 @@ import CSVUpload from '../components/CSVUpload';
 import { useToast } from '../components/Toast';
 import SupplierSignals from '../components/SupplierSignals';
 import SupplierAsk from '../components/SupplierAsk';
+import SupplierSites from '../components/SupplierSites';
 import SeverityBadge from '../components/SeverityBadge';
 import { useFeatures } from '../services/features';
 import { formatSpend } from '../components/SapSpendImport';
@@ -39,6 +40,8 @@ export default function SuppliersPage() {
   const [tierFilter, setTierFilter] = useState('');
   const [sortBy, setSortBy] = useState<'default' | 'spend' | 'events'>('default');
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  // Bumped when sites change, so the public-records panel re-matches exposure.
+  const [signalsVersion, setSignalsVersion] = useState(0);
   const [signalSummary, setSignalSummary] = useState<Record<string, SupplierSignalSummary> | null>(null);
   const { t } = useTranslation();
   const { samplePages } = useFeatures();
@@ -345,8 +348,14 @@ export default function SuppliersPage() {
           <div className="mt-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{t('ask.title', 'Ask about this supplier')}</h2>
             <SupplierAsk supplierId={selectedSupplier.id} />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mt-6 mb-2">{t('sites.title', 'Sites')}</h2>
+            <SupplierSites supplier={selectedSupplier} onChange={(updated) => {
+              setSelectedSupplier(updated);
+              setSuppliers((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+              setSignalsVersion((v) => v + 1);
+            }} />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white mt-6 mb-2">{t('signals.title', 'Public records')}</h2>
-            <SupplierSignals supplierId={selectedSupplier.id} />
+            <SupplierSignals key={`${selectedSupplier.id}-${signalsVersion}`} supplierId={selectedSupplier.id} />
           </div>
         )}
       </Modal>

@@ -107,7 +107,8 @@ class TestPlan:
         suppliers[0]["aliases"] = suppliers[0]["aliases"] + ["Acme Europe"]  # added by hand in SCIRM
         plan = plan_import(parse(extract(row("1", "Acme Pharma GmbH", country="FR")))[0], suppliers)
         assert plan["summary"] == {"update": 1}
-        assert actions(plan, "update")[0]["changed"] == ["country_code"]
+        # Berlin is not in France: the SAP address site goes with the country change.
+        assert actions(plan, "update")[0]["changed"] == ["country_code", "sites"]
         assert "aliases" not in actions(plan, "update")[0]["fields"]  # nothing removed
         assert stored(plan, suppliers)[0]["aliases"] == ["Acme Holdings AG", "Acme Europe"]
 
@@ -198,3 +199,26 @@ class TestPlan:
         # Only a real change of name adds one: punctuation or a country suffix is the same name.
         same = plan_import(parse(extract(row("1", "Glenmark Pharmaceuticals Inc., USA")))[0], after)
         assert "aliases" not in actions(same, "update")[0]["fields"]
+
+
+class TestSites:
+    def test_the_sap_address_becomes_a_located_site(self):
+        rows, _ = parse(extract(row("1", "Acme Pharma GmbH")))  # Berlin, DE
+        site = plan_import(rows, [])["actions"][0]["fields"]["sites"][0]
+        assert site["source"] == "sap_lfa1" and site["country"] == "DE" and site["precision"] == "city"
+        assert abs(site["lat"] - 52.52) < 0.2 and abs(site["lon"] - 13.40) < 0.2
+
+    def test_sites_entered_by_hand_survive_a_reimport(self):
+        manual = {"id": "m-1", "label": "Plant 2", "city": "Kobe", "country": "JP", "lat": 34.69, "lon": 135.19,
+                  "source": "manual"}
+        suppliers = stored(plan_import(parse(extract(row("1", "Acme Pharma GmbH")))[0], []))
+        suppliers[0]["sites"] = suppliers[0]["sites"] + [manual]
+        again = plan_import(parse(extract(row("1", "Acme Pharma GmbH")))[0], suppliers)
+        assert again["summary"] == {"unchanged": 1}
+        moved = stored(plan_import(parse(extract(row("1", "Acme Pharma GmbH", country="FR")))[0], suppliers), suppliers)
+        assert manual in moved[0]["sites"]
+
+    def test_an_unknown_city_gives_no_site(self):
+        rows, _ = parse(extract([ "1", "Acme Pharma GmbH", "", "DE", "Nowhereville", "", "", "", ""]))
+        assert plan_import(rows, [])["actions"][0]["fields"]["sites"] == []
+

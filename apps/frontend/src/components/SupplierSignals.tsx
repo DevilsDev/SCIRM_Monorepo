@@ -16,6 +16,11 @@ function matchReason(m: SignalMatch, t: (key: string, fallback: string, opts?: a
       return t('signals.matchParent', 'Names "{{name}}", which lists this supplier as its parent company', { name: m.matched_on });
     case 'country_exposure':
       return t('signals.matchCountry', 'Affects {{country}}, where this supplier is located', { country: m.matched_on });
+    case 'site_proximity':
+      return m.site
+        ? t('signals.matchSite', 'About {{distance}} km from {{site}} (within the {{radius}} km alert radius around the reported location; approximate)',
+          { distance: m.site.distance_km, site: m.site.site, radius: m.site.radius_km })
+        : m.match_type;
     default:
       return m.match_type;
   }
@@ -124,17 +129,26 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
       {data.exposures.length > 0 && (
         <section>
           <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-            {t('signals.exposures', 'Possible exposure: disasters in its country')} ({data.exposures.length < data.exposure_total
+            {data.site_level
+              ? t('signals.exposuresSites', 'Possible exposure: disasters near its sites')
+              : t('signals.exposures', 'Possible exposure: disasters in its country')} ({data.exposures.length < data.exposure_total
               ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.exposures.length, total: data.exposure_total })
               : data.exposure_total})
           </h3>
           <p className="text-[10px] text-gray-400 mt-1">
-            {t('signals.exposureNote', 'These alerts cover the whole country; they do not mean this supplier is affected.')}
+            {data.site_level
+              ? t('signals.exposureSiteNote', "Matched by distance from each alert's reported location; they do not mean a site is affected.")
+              : t('signals.exposureNote', 'These alerts cover the whole country; they do not mean this supplier is affected. Add its sites to narrow this down.')}
           </p>
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
             {data.exposures.map((m) => <SignalRow key={m.signal.id} m={m} supplierId={supplierId} rating={ratings[m.signal.id]} />)}
           </ul>
         </section>
+      )}
+      {data.site_level && !!data.exposures_elsewhere && (
+        <p className="text-[10px] text-gray-400">
+          {t('signals.elsewhere', '{{count}} other disaster alert(s) in its countries were not near any of its sites.', { count: data.exposures_elsewhere })}
+        </p>
       )}
     </div>
   );
