@@ -140,16 +140,21 @@ jobs:
       - name: Apply manifests
         # secrets.example.yml is a template; real secrets are created out of band.
         run: |
+          kubectl apply -f infra/k8s/staging/service-accounts.yml
           kubectl apply -f infra/k8s/staging/all-services.yml
           kubectl apply -f infra/k8s/staging/coordinator-deployment.yml
+          kubectl apply -f infra/k8s/staging/agent-services.yml
       - name: Pin images to this build and wait for rollout
-        # Only these services have staging manifests so far; the other images are
-        # built and pushed but not deployed until their manifests exist.
+        # Every service now has a staging manifest.
+        env:
+          SERVICES: >-
+            api-gateway coordinator planner researcher executor reviewer frontend
+            risk-scorer discovery ingestion chat simulator procurement component-tracker
         run: |
-          for svc in api-gateway coordinator planner researcher executor reviewer frontend; do
+          for svc in $SERVICES; do
             kubectl -n scirm-staging set image "deployment/$svc" "$svc=${IMAGE_PREFIX}/$svc:${GITHUB_SHA}"
           done
-          for svc in api-gateway coordinator planner researcher executor reviewer frontend; do
+          for svc in $SERVICES; do
             kubectl -n scirm-staging rollout status "deployment/$svc" --timeout=300s
           done
       - name: Smoke test
