@@ -111,8 +111,8 @@ Implement secure GitHub Pages publishing with:
 
 ## Related ADRs
 
-- [ADR-005: Branch Protection Strategy](./ADR-005-branch-protection-strategy.md)
-- [ADR-006: Internal Dashboard Isolation](./ADR-006-internal-dashboard-isolation.md)
+- Branch Protection Strategy (planned ADR, not written yet)
+- Internal Dashboard Isolation (planned ADR, not written yet)
 
 ---
 

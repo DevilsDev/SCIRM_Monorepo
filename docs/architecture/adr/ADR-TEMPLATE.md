@@ -104,7 +104,7 @@ What becomes easier or more difficult to do and any risks introduced?
 
 ## Related ADRs
 
-- [ADR-XXX: Related Decision](./ADR-XXX-related-decision.md)
+- `[ADR-XXX: Related Decision](./ADR-XXX-related-decision.md)`
 
 ---
 

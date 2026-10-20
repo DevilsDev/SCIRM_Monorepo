@@ -176,3 +176,8 @@ ops/deployment/*.local.*
 # Frontend build
 apps/frontend/dist/
 apps/frontend/.vite/
+
+# MkDocs and OpenAPI build output
+/site/
+/docs-build/
+/api-specs/
