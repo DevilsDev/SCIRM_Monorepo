@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, EvidenceAnswer } from '../services/api';
+import FeedbackButtons from './FeedbackButtons';
 import SeverityBadge from './SeverityBadge';
 
 const METHOD_LABELS: Record<string, string> = {
@@ -30,6 +31,8 @@ export default function SupplierAsk({ supplierId }: { supplierId: string }) {
   const { t } = useTranslation();
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<EvidenceAnswer | null>(null);
+  // Answers are not stored, so each one shown gets an id for its rating. The question is never sent.
+  const [answerId, setAnswerId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,6 +43,7 @@ export default function SupplierAsk({ supplierId }: { supplierId: string }) {
     setError('');
     try {
       setAnswer(await api.askAboutSupplier(supplierId, question.trim()));
+      setAnswerId(crypto.randomUUID());
     } catch (err: any) {
       setAnswer(null);
       setError(err?.response?.status === 503
@@ -101,6 +105,12 @@ export default function SupplierAsk({ supplierId }: { supplierId: string }) {
                   {c.match_kind === 'exposure' && (
                     <span className="text-amber-600">{t('ask.exposure', '(country exposure, not an incident)')}</span>
                   )}
+                  <FeedbackButtons
+                    key={`${answerId}:${c.id}`}
+                    target={{ target_type: 'citation', target_id: `${answerId}:${c.id}`, supplier_id: supplierId,
+                      context: { source: c.source, match_kind: c.match_kind } }}
+                    options={[{ verdict: 'incorrect', label: t('feedback.wrongCitation', "Doesn't support the answer") }]}
+                  />
                 </li>
               ))}
             </ol>
@@ -109,6 +119,18 @@ export default function SupplierAsk({ supplierId }: { supplierId: string }) {
             {METHOD_LABELS[answer.method] || ''}
             {answer.removed.length > 0 && ` · ${t('ask.removed', '{{count}} unsupported sentence(s) removed by the citation check', { count: answer.removed.length })}`}
           </p>
+          {answer.status !== 'no_records' && (
+            <FeedbackButtons
+              key={answerId}
+              target={{ target_type: 'answer', target_id: answerId, supplier_id: supplierId,
+                context: { citations: answer.citations.length, method: answer.method, status: answer.status } }}
+              options={[
+                { verdict: 'useful', label: t('feedback.helpful', 'Helpful') },
+                { verdict: 'not_useful', label: t('feedback.notHelpful', 'Not helpful') },
+              ]}
+              prompt={t('feedback.answerPrompt', 'Was this answer helpful?')}
+            />
+          )}
         </div>
       )}
     </div>
