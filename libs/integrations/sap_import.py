@@ -190,7 +190,9 @@ def plan_import(rows: List[Dict[str, Any]], existing: List[Dict[str, Any]],
             target.pop("is_active")
         if current.get("sap_missing"):
             target["sap_missing"] = False
-        aliases = list(dict.fromkeys((current.get("aliases") or []) + row["aliases"]))
+        # A renamed supplier keeps its previous name as an alias: public records may use it.
+        previous = [current["name"]] if current.get("name") and             matching.normalize(current["name"]) != matching.normalize(row["name"]) else []
+        aliases = list(dict.fromkeys((current.get("aliases") or []) + previous + row["aliases"]))
         changes = {k: v for k, v in target.items() if current.get(k) != v}
         if aliases != list(current.get("aliases") or []):
             changes["aliases"] = aliases

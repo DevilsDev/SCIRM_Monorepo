@@ -188,3 +188,13 @@ class TestPlan:
         blocked, _ = parse(extract(row("1", "Acme Pharma GmbH", blocked="X")))
         active = [{**manual[0], "is_active": True}]
         assert stored(plan_import(blocked, active, {"1": "link:m1"}), active)[0]["is_active"] is False
+
+    def test_a_renamed_or_linked_supplier_keeps_its_old_name_as_an_alias(self):
+        manual = [{"id": "m1", "supplier_code": "SUP-G", "name": "Glenmark Generics Inc"}]
+        rows, _ = parse(extract(row("1", "Glenmark Pharmaceuticals Inc.")))
+        after = stored(plan_import(rows, manual, {"1": "link:m1"}), manual)
+        assert after[0]["name"] == "Glenmark Pharmaceuticals Inc."
+        assert after[0]["aliases"] == ["Glenmark Generics Inc"]
+        # Only a real change of name adds one: punctuation or a country suffix is the same name.
+        same = plan_import(parse(extract(row("1", "Glenmark Pharmaceuticals Inc., USA")))[0], after)
+        assert "aliases" not in actions(same, "update")[0]["fields"]
