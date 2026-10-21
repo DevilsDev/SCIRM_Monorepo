@@ -1,21 +1,26 @@
 """
-Encryption at rest for small per-user secrets (the TOTP seed behind MFA).
+Encryption at rest for small secrets: the TOTP seed behind MFA, and the password of a
+tenant's ERP connection (libs/integrations/sap_odata.py).
 
-AES-256-GCM with a random 96-bit nonce. The user's id is bound in as associated data,
-so a ciphertext copied onto another account fails to decrypt. Stored form:
+AES-256-GCM with a random 96-bit nonce. What the secret belongs to is bound in as
+associated data: the user's id for an MFA seed, "erp:<system>:<org>:<connection id>"
+for an ERP password. A ciphertext copied onto another account, tenant or connection
+therefore fails to decrypt. Stored form:
 
     enc:v1:<base64url(nonce || ciphertext || tag)>
 
 Keys (32 random bytes, base64url), e.g. `python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"`:
-- MFA_ENCRYPTION_KEY: encrypts, and is tried first when decrypting.
+- MFA_ENCRYPTION_KEY: encrypts, and is tried first when decrypting. (The name predates
+  ERP connections; the one key protects both kinds of secret.)
 - MFA_ENCRYPTION_KEY_PREVIOUS (optional): still decrypts, for key rotation. Values are
   re-encrypted with the current key as they are read (see libs/common/store.py).
 
 Outside development the key is required: require_key() raises at gateway start-up.
 In development a fixed, publicly known key is used (with a warning), so local
 accounts keep working across restarts; it protects nothing and is never used elsewhere.
-Values without the prefix are legacy plaintext: they are returned as-is and reported
-as such, so callers can re-encrypt them.
+MFA seeds stored before encryption have no prefix: decrypt() returns them as-is and
+reports them, so the caller can re-encrypt them. ERP passwords were never stored in
+plaintext, so their callers pass allow_plaintext=False.
 """
 
 import base64
@@ -63,23 +68,26 @@ def _keys() -> List[bytes]:
 
 
 def require_key() -> None:
-    """Fail closed at start-up rather than at the first MFA sign-in."""
+    """Fail closed at start-up rather than at the first MFA sign-in or ERP import."""
     _keys()
 
 
-def encrypt(plaintext: str, user_id: str) -> str:
+def encrypt(plaintext: str, bound_to: str) -> str:
+    """Seal `plaintext`; it only opens again with the same `bound_to` (associated data)."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     nonce = os.urandom(12)
-    sealed = AESGCM(_keys()[0]).encrypt(nonce, plaintext.encode("utf-8"), str(user_id).encode("utf-8"))
+    sealed = AESGCM(_keys()[0]).encrypt(nonce, plaintext.encode("utf-8"), str(bound_to).encode("utf-8"))
     return PREFIX + base64.urlsafe_b64encode(nonce + sealed).decode("ascii").rstrip("=")
 
 
-def decrypt(stored: Optional[str], user_id: str) -> Tuple[Optional[str], bool]:
+def decrypt(stored: Optional[str], bound_to: str, allow_plaintext: bool = True) -> Tuple[Optional[str], bool]:
     """(plaintext, needs_reencryption). needs_reencryption is True for legacy plaintext
     and for values sealed with the previous key."""
     if not stored:
         return stored, False
     if not stored.startswith(PREFIX):
+        if not allow_plaintext:
+            raise SecretBoxError("stored secret is not encrypted")
         return stored, True
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -88,8 +96,8 @@ def decrypt(stored: Optional[str], user_id: str) -> Tuple[Optional[str], bool]:
     nonce, sealed = raw[:12], raw[12:]
     for index, key in enumerate(_keys()):
         try:
-            plaintext = AESGCM(key).decrypt(nonce, sealed, str(user_id).encode("utf-8")).decode("utf-8")
+            plaintext = AESGCM(key).decrypt(nonce, sealed, str(bound_to).encode("utf-8")).decode("utf-8")
             return plaintext, index > 0
         except InvalidTag:
             continue
-    raise SecretBoxError("stored secret cannot be decrypted with the configured keys")
+    raise SecretBoxError("stored secret cannot be decrypted with MFA_ENCRYPTION_KEY or MFA_ENCRYPTION_KEY_PREVIOUS")

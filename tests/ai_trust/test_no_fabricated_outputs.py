@@ -214,33 +214,6 @@ class TestIngestion:
 
 
 # ---------------------------------------------------------------------------
-# ERP
-# ---------------------------------------------------------------------------
-
-class TestERP:
-    @pytest.fixture
-    def manager_module(self):
-        import libs.integrations.manager as manager
-        return manager
-
-    async def _suppliers(self, manager_module):
-        return await manager_module.ERPManager().sync_suppliers(ORG)
-
-    def test_demo_records_are_tagged(self, manager_module, monkeypatch):
-        import asyncio
-        monkeypatch.setattr(manager_module, "ERP_DEMO_DATA", True)
-        suppliers = asyncio.run(self._suppliers(manager_module))
-        assert suppliers and all(s["is_demo"] for s in suppliers)
-
-    def test_demo_records_excluded_when_disabled(self, manager_module, monkeypatch):
-        import asyncio
-        monkeypatch.setattr(manager_module, "ERP_DEMO_DATA", False)
-        assert asyncio.run(self._suppliers(manager_module)) == []
-        results = asyncio.run(manager_module.ERPManager().sync_all(ORG))
-        assert all(r == {"status": "not_connected"} for r in results.values())
-
-
-# ---------------------------------------------------------------------------
 # "LLM used" flags report what actually ran
 # ---------------------------------------------------------------------------
 

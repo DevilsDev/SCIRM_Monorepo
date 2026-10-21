@@ -1,9 +1,10 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { api, SapImportResult } from '../services/api';
+import { api, SapConnection, SapImportResult } from '../services/api';
 import { decodeExport, headerCells } from '../services/fileText';
 import SapSpendImport from '../components/SapSpendImport';
+import SapConnectionPanel from '../components/SapConnectionPanel';
 
 const MAX_BYTES = 20_000_000;
 const MAPPABLE: Array<{ field: string; column: string; label: string }> = [
@@ -33,6 +34,24 @@ export default function SapImportPage() {
   const [done, setDone] = useState<SapImportResult | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [connection, setConnection] = useState<SapConnection | null>(null);
+  // Where the supplier master comes from: an uploaded LFA1 file, or the SAP connection.
+  const [source, setSource] = useState<'file' | 'connection'>('file');
+
+  useEffect(() => {
+    api.getSapConnection().then((c) => {
+      setConnection(c);
+      if (c) setSource('connection');
+    }).catch(() => setConnection(null));
+  }, []);
+
+  const pickSource = (next: 'file' | 'connection') => {
+    setSource(next);
+    setPreview(null);
+    setDone(null);
+    setDecisions({});
+    setError('');
+  };
 
   const technical = headers.some((h) => h.toUpperCase() === 'LIFNR');
 
@@ -59,8 +78,9 @@ export default function SapImportPage() {
     setError('');
     try {
       const mapped = Object.fromEntries(Object.entries(columnMap).filter(([, v]) => v));
-      const result = await api.importSapSuppliers({ content, column_map: mapped, decisions,
-        deactivate_missing: deactivateMissing, apply });
+      const result = source === 'connection'
+        ? await api.importSapSuppliersFromConnection({ decisions, deactivate_missing: deactivateMissing, apply })
+        : await api.importSapSuppliers({ content, column_map: mapped, decisions, deactivate_missing: deactivateMissing, apply });
       if (apply) {
         setDone(result);
         setPreview(null);
@@ -90,11 +110,39 @@ export default function SapImportPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('sap.title', 'Import suppliers from SAP')}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {t('sap.intro', 'Upload an export of the SAP vendor master (table LFA1), for example from transaction SE16N. SCIRM does not connect to your SAP system and stores no SAP credentials. You see what will change before anything is saved.')}
+          {t('sap.intro2', 'Read the supplier master from your SAP S/4HANA system, or upload an export of table LFA1 (for example from transaction SE16N). You see what will change before anything is saved.')}
         </p>
       </div>
 
-      <div className={card}>
+      <SapConnectionPanel connection={connection} onChange={(c) => { setConnection(c); if (!c) pickSource('file'); }} />
+
+      {connection && (
+        <div className="flex gap-2 text-sm" role="radiogroup" aria-label={t('sap.source', 'Import from')}>
+          {(['connection', 'file'] as const).map((s) => (
+            <button key={s} type="button" role="radio" aria-checked={source === s} onClick={() => pickSource(s)}
+              className={`px-3 py-1.5 rounded-lg border ${source === s ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600'}`}>
+              {s === 'connection' ? t('sap.fromConnection', 'From the SAP connection') : t('sap.fromFile', 'From a file')}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {source === 'connection' && connection && (
+        <div className={card}>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {t('sap.connectionHint', 'Reads every supplier from {{url}}. Importing reads SAP again, so the result can differ slightly from the preview if suppliers changed in between.', { url: connection.base_url })}
+          </p>
+          <div className="flex gap-2 mt-4">
+            <button type="button" disabled={busy} onClick={() => run(false)}
+              className={`${button} bg-blue-600 text-white hover:bg-blue-700`}>
+              {busy ? t('sap.reading', 'Reading from SAP...') : preview ? t('sap.updatePreview', 'Update preview') : t('sap.previewFromSap', 'Preview from SAP')}
+            </button>
+          </div>
+          {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+        </div>
+      )}
+
+      {source === 'file' && <div className={card}>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {t('sap.file', 'LFA1 export (tab-, semicolon- or comma-separated text)')}
         </label>
@@ -128,12 +176,12 @@ export default function SapImportPage() {
           </button>
         </div>
         {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
-      </div>
+      </div>}
 
       {preview && (
         <div className={card}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-            {t('sap.previewTitle', 'What the import will do')} ({t('sap.rows', '{{count}} suppliers in the file', { count: preview.rows })})
+            {t('sap.previewTitle', 'What the import will do')} ({source === 'connection' ? t('sap.rowsSap', '{{count}} suppliers in SAP', { count: preview.rows }) : t('sap.rows', '{{count}} suppliers in the file', { count: preview.rows })})
           </h2>
           <div className="flex flex-wrap gap-2 mb-4">
             {Object.entries(preview.summary).map(([action, count]) => (
@@ -172,7 +220,7 @@ export default function SapImportPage() {
                 <input type="checkbox" className="mt-1" checked={deactivateMissing}
                   onChange={(e) => change(() => setDeactivateMissing(e.target.checked))} />
                 <span>
-                  {t('sap.missing', '{{count}} suppliers imported before are not in this file. Deactivate them (nothing is deleted).', { count: preview.missing.length })}
+                  {t('sap.missing2', '{{count}} suppliers imported before are not in SAP any more (or not in this file). Deactivate them (nothing is deleted).', { count: preview.missing.length })}
                   <span className="block text-xs text-gray-500">{preview.missing.slice(0, 5).map((m) => m.name).join(', ')}{preview.missing.length > 5 && ', ...'}</span>
                 </span>
               </label>
@@ -221,13 +269,13 @@ export default function SapImportPage() {
           </p>
           {done.duplicates.length > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              {t('sap.leftOver', '{{count}} possible duplicates were skipped; import the file again to decide on them.', { count: done.duplicates.length })}
+              {t('sap.leftOver2', '{{count}} possible duplicates were skipped; import again to decide on them.', { count: done.duplicates.length })}
             </p>
           )}
         </div>
       )}
 
-      <SapSpendImport />
+      <SapSpendImport connected={!!connection} />
     </div>
   );
 }

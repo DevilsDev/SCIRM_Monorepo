@@ -28,10 +28,11 @@ from libs.common.models import (
     RiskAssessmentResponse,
 )
 from libs.common.monitoring import setup_monitoring, track_agent_task
+from libs.common import secret_box
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
-from libs.integrations import sap_import, sap_spend
+from libs.integrations import sap_import, sap_odata, sap_spend
 from libs.intel import geo
 
 # ---------------------------------------------------------------------------
@@ -55,6 +56,8 @@ logger = structlog.get_logger()
 
 # Tenant data: MemoryStore in development/tests, PostgresStore otherwise (see libs/common/store.py).
 store = create_store()
+# ERP connection passwords are decrypted here, to call SAP: fail at start-up without the key.
+secret_box.require_key()
 
 # Shared HTTP client
 _http_client: Optional[httpx.AsyncClient] = None
@@ -600,17 +603,13 @@ class SupplierImport(BaseModel):
     apply: bool = False
 
 
-@app.post("/suppliers/import/sap")
-async def import_sap_suppliers(body: SupplierImport, org_id: str = Depends(tenant_org)):
-    """Supplier master from an SAP LFA1 extract. With apply=false (the default) nothing is
-    written: the response is the preview. Applying re-plans against current data."""
-    rows, warnings = sap_import.parse_extract(body.content, body.column_map)
-    if not rows:
-        raise HTTPException(status_code=400, detail=" ".join(warnings) or "No suppliers found in the file")
+async def _supplier_import(org_id: str, rows: List[Dict[str, Any]], warnings: List[str], decisions: Dict[str, str],
+                           deactivate_missing: bool, apply: bool) -> Dict[str, Any]:
+    """Plan (and with apply, write) a supplier master import, from a file or from SAP."""
     existing, _ = await store.list_suppliers(org_id, limit=None)
-    plan = sap_import.plan_import(rows, existing, body.decisions, body.deactivate_missing)
+    plan = sap_import.plan_import(rows, existing, decisions, deactivate_missing)
     written = 0
-    if body.apply:
+    if apply:
         creates = [{"supplier_type": "general", **a["fields"]} for a in plan["actions"] if a["action"] == "create"]
         updates = [(a["supplier_id"], a["fields"]) for a in plan["actions"]
                    if a["action"] in ("update", "link", "deactivate")]
@@ -619,11 +618,21 @@ async def import_sap_suppliers(body: SupplierImport, org_id: str = Depends(tenan
             written = await store.write_suppliers(org_id, creates, updates)
         except KeyError:
             raise HTTPException(status_code=409, detail="Suppliers changed during the import. Preview again.")
-    return {"applied": body.apply, "written": written, "rows": len(rows), "warnings": warnings,
+    return {"applied": apply, "written": written, "rows": len(rows), "warnings": warnings,
             "summary": plan["summary"], "duplicates": plan["duplicates"], "missing": plan["missing"],
             "missing_deactivated": plan["missing_deactivated"], "guard": plan["guard"],
             # Unchanged suppliers are only counted, to keep the response small.
             "actions": [a for a in plan["actions"] if a["action"] != "unchanged"][:2000]}
+
+
+@app.post("/suppliers/import/sap")
+async def import_sap_suppliers(body: SupplierImport, org_id: str = Depends(tenant_org)):
+    """Supplier master from an SAP LFA1 extract. With apply=false (the default) nothing is
+    written: the response is the preview. Applying re-plans against current data."""
+    rows, warnings = sap_import.parse_extract(body.content, body.column_map)
+    if not rows:
+        raise HTTPException(status_code=400, detail=" ".join(warnings) or "No suppliers found in the file")
+    return await _supplier_import(org_id, rows, warnings, body.decisions, body.deactivate_missing, body.apply)
 
 
 class SpendImport(BaseModel):
@@ -633,6 +642,24 @@ class SpendImport(BaseModel):
     apply: bool = False
 
 
+async def _spend_import(org_id: str, summary: Dict[str, Any], warnings: List[str], apply: bool) -> Dict[str, Any]:
+    """Plan (and with apply, write) supplier spend, from a file or from SAP."""
+    existing, _ = await store.list_suppliers(org_id, limit=None)
+    plan = sap_spend.plan_spend(summary, existing)
+    if not plan["updates"]:
+        warnings.append("No suppliers have been imported from SAP yet. Import the supplier master (LFA1) first.")
+    written = 0
+    if apply and plan["updates"]:
+        try:
+            written = await store.write_suppliers(org_id, [], [(u["supplier_id"], u["fields"]) for u in plan["updates"]])
+        except KeyError:
+            raise HTTPException(status_code=409, detail="Suppliers changed during the import. Preview again.")
+    return {"applied": apply, "written": written, "warnings": warnings,
+            **{k: plan[k] for k in ("period", "main_currency", "currencies", "lines", "top", "unknown_suppliers",
+                                    "unknown_count", "with_spend")},
+            "suppliers": len(plan["updates"])}
+
+
 @app.post("/suppliers/import/sap-spend")
 async def import_sap_spend(body: SpendImport, org_id: str = Depends(tenant_org)):
     """12-month purchase-order spend per SAP supplier, from an EKKO/EKPO (or ME2N) export.
@@ -640,20 +667,113 @@ async def import_sap_spend(body: SpendImport, org_id: str = Depends(tenant_org))
     lines, warnings = sap_spend.parse_po_extract(body.content, body.column_map, body.decimal)
     if not lines:
         raise HTTPException(status_code=400, detail=" ".join(warnings) or "No purchase-order lines found in the file")
-    existing, _ = await store.list_suppliers(org_id, limit=None)
-    plan = sap_spend.plan_spend(sap_spend.summarize(lines), existing)
-    if not plan["updates"]:
-        warnings.append("No suppliers have been imported from SAP yet. Import the supplier master (LFA1) first.")
-    written = 0
-    if body.apply and plan["updates"]:
-        try:
-            written = await store.write_suppliers(org_id, [], [(u["supplier_id"], u["fields"]) for u in plan["updates"]])
-        except KeyError:
-            raise HTTPException(status_code=409, detail="Suppliers changed during the import. Preview again.")
-    return {"applied": body.apply, "written": written, "warnings": warnings,
-            **{k: plan[k] for k in ("period", "main_currency", "currencies", "lines", "top", "unknown_suppliers",
-                                    "unknown_count", "with_spend")},
-            "suppliers": len(plan["updates"])}
+    return await _spend_import(org_id, sap_spend.summarize(lines), warnings, body.apply)
+
+
+# --- direct SAP connection (S/4HANA OData; libs/integrations/sap_odata.py) ----------
+
+class SapConnectionBody(BaseModel):
+    base_url: str = Field(..., min_length=8, max_length=500)
+    sap_client: Optional[str] = Field(None, max_length=3)
+    username: str = Field(..., min_length=1, max_length=200)
+    # Omitted when changing other settings: the stored password is kept.
+    password: Optional[str] = Field(None, min_length=1, max_length=500)
+    actor: Optional[str] = Field(None, max_length=320)
+
+
+class ConnectionSupplierImport(BaseModel):
+    decisions: Dict[str, str] = Field(default_factory=dict)
+    deactivate_missing: bool = False
+    apply: bool = False
+
+
+class ConnectionSpendImport(BaseModel):
+    apply: bool = False
+
+
+@app.get("/integrations/sap")
+async def get_sap_connection(org_id: str = Depends(tenant_org)):
+    """The tenant's SAP connection, without its password."""
+    return {"connection": await store.get_erp_connection(org_id, "sap")}
+
+
+@app.put("/integrations/sap")
+async def save_sap_connection(body: SapConnectionBody, org_id: str = Depends(tenant_org)):
+    try:
+        fields = {"base_url": sap_odata.validate_base_url(body.base_url),
+                  "sap_client": sap_odata.validate_client(body.sap_client), "username": body.username.strip()}
+    except sap_odata.SapError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    saved = await store.save_erp_connection(org_id, "sap", fields, body.password, body.actor)
+    if saved is None:
+        raise HTTPException(status_code=400, detail="Enter the password of the SAP communication user.")
+    return {"connection": saved}
+
+
+@app.delete("/integrations/sap")
+async def delete_sap_connection(org_id: str = Depends(tenant_org)):
+    """Remove the connection and its stored password. Imported suppliers stay."""
+    if not await store.delete_erp_connection(org_id, "sap"):
+        raise HTTPException(status_code=404, detail="No SAP connection is set up")
+    return {"deleted": True}
+
+
+async def _sap_connection(org_id: str) -> Dict[str, Any]:
+    try:
+        connection = await store.get_erp_connection(org_id, "sap", with_password=True)
+    except secret_box.SecretBoxError:
+        logger.error("SAP connection password cannot be decrypted", org=org_id)
+        raise HTTPException(status_code=409, detail="The stored SAP password can no longer be read (the encryption "
+                                                    "key changed). Enter the password again.")
+    if connection is None:
+        raise HTTPException(status_code=404, detail="No SAP connection is set up")
+    return connection
+
+
+@app.post("/integrations/sap/test")
+async def test_sap_connection(org_id: str = Depends(tenant_org)):
+    """Check that both SAP services can be read with the stored settings."""
+    result = await sap_odata.check_connection(await _sap_connection(org_id))
+    await store.record_erp_result(org_id, "sap", "last_test", result)
+    return result
+
+
+async def _record_import(org_id: str, kind: str, result: Dict[str, Any], error: Optional[str] = None) -> None:
+    summary = {"kind": kind, "ok": error is None, "error": error}
+    if error is None:
+        summary.update(applied=result.get("applied"), written=result.get("written"))
+    await store.record_erp_result(org_id, "sap", "last_import", summary)
+
+
+@app.post("/suppliers/import/sap/connection")
+async def import_sap_suppliers_from_connection(body: ConnectionSupplierImport, org_id: str = Depends(tenant_org)):
+    """The supplier master read from the tenant's SAP system. Like the file import:
+    preview unless apply=true. Applying reads SAP again and re-plans."""
+    connection = await _sap_connection(org_id)
+    try:
+        rows, warnings = await sap_odata.fetch_suppliers(connection)
+    except sap_odata.SapError as exc:
+        await _record_import(org_id, "suppliers", {}, str(exc))
+        raise HTTPException(status_code=502, detail=str(exc))
+    if not rows:
+        raise HTTPException(status_code=400, detail=" ".join(warnings) or "SAP returned no suppliers")
+    result = await _supplier_import(org_id, rows, warnings, body.decisions, body.deactivate_missing, body.apply)
+    await _record_import(org_id, "suppliers", result)
+    return {**result, "source": "connection"}
+
+
+@app.post("/suppliers/import/sap-spend/connection")
+async def import_sap_spend_from_connection(body: ConnectionSpendImport, org_id: str = Depends(tenant_org)):
+    """Purchase-order spend for the last 365 days, read from the tenant's SAP system."""
+    connection = await _sap_connection(org_id)
+    try:
+        lines, warnings, end = await sap_odata.fetch_orders(connection)
+    except sap_odata.SapError as exc:
+        await _record_import(org_id, "spend", {}, str(exc))
+        raise HTTPException(status_code=502, detail=str(exc))
+    result = await _spend_import(org_id, sap_spend.summarize(lines, end=end), warnings, body.apply)
+    await _record_import(org_id, "spend", result)
+    return {**result, "source": "connection"}
 
 
 @app.get("/suppliers/{supplier_id}")

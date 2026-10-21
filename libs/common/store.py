@@ -199,6 +199,7 @@ class MemoryStore:
         # (source, external_id) -> (vector, model, text hash)
         self.embeddings: Dict[Tuple[str, str], Tuple[List[float], str, str]] = {}
         self.source_runs: Dict[str, Dict[str, Any]] = {}
+        self.erp_connections: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
     async def close(self) -> None:
         return None
@@ -607,12 +608,79 @@ class MemoryStore:
         rows = [r for k, r in self.feedback.items() if k[0] == org and (cutoff is None or r["updated_at"] >= cutoff)]
         return summarize_feedback(rows)
 
+    # --- ERP connections ------------------------------------------------------
+    async def get_erp_connection(self, org: str, system: str, with_password: bool = False) -> Optional[Dict[str, Any]]:
+        """The tenant's connection without its password, or with it decrypted
+        (with_password, for the service that calls SAP; never for an API response)."""
+        row = self.erp_connections.get((org, system))
+        if row is None:
+            return None
+        out = _erp_public(row)
+        if with_password:
+            password, stale = _erp_open(org, row)
+            if stale:  # sealed with the previous key
+                row["password_enc"] = secret_box.encrypt(password, _erp_bound(system, org, row["id"]))
+            out["password"] = password
+        return out
+
+    async def save_erp_connection(self, org: str, system: str, fields: Dict[str, Any], password: Optional[str],
+                                  actor: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Create or replace the connection. password=None keeps the stored one; None is
+        returned when there is none to keep."""
+        row = self.erp_connections.get((org, system))
+        if row is None and not password:
+            return None
+        if row is None:
+            row = {"id": str(uuid.uuid4()), "organization_id": org, "system": system, "created_by": actor,
+                   "created_at": _now(), "last_test": None, "last_import": None}
+        changed = {k: fields.get(k) for k in ("base_url", "sap_client", "username")}
+        if password or any(row.get(k) != v for k, v in changed.items()):
+            row["last_test"] = None  # a test of other settings no longer says anything
+        row.update(changed, updated_at=_now())
+        if password:
+            row["password_enc"] = secret_box.encrypt(password, _erp_bound(system, org, row["id"]))
+        self.erp_connections[(org, system)] = row
+        return _erp_public(row)
+
+    async def delete_erp_connection(self, org: str, system: str) -> bool:
+        return self.erp_connections.pop((org, system), None) is not None
+
+    async def record_erp_result(self, org: str, system: str, kind: str, result: Dict[str, Any]) -> None:
+        row = self.erp_connections.get((org, system))
+        if row is not None and kind in ("last_test", "last_import"):
+            row[kind] = {**result, "at": _now()}
+
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
         self.audit.append({**entry, "organization_id": org, "created_at": _now()})
 
     async def list_audit(self, org: str, limit: int = 100) -> List[Dict[str, Any]]:
         return [a for a in reversed(self.audit) if a.get("organization_id") == org][:limit]
+
+
+# --- ERP connections (shared) ---------------------------------------------------
+
+_ERP_PUBLIC = ("id", "system", "base_url", "sap_client", "username", "last_test", "last_import", "created_by",
+               "created_at", "updated_at")
+
+
+def _erp_bound(system: str, org: str, connection_id: str) -> str:
+    # The "erp:" prefix keeps these ciphertexts apart from MFA seeds, which are bound to a user id.
+    return f"erp:{system}:{org}:{connection_id}"
+
+
+def _erp_public(row: Dict[str, Any]) -> Dict[str, Any]:
+    """A connection as the API shows it: everything except the password."""
+    out = {k: row.get(k) for k in _ERP_PUBLIC}
+    for k in ("last_test", "last_import"):
+        if isinstance(out[k], str):
+            out[k] = json.loads(out[k])
+    return {**_jsonable(out), "has_password": bool(row.get("password_enc"))}
+
+
+def _erp_open(org: str, row: Dict[str, Any]) -> Tuple[str, bool]:
+    return secret_box.decrypt(row["password_enc"], _erp_bound(row["system"], org, str(row["id"])),
+                              allow_plaintext=False)
 
 
 async def _open_mfa_secret(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
@@ -1414,6 +1482,70 @@ class PostgresStore:
             if isinstance(r.get("context"), str):
                 r["context"] = json.loads(r["context"])
         return summarize_feedback(rows)
+
+    # --- ERP connections ------------------------------------------------------
+    @staticmethod
+    async def _erp_row(conn: Any, system: str) -> Optional[Dict[str, Any]]:
+        from sqlalchemy import text
+        result = await conn.execute(text("SELECT * FROM erp_connections WHERE system = :s"), {"s": system})
+        row = result.first()
+        return dict(row._mapping) if row else None
+
+    async def get_erp_connection(self, org: str, system: str, with_password: bool = False) -> Optional[Dict[str, Any]]:
+        from sqlalchemy import text
+        async with self._tx(org) as conn:
+            row = await self._erp_row(conn, system)
+            if row is None:
+                return None
+            out = _erp_public(row)
+            if with_password:
+                password, stale = _erp_open(org, row)
+                if stale:  # sealed with the previous key
+                    await conn.execute(text("UPDATE erp_connections SET password_enc = :p WHERE id = :i"),
+                                       {"p": secret_box.encrypt(password, _erp_bound(system, org, str(row["id"]))),
+                                        "i": row["id"]})
+                out["password"] = password
+            return out
+
+    async def save_erp_connection(self, org: str, system: str, fields: Dict[str, Any], password: Optional[str],
+                                  actor: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from sqlalchemy import text
+        await self._ensure_org(org)
+        async with self._tx(org) as conn:
+            row = await self._erp_row(conn, system)
+            if row is None and not password:
+                return None
+            params = {"u": fields.get("base_url"), "c": fields.get("sap_client"), "n": fields.get("username")}
+            if row is None:
+                connection_id = str(uuid.uuid4())
+                result = await conn.execute(text(
+                    "INSERT INTO erp_connections (id, organization_id, system, base_url, sap_client, username, "
+                    "password_enc, created_by) VALUES (CAST(:i AS uuid), CAST(:org AS uuid), :s, :u, :c, :n, :p, :a) "
+                    "RETURNING *"),
+                    {**params, "i": connection_id, "org": org, "s": system, "a": actor,
+                     "p": secret_box.encrypt(password, _erp_bound(system, org, connection_id))})
+            else:
+                connection_id = str(row["id"])
+                reset = bool(password) or any(row.get(k) != fields.get(k) for k in ("base_url", "sap_client", "username"))
+                result = await conn.execute(text(
+                    "UPDATE erp_connections SET base_url = :u, sap_client = :c, username = :n, "
+                    "password_enc = COALESCE(:p, password_enc), "
+                    "last_test = CASE WHEN :reset THEN NULL ELSE last_test END, updated_at = now() "
+                    "WHERE id = CAST(:i AS uuid) RETURNING *"),
+                    {**params, "i": connection_id, "reset": reset,
+                     "p": secret_box.encrypt(password, _erp_bound(system, org, connection_id)) if password else None})
+            return _erp_public(dict(result.first()._mapping))
+
+    async def delete_erp_connection(self, org: str, system: str) -> bool:
+        rows = await self._all(org, "DELETE FROM erp_connections WHERE system = :s RETURNING id", {"s": system})
+        return bool(rows)
+
+    async def record_erp_result(self, org: str, system: str, kind: str, result: Dict[str, Any]) -> None:
+        if kind not in ("last_test", "last_import"):
+            return
+        await self._exec(org, [(
+            f"UPDATE erp_connections SET {kind} = CAST(:r AS jsonb) WHERE system = :s",
+            {"r": json.dumps({**result, "at": _now()}), "s": system})])
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:

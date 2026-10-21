@@ -15,6 +15,7 @@ nav:
   - Home: index.md
   - Guides:
       - Importing suppliers from SAP: sap-import.md
+      - Connecting to SAP S/4HANA: sap-connection.md
       - Bedrock (EU) setup: bedrock-setup.md
       - Disaster exposure by site: site-exposure.md
   - Development:

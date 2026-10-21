@@ -460,7 +460,8 @@ class TestFailClosedConfig:
             " c.post('/scenarios/simulate', json=body, headers={**h, 'X-Service-Key': 'bad'}).status_code,"
             " c.post('/scenarios/simulate', json=body, headers={**h, 'X-Service-Key': 'svc-key'}).status_code)"
         )
-        env = dict(os.environ, ENVIRONMENT="production", SERVICE_API_KEY="svc-key", **PROD_DB)
+        env = dict(os.environ, ENVIRONMENT="production", SERVICE_API_KEY="svc-key",
+                   MFA_ENCRYPTION_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", **PROD_DB)
         result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
         # 400 = authenticated and reached the handler (which rejects the empty scenario).

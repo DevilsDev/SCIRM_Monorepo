@@ -22,8 +22,9 @@ export function formatSpend(amount: string | undefined, currency: string | null 
   }
 }
 
-// Purchase-order spend per supplier for the last 12 months, from an SAP export.
-export default function SapSpendImport() {
+// Purchase-order spend per supplier for the last 12 months, from an SAP export or, when
+// the organization has an SAP connection, read from SAP directly.
+export default function SapSpendImport({ connected = false }: { connected?: boolean }) {
   const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
@@ -34,6 +35,8 @@ export default function SapSpendImport() {
   const [stale, setStale] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Which source the current preview came from; applying uses the same one.
+  const [fromSap, setFromSap] = useState(false);
   const technical = headers.some((h) => h.toUpperCase() === 'LIFNR');
 
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -52,14 +55,17 @@ export default function SapSpendImport() {
     setColumnMap({});
   };
 
-  const run = async (apply: boolean) => {
+  const run = async (apply: boolean, sap = fromSap) => {
     setBusy(true);
     setError('');
+    setFromSap(sap);
     try {
-      const result = await api.importSapSpend({
-        content, apply, decimal: decimal || undefined,
-        column_map: Object.fromEntries(Object.entries(columnMap).filter(([, v]) => v)),
-      });
+      const result = sap
+        ? await api.importSapSpendFromConnection({ apply })
+        : await api.importSapSpend({
+          content, apply, decimal: decimal || undefined,
+          column_map: Object.fromEntries(Object.entries(columnMap).filter(([, v]) => v)),
+        });
       if (apply) { setDone(result); setPreview(null); } else { setPreview(result); setStale(false); }
     } catch (err: any) {
       setError(err?.response?.data?.detail || t('spend.failed', 'The import failed. Try again in a moment.'));
@@ -106,10 +112,18 @@ export default function SapSpendImport() {
           ))}
         </div>
       )}
-      <button type="button" disabled={!content || busy} onClick={() => run(false)}
-        className="mt-4 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-        {busy ? t('sap.working', 'Working...') : preview ? t('sap.updatePreview', 'Update preview') : t('sap.preview', 'Preview')}
-      </button>
+      <div className="flex flex-wrap gap-2 mt-4">
+        <button type="button" disabled={!content || busy} onClick={() => run(false, false)}
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+          {busy && !fromSap ? t('sap.working', 'Working...') : preview && !fromSap ? t('sap.updatePreview', 'Update preview') : t('spend.previewFile', 'Preview the file')}
+        </button>
+        {connected && (
+          <button type="button" disabled={busy} onClick={() => run(false, true)}
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+            {busy && fromSap ? t('sap.reading', 'Reading from SAP...') : t('spend.previewSap', 'Preview the last 12 months from SAP')}
+          </button>
+        )}
+      </div>
       {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
 
       {preview && (
