@@ -199,6 +199,23 @@ class TestImports:
         by = {s.get("sap_supplier_number"): s for s in suppliers_of(apps, ORG_1)}
         assert by[a]["spend_12m"] == {"EUR": "900.00"} and by[a]["spend_rank"] < by[b]["spend_rank"]
 
+    def test_no_orders_from_sap_keeps_earlier_spend(self, client, sarah, apps, fake_sap):
+        connect(client, sarah)
+        (n,) = numbers(1)
+        fake_sap(FakeSap([partner("1", n, f"Kept Spend {n} GmbH")]))
+        client.post("/api/v1/suppliers/import/sap/connection", json={"apply": True}, headers=bearer(sarah["access_token"]))
+        from datetime import date, timedelta
+        recent = (date.today() - timedelta(days=10)).isoformat()
+        fake_sap(FakeSap(orders=[order("1", n, recent, [{"NetAmount": "42.00", "NetPriceAmount": "42", "OrderQuantity": "1"}])]))
+        client.post("/api/v1/suppliers/import/sap-spend/connection", json={"apply": True}, headers=bearer(sarah["access_token"]))
+        # An empty but complete-looking answer (e.g. a user who may not see orders) changes nothing.
+        fake_sap(FakeSap(orders=[]))
+        r = client.post("/api/v1/suppliers/import/sap-spend/connection", json={"apply": True},
+                        headers=bearer(sarah["access_token"]))
+        assert r.status_code == 400 and "no purchase orders" in r.json()["detail"]
+        mine = next(s for s in suppliers_of(apps, ORG_1) if s.get("sap_supplier_number") == n)
+        assert mine["spend_12m"] == {"EUR": "42.00"}
+
     def test_a_failed_read_writes_nothing_and_is_explained(self, client, sarah, apps, fake_sap, monkeypatch):
         connect(client, sarah)
         monkeypatch.setattr(sap_odata, "SUPPLIER_PAGE", 1)

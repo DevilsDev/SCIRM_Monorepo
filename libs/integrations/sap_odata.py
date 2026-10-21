@@ -381,6 +381,13 @@ def order_lines(po: Dict[str, Any], net_amount: bool) -> Tuple[List[Dict[str, An
 
 # --- reading ----------------------------------------------------------------------
 
+def _page_query(params: Dict[str, str], top: int, skip: int, order_by: str, count: bool) -> Dict[str, str]:
+    query = {**params, "$format": "json", "$top": str(top), "$skip": str(skip), "$orderby": order_by}
+    if count:
+        query["$inlinecount"] = "allpages"
+    return query
+
+
 async def _pages(session: _Session, service: str, entity: str, params: Dict[str, str], page: int,
                  limit: int, order_by: str) -> Tuple[List[Dict[str, Any]], int]:
     """All records of a query, in pages, and the total SAP reported. Raises if a page
@@ -390,10 +397,7 @@ async def _pages(session: _Session, service: str, entity: str, params: Dict[str,
     total: Optional[int] = None
     skip = 0
     while True:
-        query = {**params, "$format": "json", "$top": str(page), "$skip": str(skip), "$orderby": order_by}
-        if total is None:
-            query["$inlinecount"] = "allpages"
-        data = await session.json(service, f"/{entity}", query)
+        data = await session.json(service, f"/{entity}", _page_query(params, page, skip, order_by, total is None))
         if total is None:
             try:
                 total = int(data.get("__count"))
@@ -417,16 +421,32 @@ def _select(entity_fields, nav: Dict[str, Tuple[str, ...]]) -> Dict[str, str]:
     return {"$select": ",".join(fields), "$expand": ",".join(nav)}
 
 
+def _supplier_query() -> Tuple[str, Dict[str, str], str]:
+    """(entity, query, order) of the supplier read; the connection test sends the same."""
+    return "A_BusinessPartner", {
+        "$filter": "Supplier ne ''",
+        **_select(BP_FIELDS, {"to_Supplier": SUPPLIER_FIELDS, "to_BusinessPartnerAddress": ADDRESS_FIELDS}),
+    }, "BusinessPartner"
+
+
+def _order_query(today: date, net_amount: bool) -> Tuple[str, Dict[str, str], str]:
+    """(entity, query, order) of the purchase-order read for the 365 days up to today."""
+    start = today - timedelta(days=sap_spend.PERIOD_DAYS - 1)
+    items = ITEM_FIELDS + ((NET_AMOUNT,) if net_amount else ())
+    return "A_PurchaseOrder", {
+        "$filter": f"PurchaseOrderDate ge datetime'{start.isoformat()}T00:00:00'",
+        **_select(PO_FIELDS, {"to_PurchaseOrderItem": items}),
+    }, "PurchaseOrder"
+
+
 async def fetch_suppliers(connection: Dict[str, Any], today: Optional[date] = None,
                           strict: Optional[bool] = None) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Supplier rows (as sap_import.parse_extract returns them) read from SAP."""
     today = today or date.today()
     async with _Session(connection, strict) as session:
         await _check_metadata(session, BP_SERVICE)
-        params = {"$filter": "Supplier ne ''",
-                  **_select(BP_FIELDS, {"to_Supplier": SUPPLIER_FIELDS, "to_BusinessPartnerAddress": ADDRESS_FIELDS})}
-        records, _ = await _pages(session, BP_SERVICE, "A_BusinessPartner", params, SUPPLIER_PAGE,
-                                  sap_import.MAX_ROWS, "BusinessPartner")
+        entity, params, order_by = _supplier_query()
+        records, _ = await _pages(session, BP_SERVICE, entity, params, SUPPLIER_PAGE, sap_import.MAX_ROWS, order_by)
     return sap_import.build_rows(((supplier_fields(bp, today), bp.get("BusinessPartner")) for bp in records),
                                  "Business partner")
 
@@ -436,15 +456,11 @@ async def fetch_orders(connection: Dict[str, Any], today: Optional[date] = None,
     """Spend lines for purchase orders dated in the 365 days up to today, the warnings,
     and the period's end (today), for sap_spend.summarize(lines, end=...)."""
     today = today or date.today()
-    start = today - timedelta(days=sap_spend.PERIOD_DAYS - 1)
     async with _Session(connection, strict) as session:
         found = await _check_metadata(session, PO_SERVICE)
         net_amount = NET_AMOUNT in found["A_PurchaseOrderItem"]
-        items = ITEM_FIELDS + ((NET_AMOUNT,) if net_amount else ())
-        params = {"$filter": f"PurchaseOrderDate ge datetime'{start.isoformat()}T00:00:00'",
-                  **_select(PO_FIELDS, {"to_PurchaseOrderItem": items})}
-        orders, _ = await _pages(session, PO_SERVICE, "A_PurchaseOrder", params, ORDER_PAGE, MAX_ORDERS,
-                                 "PurchaseOrder")
+        entity, params, order_by = _order_query(today, net_amount)
+        orders, _ = await _pages(session, PO_SERVICE, entity, params, ORDER_PAGE, MAX_ORDERS, order_by)
     lines, unreadable = [], 0
     for po in orders:
         got, bad = order_lines(po, net_amount)
@@ -462,20 +478,26 @@ async def fetch_orders(connection: Dict[str, Any], today: Optional[date] = None,
     return lines, warnings, today
 
 
-async def check_connection(connection: Dict[str, Any], strict: Optional[bool] = None) -> Dict[str, Any]:
-    """Check both services: reachable, authorised, and with every field SCIRM reads."""
+async def check_connection(connection: Dict[str, Any], strict: Optional[bool] = None,
+                           today: Optional[date] = None) -> Dict[str, Any]:
+    """Check both services: reachable, authorised, with every field SCIRM reads, and
+    accepting the exact query an import sends (filter, expand, select, order, count),
+    for one record. A release that rejects any part of it fails here, not mid-import."""
+    today = today or date.today()
     checks = []
     try:
         session = _Session(connection, strict)
     except SapError as exc:
         return {"ok": False, "checks": [{"service": "connection", "ok": False, "detail": str(exc)}]}
     async with session:
-        for service, entity in ((BP_SERVICE, "A_BusinessPartner"), (PO_SERVICE, "A_PurchaseOrder")):
+        for service in (BP_SERVICE, PO_SERVICE):
             name = service.rsplit("/", 1)[-1]
             try:
-                await _check_metadata(session, service)
-                await session.json(service, f"/{entity}", {"$format": "json", "$top": "1", "$select": REQUIRED[service][entity][0]})
-                checks.append({"service": name, "ok": True, "detail": "readable"})
+                found = await _check_metadata(session, service)
+                entity, params, order_by = (_supplier_query() if service == BP_SERVICE
+                                            else _order_query(today, NET_AMOUNT in found["A_PurchaseOrderItem"]))
+                data = await session.json(service, f"/{entity}", _page_query(params, 1, 0, order_by, True))
+                checks.append({"service": name, "ok": True, "detail": "readable", "records": data.get("__count")})
             except SapError as exc:
                 checks.append({"service": name, "ok": False, "detail": str(exc)})
     return {"ok": all(c["ok"] for c in checks), "checks": checks}

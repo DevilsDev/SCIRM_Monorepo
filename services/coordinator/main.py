@@ -9,7 +9,7 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import asyncio
@@ -771,6 +771,14 @@ async def import_sap_spend_from_connection(body: ConnectionSpendImport, org_id: 
     except sap_odata.SapError as exc:
         await _record_import(org_id, "spend", {}, str(exc))
         raise HTTPException(status_code=502, detail=str(exc))
+    if not lines:
+        # Like an empty file: applying would set every SAP supplier's spend to zero. A user
+        # whose authorizations hide orders gets an empty, complete-looking answer from SAP.
+        since = (end - timedelta(days=sap_spend.PERIOD_DAYS - 1)).isoformat()
+        detail = (f"SAP returned no purchase orders dated since {since}. Check that the communication user "
+                  "can see all purchase orders. Nothing was imported.")
+        await _record_import(org_id, "spend", {}, detail)
+        raise HTTPException(status_code=400, detail=" ".join([detail, *warnings]))
     result = await _spend_import(org_id, sap_spend.summarize(lines, end=end), warnings, body.apply)
     await _record_import(org_id, "spend", result)
     return {**result, "source": "connection"}

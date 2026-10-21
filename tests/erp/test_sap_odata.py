@@ -133,6 +133,27 @@ class TestMetadata:
         with pytest.raises(SapError, match="DTD"):
             sap_odata.properties_from_metadata(b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><x/>')
 
+    def test_check_connection_sends_the_imports_own_queries(self, sap):
+        fake = sap(FakeSap([partner("1", "1", "Acme GmbH")], net_amount=False))
+        assert run(sap_odata.check_connection(CONN, today=TODAY))["ok"] is True
+        (bp,) = fake.queries("A_BusinessPartner")
+        assert bp["$filter"] == "Supplier ne ''" and "to_Supplier" in bp["$expand"]
+        assert bp["$top"] == "1" and bp["$inlinecount"] == "allpages" and bp["$orderby"] == "BusinessPartner"
+        (po,) = fake.queries("A_PurchaseOrder")
+        assert po["$filter"].startswith("PurchaseOrderDate ge datetime'2025-10-22") and po["$expand"] == "to_PurchaseOrderItem"
+        assert "NetAmount" not in po["$select"]  # follows the release's $metadata, like the import
+
+    def test_check_connection_fails_when_sap_rejects_the_import_query(self, sap):
+        class RejectsFilter(FakeSap):
+            async def handle_async_request(self, request):
+                if "%24filter" in str(request.url) or "$filter" in str(request.url):
+                    self.requests.append(request)
+                    return sap_fake.httpx.Response(400, text="filter not supported")
+                return await super().handle_async_request(request)
+        sap(RejectsFilter())
+        result = run(sap_odata.check_connection(CONN, today=TODAY))
+        assert result["ok"] is False and all("HTTP 400" in c["detail"] for c in result["checks"])
+
     def test_check_connection_reports_each_service(self, sap):
         sap(FakeSap(status={sap_fake.PO: 403}))
         result = run(sap_odata.check_connection(CONN))

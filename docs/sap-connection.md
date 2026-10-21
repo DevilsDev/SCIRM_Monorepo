@@ -73,6 +73,13 @@ assigned to SAP_COM_0053*.
 Analysts and admins can run imports. Auditors can see the connection's settings and
 status, but not import or change anything.
 
+**The user must be able to see every supplier and purchase order.** SAP narrows results
+to what a user is authorized for, without reporting an error. With restricted
+authorizations, an import is incomplete and looks complete. Suppliers the user cannot see
+would show as *not in SAP any more*. SCIRM still refuses to deactivate suppliers when
+the list is less than half the size of the last import, and it refuses a spend import
+that finds no orders at all.
+
 An import reads everything before it plans anything. If any page fails, or SAP returns
 fewer records than it counted, nothing is imported and the error says why. A partial
 supplier list would otherwise look like suppliers removed from SAP. Imports stop rather
@@ -95,6 +102,11 @@ for larger volumes.
 
 ## Not covered yet
 
+- **Very large systems.** An import has 5 minutes. With tens of thousands of suppliers or
+  orders, reading them page by page can take longer. If the browser reports a timeout
+  while applying, the import may still finish in the background: check the connection's
+  last import and the suppliers page before running it again. For such volumes, use the
+  file imports.
 - **Scheduled imports.** Imports run when someone starts them, because new possible
   duplicates need a person's decision.
 - **OAuth 2.0 and X.509 client certificates.** Only user and password (basic
