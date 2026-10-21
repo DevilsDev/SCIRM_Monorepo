@@ -1,7 +1,9 @@
 # Importing suppliers from SAP
 
-SCIRM reads your supplier master from a file you export from SAP. It does not connect
-to your SAP system, and it stores no SAP credentials.
+SCIRM reads your supplier master from a file you export from SAP. With a file, SCIRM
+does not connect to your SAP system and stores no SAP credentials. On SAP S/4HANA you
+can instead [connect SCIRM to SAP](sap-connection.md) and skip the exports; the same
+rules apply.
 
 ## 1. Export table LFA1
 
@@ -78,6 +80,8 @@ purchase-order list (for example ME2N or ME2L) exported to a file. Include:
 The Suppliers page then shows **Spend (12 mo)** with each supplier's share, and can
 sort by largest spend.
 
-## Not covered yet
+## Direct connection
 
-- **A direct API connection** (OData `API_BUSINESS_PARTNER`). This would need per-tenant credentials stored encrypted. Until then, the file export keeps your SAP credentials inside your own network.
+On S/4HANA, the same data can be read straight from SAP over its OData APIs. See
+[Connecting SCIRM to SAP S/4HANA](sap-connection.md). The file imports stay available,
+and they are the way to go on SAP ECC.

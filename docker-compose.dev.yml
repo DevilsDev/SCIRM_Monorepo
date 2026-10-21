@@ -73,6 +73,7 @@ services:
         SERVICE_PATH: services/coordinator
     environment:
       - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY:-}
       - STORE_BACKEND=postgres
       - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379

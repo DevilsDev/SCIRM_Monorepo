@@ -2,7 +2,9 @@
 Purchase-order spend from an SAP export, to rank suppliers by what is bought from them.
 
 The customer exports purchase-order items with their header fields (EKPO joined with
-EKKO, or an ME2N/ME2L list exported to a file) and uploads it. Nothing connects to SAP.
+EKKO, or an ME2N/ME2L list exported to a file) and uploads it; or, on S/4HANA, the
+orders are read over OData from the tenant's connection (libs/integrations/sap_odata.py)
+as the same lines.
 
     parse_po_extract(text, column_map, decimal)  -> lines, warnings
     summarize(lines)                             -> spend per SAP supplier number
@@ -148,14 +150,18 @@ def parse_po_extract(text: str, column_map: Optional[Dict[str, str]] = None,
     return lines, warnings
 
 
-def summarize(lines: List[Dict[str, Any]], period_days: int = PERIOD_DAYS) -> Dict[str, Any]:
+def summarize(lines: List[Dict[str, Any]], period_days: int = PERIOD_DAYS, end: Optional[date] = None) -> Dict[str, Any]:
+    """Spend per supplier over `period_days` ending at `end`. A file covers whatever its
+    export covered, so by default the period ends at its latest order. Orders read from
+    SAP over OData were fetched for a period ending today, which is passed as `end`, so
+    the period matches what was fetched even when the latest order is months old."""
     kept = [l for l in lines if not l["deleted"]]
     if not kept:
         return {"period": None, "suppliers": {}, "currencies": {}, "main_currency": None,
                 "lines": {"read": len(lines), "deleted": len(lines), "before_period": 0, "counted": 0}}
-    end = max(l["date"] for l in kept)
+    end = end or max(l["date"] for l in kept)
     start = end - timedelta(days=period_days - 1)
-    in_period = [l for l in kept if l["date"] >= start]
+    in_period = [l for l in kept if start <= l["date"] <= end]
     suppliers: Dict[str, Dict[str, Any]] = {}
     currencies: Dict[str, Decimal] = defaultdict(Decimal)
     for l in in_period:

@@ -7,6 +7,7 @@ about them with citations to those records.
 ## Guides
 
 - [Importing suppliers from SAP](sap-import.md): upload an LFA1 export; preview before anything is saved.
+- [Connecting to SAP S/4HANA](sap-connection.md): read suppliers and purchase-order spend over OData instead of exporting files.
 - [Bedrock (EU) setup](bedrock-setup.md): enable AI-written answers and vector search, EU-only.
 - [Disaster exposure by site](site-exposure.md): how alerts are matched to plants and warehouses.
 

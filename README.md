@@ -42,7 +42,7 @@ concerns one of them. It is built first for pharmaceutical and healthcare supply
 | **One event, one row** | An FDA recall event often has a recall number for every strength or pack. SCIRM groups them, so one event counts once and lists the products it covers. |
 | **Watch flag** | A back-tested recall-history rule marks suppliers worth a closer look. It is a prompt to investigate, not a prediction (see [evaluation](#evidence-and-evaluation)). |
 | **Cited answers** | Ask a question about a supplier ("Any sterility problems?"). Every sentence in the answer cites the record it comes from, and a deterministic checker removes any sentence its records do not support. |
-| **SAP supplier import** | Upload an export of the SAP vendor master (table LFA1). You see what will change before anything is saved. SCIRM does not connect to SAP and stores no SAP credentials. See [the guide](docs/sap-import.md). |
+| **SAP supplier import** | Upload an export of the SAP vendor master (table LFA1), or, on S/4HANA, connect SCIRM to SAP and read it over OData. You see what will change before anything is saved. See [the file guide](docs/sap-import.md) and [the connection guide](docs/sap-connection.md). |
 | **Spend ranking** | Upload purchase-order items (EKKO/EKPO or an ME2N list) to rank suppliers by 12-month spend, per currency and never converted. |
 | **Supplier scan** | Upload a supplier list (CSV) and get a self-contained, cited report. The list is not stored. |
 | **Teams** | Invitations, four roles (admin, analyst, viewer, auditor), MFA, and an append-only audit log. |
@@ -74,7 +74,7 @@ flowchart LR
   lists (shortages, import alerts) are compared with the previous fetch, and entries that
   disappeared are marked delisted. It also matches records to suppliers and runs the
   Evidence Engine.
-- **Coordinator** (`services/coordinator`) owns suppliers, the SAP import, and the
+- **Coordinator** (`services/coordinator`) owns suppliers, the SAP imports and connection, and the
   multi-agent assessment pipeline (planner, researcher, executor and reviewer services).
 - **API gateway** (`apps/api-gateway`) is the only public entry point. It handles sign-in,
   MFA, invitations, role checks, rate limiting and the audit log, and passes each tenant's
@@ -179,7 +179,7 @@ most important:
 | `PUBLIC_APP_URL` | Base URL used in invitation links. |
 | `SIGNUP_MODE` | `open` in development, `closed` elsewhere (people join by invitation). |
 | `MFA_ENABLED` | Enables TOTP multi-factor sign-in. |
-| `MFA_ENCRYPTION_KEY` | Encrypts MFA seeds at rest (AES-256-GCM, bound to the user). Required outside development; `MFA_ENCRYPTION_KEY_PREVIOUS` supports rotation. |
+| `MFA_ENCRYPTION_KEY` | Encrypts MFA seeds (gateway) and SAP connection passwords (coordinator) at rest, with AES-256-GCM, each bound to its owner. Required outside development by both services; `MFA_ENCRYPTION_KEY_PREVIOUS` supports rotation. |
 | `SAMPLE_FEATURES` | Shows the sample-data pages and allows their API endpoints. Defaults to on in development and test, off elsewhere; keep it off for pilots. |
 | `LLM_PROVIDER`, `BEDROCK_REGION`, `BEDROCK_MODEL_ID`, `EMBEDDINGS_PROVIDER` | Optional AI. EU-only by default (`LLM_EU_ONLY=true`). |
 | `OPENFDA_API_KEY` | Optional; raises openFDA rate limits. |
@@ -253,7 +253,7 @@ libs/
   common/            Store (PostgreSQL and in-memory), auth, tenancy, LLM clients
   intel/             Source connectors, name matching, Watch scoring, supplier scan
   evidence/          Retrieval, answer composer, citation checker, embeddings
-  integrations/      ERP connectors, SAP LFA1 import
+  integrations/      SAP: LFA1 and purchase-order file imports, S/4HANA OData connection
 alembic/             Database migrations
 evals/               Back-test and Evidence Engine evaluations
 docs/                Guides, runbooks and architecture decisions (MkDocs)
@@ -278,6 +278,7 @@ tests/               Backend test suites
 The `docs/` folder is built with MkDocs (`make docs`, or `make docs-serve` to browse
 locally). It covers:
 - [Importing suppliers from SAP](docs/sap-import.md)
+- [Connecting to SAP S/4HANA](docs/sap-connection.md)
 - [Bedrock (EU) setup](docs/bedrock-setup.md)
 - [Deployment runbook](docs/operations/runbooks/deployment-runbook.md)
 - [Branching model](docs/development/branching.md)
@@ -293,7 +294,7 @@ and the workflow file explains how to enable publishing.
 - public-record ingestion and supplier matching
 - the Watch flag
 - cited answers
-- SAP supplier import and supplier scan
+- SAP supplier and spend import (files, or an S/4HANA connection) and supplier scan
 - teams, roles, MFA and audit
 - feedback and pilot metrics
 
@@ -304,9 +305,10 @@ and the workflow file explains how to enable publishing.
   "Sample data" banner.
 - **Risk scores:** no supplier risk assessment is recorded yet, so scores read
   *Not assessed*.
-- **Not yet built:**
-  - direct SAP API connection
-- **Untested in this repository:** live Bedrock calls; they need EU AWS access.
+- **Untested in this repository:**
+  - live Bedrock calls; they need EU AWS access
+  - the SAP S/4HANA connection against a real SAP system: it is tested against a
+    simulated OData service built from SAP's published API model
 
 ## Contributing
 

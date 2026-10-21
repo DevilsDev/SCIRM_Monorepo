@@ -34,7 +34,6 @@ from libs.common import secret_box
 # MFA seeds are encrypted at rest; outside development the key must be configured.
 secret_box.require_key()
 from libs.common.tenancy import internal_headers
-from libs.integrations.manager import erp_manager
 
 logger = structlog.get_logger()
 
@@ -396,9 +395,9 @@ class AcceptInvitationRequest(InvitationTokenBody):
     password: str
 
 
-def _require_admin(user) -> None:
+def _require_admin(user, what: str = "manage the team") -> None:
     if "admin" not in user.roles:
-        raise HTTPException(status_code=403, detail="Only administrators can manage the team")
+        raise HTTPException(status_code=403, detail=f"Only administrators can {what}")
 
 
 def _valid_roles(roles: List[str]) -> List[str]:
@@ -953,6 +952,120 @@ async def import_sap_spend(body: SpendImportBody, token: str = Depends(security)
                             "lines": result.get("lines"), "unknown_suppliers": result.get("unknown_count")}})
         except Exception as exc:
             logger.error("Audit write failed", error=type(exc).__name__, action="suppliers.import.sap_spend")
+    return result
+
+
+# --- Direct SAP connection (S/4HANA OData; libs/integrations/sap_odata.py) ---
+
+async def _sap_call(user, method: str, path: str, body: Optional[Dict[str, Any]] = None, timeout: float = 30.0):
+    """Call the coordinator for the SAP connection. Its messages for 400/404/409/502 are
+    written for the person (SAP's status, never SAP's response body) and pass through."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.request(method, f"{COORDINATOR_URL}{path}", json=body,
+                                             headers=_svc_headers(user), timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        code = e.response.status_code
+        if code in (400, 404, 409, 422, 502):
+            detail = e.response.json().get("detail")
+            raise HTTPException(status_code=400 if code == 422 else code,
+                                detail=detail if isinstance(detail, str) else "Invalid SAP connection settings")
+        raise HTTPException(status_code=502, detail="The SAP request failed")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Supplier service unavailable")
+
+
+async def _audit(user, action: str, details: Dict[str, Any]) -> None:
+    try:
+        await audit_store.record_audit(user.organization_id, {
+            "user_id": user.id, "actor_type": "user", "actor": user.email, "action": action,
+            "resource_type": "integrations", "status_code": 200, "details": details})
+    except Exception as exc:
+        logger.error("Audit write failed", error=type(exc).__name__, action=action)
+
+
+class SapConnectionSettings(BaseModel):
+    base_url: str = Field(..., min_length=8, max_length=500)
+    sap_client: Optional[str] = Field(None, max_length=3)
+    username: str = Field(..., min_length=1, max_length=200)
+    password: Optional[str] = Field(None, min_length=1, max_length=500)
+
+
+class SapConnectionSupplierImport(BaseModel):
+    decisions: Dict[str, str] = Field(default_factory=dict)
+    deactivate_missing: bool = False
+    apply: bool = False
+
+
+class SapConnectionSpendImport(BaseModel):
+    apply: bool = False
+
+
+@app.get("/api/v1/integrations/sap")
+async def get_sap_connection(token: str = Depends(security)):
+    """The organization's SAP connection (never its password)."""
+    user = await verify_token(token.credentials)
+    return await _sap_call(user, "GET", "/integrations/sap")
+
+
+@app.put("/api/v1/integrations/sap")
+async def save_sap_connection(body: SapConnectionSettings, token: str = Depends(security)):
+    """Set up or change the SAP connection (admins). Leave out the password to keep it."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "set up the SAP connection")
+    result = await _sap_call(user, "PUT", "/integrations/sap", {**body.model_dump(), "actor": user.email})
+    # The address and user name are settings, not secrets; the password never reaches the log.
+    await _audit(user, "integrations.sap.save", {"base_url": result["connection"]["base_url"],
+                                                 "username": result["connection"]["username"],
+                                                 "password_changed": body.password is not None})
+    return result
+
+
+@app.delete("/api/v1/integrations/sap")
+async def delete_sap_connection(token: str = Depends(security)):
+    """Remove the SAP connection and its stored password (admins)."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "remove the SAP connection")
+    result = await _sap_call(user, "DELETE", "/integrations/sap")
+    await _audit(user, "integrations.sap.delete", {})
+    return result
+
+
+@app.post("/api/v1/integrations/sap/test")
+async def test_sap_connection(token: str = Depends(security)):
+    """Check that SCIRM can read both SAP services with the stored settings (admins)."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "test the SAP connection")
+    result = await _sap_call(user, "POST", "/integrations/sap/test", timeout=120.0)
+    await _audit(user, "integrations.sap.test", {"ok": result.get("ok")})
+    return result
+
+
+@app.post("/api/v1/suppliers/import/sap/connection")
+async def import_sap_suppliers_from_connection(body: SapConnectionSupplierImport, token: str = Depends(security)):
+    """Import the supplier master from the organization's SAP system. Preview by default."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    result = await _sap_call(user, "POST", "/suppliers/import/sap/connection", body.model_dump(), timeout=300.0)
+    if body.apply:
+        await _audit(user, "suppliers.import.sap", {
+            "source": "connection", "rows": result.get("rows"), "written": result.get("written"),
+            "summary": result.get("summary"), "missing_deactivated": result.get("missing_deactivated")})
+    return result
+
+
+@app.post("/api/v1/suppliers/import/sap-spend/connection")
+async def import_sap_spend_from_connection(body: SapConnectionSpendImport, token: str = Depends(security)):
+    """Purchase-order spend for the last 365 days from the organization's SAP system."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    result = await _sap_call(user, "POST", "/suppliers/import/sap-spend/connection", body.model_dump(), timeout=300.0)
+    if body.apply:
+        await _audit(user, "suppliers.import.sap_spend", {
+            "source": "connection", "written": result.get("written"), "period": result.get("period"),
+            "lines": result.get("lines"), "unknown_suppliers": result.get("unknown_count")})
     return result
 
 
@@ -1547,29 +1660,6 @@ async def list_audit_log(limit: int = 100, token: str = Depends(security)):
     entries = await audit_store.list_audit(user.organization_id, limit=min(max(limit, 1), 1000))
     return {"entries": entries, "total": len(entries)}
 
-
-@app.get("/api/v1/erp/status")
-async def erp_status(token: str = Depends(security)):
-    """Check connection status of all ERP adapters."""
-    user = await verify_token(token.credentials)
-    return erp_manager.health_check()
-
-@app.post("/api/v1/erp/sync")
-async def erp_sync(body: Dict[str, Any], token: str = Depends(security)):
-    """Sync data from all connected ERP systems."""
-    user = await verify_token(token.credentials)
-    require_write_access(user)
-    await erp_manager.connect_all()
-    results = await erp_manager.sync_all(user.organization_id)
-    return {"status": "completed", "results": results}
-
-@app.get("/api/v1/erp/suppliers")
-async def erp_suppliers(token: str = Depends(security)):
-    """Fetch suppliers from all connected ERP systems."""
-    user = await verify_token(token.credentials)
-    await erp_manager.connect_all()
-    suppliers = await erp_manager.sync_suppliers(user.organization_id)
-    return {"suppliers": suppliers, "total": len(suppliers)}
 
 # WebSocket for real-time updates
 class ConnectionManager:

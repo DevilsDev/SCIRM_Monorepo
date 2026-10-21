@@ -3,9 +3,12 @@ Supplier master import from an SAP extract (table LFA1: the vendor master in SAP
 and S/4HANA).
 
 The customer exports LFA1 from their own system (for example with transaction SE16N)
-and uploads the file. Nothing connects to their SAP, and no SAP credentials are stored.
+and uploads the file, or, on S/4HANA, the same fields are read over OData from a
+connection the tenant set up (libs/integrations/sap_odata.py). Both produce the same
+rows and are imported by the same rules.
 
     parse_extract(text, column_map)          -> rows, warnings
+    build_rows(records)                      -> rows, warnings (from LFA1 fields)
     plan_import(rows, existing, decisions)   -> what an import would change (the preview)
 
 Applying the plan is the caller's job (services/coordinator). Rules:
@@ -24,7 +27,7 @@ Applying the plan is the caller's job (services/coordinator). Rules:
 import csv
 import io
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from libs.intel import geo, matching
 from libs.intel.sources import IMPORT_ALERT_COUNTRIES
@@ -120,30 +123,40 @@ def parse_extract(text: str, column_map: Optional[Dict[str, str]] = None) -> Tup
         i = index[field]
         return row[i].strip() if i is not None and i < len(row) else ""
 
+    records = (({f: cell(row, f) for f in COLUMNS}, line) for line, row in enumerate(rows[1:], start=2))
+    return build_rows(records, "Row")
+
+
+def build_rows(records: Iterable[Tuple[Dict[str, str], Any]], where: str = "Row") -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Supplier rows from LFA1 fields (see COLUMNS; text values, flags as in LFA1: "X"
+    or empty). Used for uploaded files and for records read from SAP over OData, so both
+    are imported by the same rules. `where` names a record's position in warnings."""
     warnings, out, seen = [], [], {}
-    for line, row in enumerate(rows[1:], start=2):
-        number = normalize_number(cell(row, "number"))
-        name1 = cell(row, "name1")
+    for fields, line in records:
+        number = normalize_number(fields.get("number") or "")
+        name1 = (fields.get("name1") or "").strip()
         if not number or not name1:
-            warnings.append(f"Row {line}: no supplier number or name; skipped.")
+            warnings.append(f"{where} {line}: no supplier number or name; skipped.")
             continue
         if number in seen:
-            warnings.append(f"Row {line}: supplier {number} already appears on row {seen[number]}; skipped.")
+            warnings.append(f"{where} {line}: supplier {number} already appears at {where.lower()} {seen[number]}; skipped.")
             continue
         seen[number] = line
-        name, extra = name1, [cell(row, f) for f in ("name2", "name3", "name4")]
+        extra = [(fields.get(f) or "").strip() for f in ("name2", "name3", "name4")]
+        name = name1
         if len(name1) >= SAP_NAME_LENGTH and extra[0]:
             name, extra = f"{name1} {extra[0]}", extra[1:]
         aliases = [e for e in extra if _is_company_name(e) and matching.normalize(e) != matching.normalize(name)]
-        country_raw = cell(row, "country")
+        country_raw = (fields.get("country") or "").strip()
         country = _country(country_raw)
         if country_raw and not country:
-            warnings.append(f"Row {line}: country '{country_raw}' not recognised; disaster exposure skipped for {name}.")
+            warnings.append(f"{where} {line}: country '{country_raw}' not recognised; disaster exposure skipped for {name}.")
         out.append({
-            "number": number, "name": name[:255], "country_code": country, "city": cell(row, "city") or None,
-            "aliases": aliases, "vat_number": cell(row, "vat_number") or None,
-            "blocked": _flag(cell(row, "posting_block")) or _flag(cell(row, "purchasing_block")),
-            "deletion_flag": _flag(cell(row, "deletion_flag")), "line": line,
+            "number": number, "name": name[:255], "country_code": country,
+            "city": (fields.get("city") or "").strip() or None,
+            "aliases": aliases, "vat_number": (fields.get("vat_number") or "").strip() or None,
+            "blocked": _flag(fields.get("posting_block")) or _flag(fields.get("purchasing_block")),
+            "deletion_flag": _flag(fields.get("deletion_flag")), "line": line,
         })
         if len(out) >= MAX_ROWS:
             warnings.append(f"Only the first {MAX_ROWS} suppliers were read.")

@@ -50,6 +50,12 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: service-api-key
+        # Decrypts tenants' SAP connection passwords (same key as the gateway's MFA seeds).
+        - name: MFA_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: mfa-encryption-key
         - name: PLANNER_SERVICE_URL
           value: "http://planner:8000"
         - name: RESEARCHER_SERVICE_URL

@@ -302,6 +302,33 @@ export interface SapSpendResult {
   suppliers: number;
 }
 
+/** The organization's SAP S/4HANA connection, as the API shows it (never the password). */
+export interface SapConnection {
+  id: string;
+  system: 'sap';
+  base_url: string;
+  sap_client: string | null;
+  username: string;
+  has_password: boolean;
+  last_test: (SapConnectionTest & { at: string }) | null;
+  last_import: { kind: 'suppliers' | 'spend'; ok: boolean; error: string | null; applied?: boolean;
+    written?: number; at: string } | null;
+  updated_at: string;
+}
+
+export interface SapConnectionTest {
+  ok: boolean;
+  checks: Array<{ service: string; ok: boolean; detail: string }>;
+}
+
+export interface SapConnectionSettings {
+  base_url: string;
+  sap_client?: string;
+  username: string;
+  /** Leave out to keep the stored password. */
+  password?: string;
+}
+
 export interface SapImportRequest {
   content: string;
   column_map?: Record<string, string>;
@@ -397,6 +424,32 @@ export const api = {
   async importSapSpend(request: { content: string; column_map?: Record<string, string>; decimal?: '.' | ',';
     apply?: boolean }): Promise<SapSpendResult> {
     return (await apiClient.post('/api/v1/suppliers/import/sap-spend', request, { timeout: 300000 })).data;
+  },
+
+  // Direct SAP S/4HANA connection (OData). Settings are admin-only; the password is never returned.
+  async getSapConnection(): Promise<SapConnection | null> {
+    return (await apiClient.get('/api/v1/integrations/sap')).data.connection;
+  },
+
+  async saveSapConnection(settings: SapConnectionSettings): Promise<SapConnection> {
+    return (await apiClient.put('/api/v1/integrations/sap', settings)).data.connection;
+  },
+
+  async deleteSapConnection(): Promise<void> {
+    await apiClient.delete('/api/v1/integrations/sap');
+  },
+
+  async testSapConnection(): Promise<SapConnectionTest> {
+    return (await apiClient.post('/api/v1/integrations/sap/test', {}, { timeout: 130000 })).data;
+  },
+
+  // Supplier master and spend read from the SAP connection: preview unless apply is true.
+  async importSapSuppliersFromConnection(request: Omit<SapImportRequest, 'content' | 'column_map'>): Promise<SapImportResult> {
+    return (await apiClient.post('/api/v1/suppliers/import/sap/connection', request, { timeout: 300000 })).data;
+  },
+
+  async importSapSpendFromConnection(request: { apply?: boolean }): Promise<SapSpendResult> {
+    return (await apiClient.post('/api/v1/suppliers/import/sap-spend/connection', request, { timeout: 300000 })).data;
   },
 
   // Supplier scan: the list is processed in memory and not stored.
