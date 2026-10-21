@@ -295,7 +295,10 @@ export interface SapSpendResult {
   main_currency: string | null;
   currencies: Record<string, string>;
   lines: { read: number; deleted: number; before_period: number; counted: number };
-  top: Array<{ rank: number; number: string; name: string; spend: Record<string, string>; share: number | null }>;
+  /** Order lines per currency; the main currency is the one with the most. */
+  currency_lines?: Record<string, number>;
+  /** rank is null for a supplier with no spend in the main currency. */
+  top: Array<{ rank: number | null; number: string; name: string; spend: Record<string, string>; share: number | null }>;
   unknown_suppliers: Array<{ number: string; spend: Record<string, string> }>;
   unknown_count: number;
   with_spend: number;

@@ -12,7 +12,7 @@ import SupplierAsk from '../components/SupplierAsk';
 import SupplierSites from '../components/SupplierSites';
 import SeverityBadge from '../components/SeverityBadge';
 import { useFeatures } from '../services/features';
-import { formatSpend } from '../components/SapSpendImport';
+import { spendParts } from '../components/SapSpendImport';
 
 const tierColors: Record<string, string> = {
   low: 'bg-green-100 text-green-800',
@@ -76,7 +76,8 @@ export default function SuppliersPage() {
   const handleSupplierClick = (supplier: Supplier) => setSelectedSupplier(supplier);
 
   const displayed = sortBy === 'default' ? suppliers : [...suppliers].sort((a, b) => sortBy === 'spend'
-    ? (a.spend_rank ?? Infinity) - (b.spend_rank ?? Infinity)
+    // Unranked (null) last; Infinity - Infinity would be NaN and break the sort.
+    ? (a.spend_rank ?? Number.MAX_SAFE_INTEGER) - (b.spend_rank ?? Number.MAX_SAFE_INTEGER)
     : (signalSummary?.[b.id]?.incidents ?? 0) - (signalSummary?.[a.id]?.incidents ?? 0));
 
   const handleCreateSupplier = async (values: any) => {
@@ -194,8 +195,8 @@ export default function SuppliersPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRegion', 'Region')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskScore', 'Risk Score')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colRiskTier', 'Risk Tier')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colSpendHint', 'Purchase-order spend in the last 12 months, from the SAP spend import; share of the total in the main currency (the one on the most order lines)')}>{t('suppliers.colSpend', 'Spend (12 mo)')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colPublicRecordsHint', 'FDA events naming this supplier in the last 12 months (a recall covering several products counts once)')}>{t('suppliers.colPublicRecords', 'Public Events (12 mo)')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={t('suppliers.colSpendHint', 'Purchase-order spend in the last 12 months, from the SAP spend import; share of the total in the main currency')}>{t('suppliers.colSpend', 'Spend (12 mo)')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('suppliers.colActions', 'Actions')}</th>
               </tr>
             </thead>
@@ -241,15 +242,16 @@ export default function SuppliersPage() {
                   )}
                   <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap"
                     title={s.spend_period ? t('suppliers.spendPeriod', '{{from}} to {{to}}', s.spend_period) : t('suppliers.noSpend', 'No purchase-order spend imported')}>
-                    {s.spend_main_currency && s.spend_12m ? (
-                      <>
-                        {formatSpend(s.spend_12m[s.spend_main_currency] ?? '0', s.spend_main_currency)}
-                        {s.spend_share != null && <span className="ml-1 text-xs text-gray-400">{(s.spend_share * 100).toFixed(1)}%</span>}
-                        {Object.keys(s.spend_12m).filter((c) => c !== s.spend_main_currency).map((c) => (
-                          <span key={c} className="block text-xs text-gray-400">+ {formatSpend(s.spend_12m![c], c)}</span>
-                        ))}
-                      </>
-                    ) : <span className="text-gray-300">–</span>}
+                    {s.spend_12m && Object.keys(s.spend_12m).length > 0 ? (() => {
+                      const [first, ...rest] = spendParts(s.spend_12m, s.spend_main_currency);
+                      return (
+                        <>
+                          {first}
+                          {s.spend_share != null && <span className="ml-1 text-xs text-gray-400">{(s.spend_share * 100).toFixed(1)}%</span>}
+                          {rest.map((part) => <span key={part} className="block text-xs text-gray-400">+ {part}</span>)}
+                        </>
+                      );
+                    })() : <span className="text-gray-300">–</span>}
                   </td>
                   <td className="px-6 py-4">
                     {signalSummary?.[s.id]?.incidents ? (

@@ -22,6 +22,13 @@ export function formatSpend(amount: string | undefined, currency: string | null 
   }
 }
 
+/** A supplier's spend per currency, main currency first. Currencies it did not buy in are
+ *  left out, so a supplier paid only in USD never shows "€0" in a EUR-ranked list. */
+export function spendParts(spend: Record<string, string>, main: string | null | undefined): string[] {
+  const currencies = Object.keys(spend).sort((a, b) => Number(b === main) - Number(a === main) || a.localeCompare(b));
+  return currencies.map((c) => formatSpend(spend[c], c));
+}
+
 // Purchase-order spend per supplier for the last 12 months, from an SAP export or, when
 // the organization has an SAP connection, read from SAP directly.
 export default function SapSpendImport({ connected = false }: { connected?: boolean }) {
@@ -135,6 +142,12 @@ export default function SapSpendImport({ connected = false }: { connected?: bool
                   deleted: preview.lines.deleted, before: preview.lines.before_period })}
               {' '}
               {Object.entries(preview.currencies).map(([c, v]) => formatSpend(v, c)).join(' · ')}
+              {Object.keys(preview.currencies).length > 1 && preview.main_currency && (
+                <span className="block text-xs text-gray-500">
+                  {t('spend.mainCurrency', 'Ranked in {{currency}}, the currency on the most order lines. Currencies are never converted, so suppliers paid only in other currencies are listed unranked.',
+                    { currency: preview.main_currency })}
+                </span>
+              )}
             </p>
           ) : <p className="text-gray-500">{t('spend.none', 'No order lines in the file can be counted.')}</p>}
           {preview.top.length > 0 && (
@@ -146,10 +159,9 @@ export default function SapSpendImport({ connected = false }: { connected?: bool
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {preview.top.slice(0, 10).map((r) => (
                   <tr key={r.number}>
-                    <td className="py-1 text-gray-500">{r.rank}</td>
+                    <td className="py-1 text-gray-500">{r.rank ?? '–'}</td>
                     <td className="py-1">{r.name} <span className="font-mono text-gray-400">{r.number}</span></td>
-                    <td className="py-1">{preview.main_currency ? formatSpend(r.spend[preview.main_currency] ?? '0', preview.main_currency) : '–'}
-                      {Object.keys(r.spend).filter((c) => c !== preview.main_currency).map((c) => ` + ${formatSpend(r.spend[c], c)}`).join('')}</td>
+                    <td className="py-1">{spendParts(r.spend, preview.main_currency).join(' + ') || '–'}</td>
                     <td className="py-1">{r.share !== null ? `${(r.share * 100).toFixed(1)}%` : '–'}</td>
                   </tr>
                 ))}

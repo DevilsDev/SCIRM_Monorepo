@@ -118,6 +118,32 @@ class TestPlan:
         assert plan["unknown_suppliers"] == [{"number": "999", "spend": {"EUR": "5000.00"}}]
         assert [t["number"] for t in plan["top"]] == ["100", "200", "300"]
 
+    def test_main_currency_is_the_one_on_most_lines_not_the_biggest_number(self):
+        # Gate finding 2026-10-22: ¥3,000,000 (about €18k) outranked €10,900 on raw size.
+        lines, _ = parse_po_extract(extract(
+            line("1", "100", "2026-09-01", "7500.00"), line("2", "100", "2026-04-01", "2500.00"),
+            line("3", "200", "2026-07-01", "900.00"), line("4", "200", "2026-06-01", "12000.00", currency="USD"),
+            line("5", "300", "2026-08-01", "3000000", currency="JPY"),
+        ))
+        s = summarize(lines)
+        assert s["main_currency"] == "EUR" and s["currency_lines"] == {"EUR": 3, "JPY": 1, "USD": 1}
+        existing = [{"id": n, "name": n, "sap_supplier_number": n} for n in ("100", "200", "300", "400")]
+        plan = plan_spend(s, existing)
+        fields = {u["supplier_id"]: u["fields"] for u in plan["updates"]}
+        assert fields["100"]["spend_rank"] == 1 and fields["200"]["spend_rank"] == 2
+        assert fields["200"]["spend_share"] == round(900 / 10900, 4)
+        # Paid only in yen: reported, never ranked against euros, and no "€0 / 0%".
+        assert fields["300"]["spend_rank"] is None and fields["300"]["spend_share"] is None
+        assert fields["300"]["spend_12m"] == {"JPY": "3000000.00"}
+        assert fields["400"]["spend_rank"] is None  # no orders at all
+        assert [(t["number"], t["rank"]) for t in plan["top"]] == [("100", 1), ("200", 2), ("300", None), ("400", None)]
+
+    def test_a_tie_on_lines_goes_to_the_alphabetically_first_currency(self):
+        lines, _ = parse_po_extract(extract(
+            line("1", "100", "2026-09-01", "5", currency="USD"), line("2", "200", "2026-09-01", "999999", currency="JPY"),
+        ))
+        assert summarize(lines)["main_currency"] == "JPY"
+
     def test_an_empty_period_gives_no_ranking(self):
         plan = plan_spend(summarize([]), [{"id": "a", "sap_supplier_number": "1"}])
         assert plan["updates"][0]["fields"]["spend_rank"] is None

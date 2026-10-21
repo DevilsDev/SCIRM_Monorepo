@@ -66,8 +66,11 @@ purchase-order list (for example ME2N or ME2L) exported to a file. Include:
 
 - **Period:** the 12 months up to the latest order date in the file.
 - **Currencies are never converted or added together.** Ranking and the share
-  percentage use the currency with the most spend in the file; other currencies are
-  shown alongside.
+  percentage use the main currency: the one on the most order lines (ties go to the
+  alphabetically first code). Amounts in different currencies are never compared, so a
+  file with a few large ¥ or ₹ orders is still ranked in the currency most orders use.
+  Spend in other currencies is shown alongside; a supplier paid only in other
+  currencies is listed without a rank or share.
 - **Formats:** dates in any SAP user format and amounts written like `1.234,56` or
   `1,234.56` are read, including a trailing minus for credits. An amount such as
   `1,234` could mean two things; choose the decimal separator your export uses and

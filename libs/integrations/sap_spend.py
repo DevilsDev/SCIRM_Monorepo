@@ -13,8 +13,11 @@ as the same lines.
 Rules:
 - Spend is the sum of item net values (NETWR) over the 12 months up to the latest order
   date in the file. Items marked for deletion (LOEKZ) are excluded.
-- Currencies are never converted or added together: totals are kept per currency (WAERS),
-  and ranking uses the currency that carries most of the file's spend.
+- Currencies are never converted or added together: totals are kept per currency (WAERS).
+  Ranking uses the main currency: the one on the most order lines (ties: alphabetical).
+  Amounts in different currencies are never compared, so ¥ or ₹ totals cannot win on size
+  alone. Only suppliers with spend in the main currency are ranked; spend in other
+  currencies is still reported, unranked.
 - Each upload replaces earlier spend: suppliers imported from SAP with no orders in the
   period get zero spend for it. Spend on SAP numbers that are not imported suppliers is
   reported, not dropped silently.
@@ -157,14 +160,16 @@ def summarize(lines: List[Dict[str, Any]], period_days: int = PERIOD_DAYS, end: 
     the period matches what was fetched even when the latest order is months old."""
     kept = [l for l in lines if not l["deleted"]]
     if not kept:
-        return {"period": None, "suppliers": {}, "currencies": {}, "main_currency": None,
+        return {"period": None, "suppliers": {}, "currencies": {}, "main_currency": None, "currency_lines": {},
                 "lines": {"read": len(lines), "deleted": len(lines), "before_period": 0, "counted": 0}}
     end = end or max(l["date"] for l in kept)
     start = end - timedelta(days=period_days - 1)
     in_period = [l for l in kept if start <= l["date"] <= end]
     suppliers: Dict[str, Dict[str, Any]] = {}
     currencies: Dict[str, Decimal] = defaultdict(Decimal)
+    line_counts: Dict[str, int] = defaultdict(int)
     for l in in_period:
+        line_counts[l["currency"]] += 1
         s = suppliers.setdefault(l["number"], {"spend": defaultdict(Decimal), "documents": set(), "lines": 0,
                                                "plants": set(), "last_order": l["date"]})
         s["spend"][l["currency"]] += l["amount"]
@@ -175,7 +180,7 @@ def summarize(lines: List[Dict[str, Any]], period_days: int = PERIOD_DAYS, end: 
             s["documents"].add(l["document"])
         if l["plant"]:
             s["plants"].add(l["plant"])
-    main = max(currencies, key=lambda c: currencies[c]) if currencies else None
+    main = min(line_counts, key=lambda c: (-line_counts[c], c)) if line_counts else None
     out = {}
     for number, s in suppliers.items():
         out[number] = {"spend": {c: str(v.quantize(Decimal("0.01"))) for c, v in sorted(s["spend"].items())},
@@ -183,14 +188,16 @@ def summarize(lines: List[Dict[str, Any]], period_days: int = PERIOD_DAYS, end: 
                        "plants": sorted(s["plants"]), "last_order": s["last_order"].isoformat()}
     return {"period": {"from": start.isoformat(), "to": end.isoformat()}, "suppliers": out,
             "currencies": {c: str(v.quantize(Decimal("0.01"))) for c, v in sorted(currencies.items())},
-            "main_currency": main,
+            "main_currency": main, "currency_lines": dict(sorted(line_counts.items())),
             "lines": {"read": len(lines), "deleted": len(lines) - len(kept),
                       "before_period": len(kept) - len(in_period), "counted": len(in_period)}}
 
 
 def plan_spend(summary: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Updates that set each SAP supplier's spend for the period (zero when it had no
-    orders), the ranking in the main currency, and spend on unknown SAP numbers."""
+    orders), the ranking in the main currency, and spend on unknown SAP numbers. A
+    supplier with no spend in the main currency gets no rank or share, whatever it spent
+    in other currencies; it is listed after the ranked suppliers."""
     period, main = summary["period"], summary["main_currency"]
     by_number = {str(s["sap_supplier_number"]): s for s in existing if s.get("sap_supplier_number")}
     found = summary["suppliers"]
@@ -199,24 +206,30 @@ def plan_spend(summary: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[
     for number, supplier in by_number.items():
         s = found.get(number)
         spend = s["spend"] if s else {}
-        main_spend = Decimal(spend.get(main, "0")) if main else Decimal("0")
-        share = float(main_spend / main_total) if main_total > 0 else None
+        in_main = bool(main) and main in spend
+        main_spend = Decimal(spend[main]) if in_main else Decimal("0")
+        share = float(main_spend / main_total) if in_main and main_total > 0 else None
         fields = {"spend_12m": spend, "spend_period": period, "spend_main_currency": main,
                   "spend_share": round(share, 4) if share is not None else None,
                   "spend_orders": s["orders"] if s else 0, "spend_last_order": s["last_order"] if s else None,
                   "spend_plants": s["plants"] if s else []}
         updates.append({"supplier_id": str(supplier["id"]), "number": number, "name": supplier.get("name"),
                         "fields": fields})
-        ranked.append((main_spend, number, supplier.get("name"), spend, share))
+        fields["spend_rank"] = None
+        # Sort key: ranked first by main-currency spend, then other-currency-only, then no spend.
+        ranked.append(((in_main, bool(spend), main_spend), number, supplier.get("name"), spend, share))
     ranked.sort(key=lambda r: r[0], reverse=True)
-    for rank, (_, number, _, _, _) in enumerate(ranked, start=1):
-        next(u for u in updates if u["number"] == number)["fields"]["spend_rank"] = rank if main_total > 0 else None
+    fields_by_number = {u["number"]: u["fields"] for u in updates}
+    if main_total > 0:
+        for rank, (_, number, _, _, _) in enumerate((r for r in ranked if r[0][0]), start=1):
+            fields_by_number[number]["spend_rank"] = rank
     unknown = sorted(((n, s["spend"]) for n, s in found.items() if n not in by_number),
                      key=lambda x: Decimal(x[1].get(main, "0")) if main else 0, reverse=True)
-    return {"period": period, "main_currency": main, "currencies": summary["currencies"], "lines": summary["lines"],
-            "updates": updates,
-            "top": [{"rank": i, "number": n, "name": name, "spend": sp, "share": round(sh, 4) if sh is not None else None}
-                    for i, (_, n, name, sp, sh) in enumerate(ranked[:20], start=1)],
+    return {"period": period, "main_currency": main, "currencies": summary["currencies"],
+            "currency_lines": summary.get("currency_lines", {}), "lines": summary["lines"], "updates": updates,
+            "top": [{"rank": fields_by_number[n]["spend_rank"], "number": n, "name": name, "spend": sp,
+                     "share": round(sh, 4) if sh is not None else None}
+                    for _, n, name, sp, sh in ranked[:20]],
             "unknown_suppliers": [{"number": n, "spend": sp} for n, sp in unknown[:200]],
             "unknown_count": len(unknown),
             "with_spend": sum(1 for n in by_number if n in found)}
