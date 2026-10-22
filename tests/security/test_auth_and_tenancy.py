@@ -80,8 +80,12 @@ class TestMFA:
 
     @pytest.fixture(scope="class")
     def enrolled(self, client, login):
+        from libs.common.auth import generate_totp
         tokens = login(self.EMAIL).json()
         secret = client.post("/api/v1/auth/mfa/setup", headers=bearer(tokens["access_token"])).json()["secret"]
+        confirmed = client.post("/api/v1/auth/mfa/confirm", json={"totp_code": generate_totp(secret)},
+                                headers=bearer(tokens["access_token"]))
+        assert confirmed.status_code == 200, confirmed.text
         challenge = login(self.EMAIL).json()
         return {"secret": secret, "challenge": challenge, "tokens": tokens}
 

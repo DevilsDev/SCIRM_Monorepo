@@ -577,12 +577,20 @@ class MemoryStore:
         return {"user_id": user["id"], "organization_id": inv["organization_id"], "email": inv["email"],
                 "roles": inv["roles"]}
 
-    async def set_mfa_secret(self, org: str, user_id: str, secret: Optional[str]) -> bool:
+    async def set_mfa_secret(self, org: str, user_id: str, secret: Optional[str], enabled: bool) -> bool:
+        """Store a TOTP seed (None clears it). enabled=False keeps it pending until the user
+        confirms a code from their authenticator."""
         user = self.users.get(str(user_id))
         if not user or user["organization_id"] != org:
             return False
-        user.update(mfa_secret=secret_box.encrypt(secret, user["id"]) if secret else None, mfa_enabled=bool(secret))
+        user.update(mfa_secret=secret_box.encrypt(secret, user["id"]) if secret else None,
+                    mfa_enabled=bool(secret) and enabled)
         return True
+
+    async def reseal_mfa_secret(self, org: str, user_id: str, secret: str) -> None:
+        user = self.users.get(str(user_id))
+        if user and user["organization_id"] == org:
+            user["mfa_secret"] = secret_box.encrypt(secret, user["id"])
 
     async def record_login(self, org: str, user_id: str) -> None:
         user = self.users.get(str(user_id))
@@ -691,7 +699,8 @@ async def _open_mfa_secret(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
         return user
     plaintext, stale = secret_box.decrypt(stored, str(user["id"]))
     if stale:
-        await store.set_mfa_secret(str(user["organization_id"]), str(user["id"]), plaintext)
+        # Rewrites the seed only: a pending (unconfirmed) enrollment must stay pending.
+        await store.reseal_mfa_secret(str(user["organization_id"]), str(user["id"]), plaintext)
     return {**user, "mfa_secret": plaintext}
 
 
@@ -1436,14 +1445,22 @@ class PostgresStore:
             raise EmailExists("")
         return self._account(rows[0]) if rows else None
 
-    async def set_mfa_secret(self, org: str, user_id: str, secret: Optional[str]) -> bool:
+    async def set_mfa_secret(self, org: str, user_id: str, secret: Optional[str], enabled: bool) -> bool:
+        """Store a TOTP seed (None clears it). enabled=False keeps it pending until the user
+        confirms a code from their authenticator."""
         if not _is_uuid(user_id):
             return False
         rows = await self._all(org, (
             "UPDATE users SET mfa_secret = :s, mfa_enabled = :on, updated_at = now() "
             "WHERE id = CAST(:i AS uuid) RETURNING id"),
-            {"s": secret_box.encrypt(secret, user_id) if secret else None, "on": bool(secret), "i": user_id})
+            {"s": secret_box.encrypt(secret, user_id) if secret else None, "on": bool(secret) and enabled,
+             "i": user_id})
         return bool(rows)
+
+    async def reseal_mfa_secret(self, org: str, user_id: str, secret: str) -> None:
+        if _is_uuid(user_id):
+            await self._exec(org, [("UPDATE users SET mfa_secret = :s WHERE id = CAST(:i AS uuid)",
+                                    {"s": secret_box.encrypt(secret, user_id), "i": user_id})])
 
     async def record_login(self, org: str, user_id: str) -> None:
         if _is_uuid(user_id):

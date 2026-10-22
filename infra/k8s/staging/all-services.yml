@@ -398,6 +398,9 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: mfa-encryption-key
+        # Users who set up two-step sign-in are asked for a code (the default; explicit here).
+        - name: MFA_ENABLED
+          value: "true"
         - name: SERVICE_API_KEY
           valueFrom:
             secretKeyRef:

@@ -130,14 +130,17 @@ export default function SupplierSignals({ supplierId }: { supplierId: string }) 
         <section>
           <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
             {data.site_level
-              ? t('signals.exposuresSites', 'Possible exposure: disasters near its sites')
+              // Droughts have no meaningful point, so they stay country-level even when sites are known.
+              ? (data.exposures.some((m) => m.match_type === 'country_exposure')
+                ? t('signals.exposuresSitesAndRegions', 'Possible exposure: disasters near its sites or region-wide in its countries')
+                : t('signals.exposuresSites', 'Possible exposure: disasters near its sites'))
               : t('signals.exposures', 'Possible exposure: disasters in its country')} ({data.exposures.length < data.exposure_total
               ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.exposures.length, total: data.exposure_total })
               : data.exposure_total})
           </h3>
           <p className="text-[10px] text-gray-400 mt-1">
             {data.site_level
-              ? t('signals.exposureSiteNote', "Matched by distance from each alert's reported location; they do not mean a site is affected.")
+              ? t('signals.exposureSiteNote', "Matched by distance from each alert's reported location, or by country for region-wide alerts such as droughts; they do not mean a site is affected.")
               : t('signals.exposureNote', 'These alerts cover the whole country; they do not mean this supplier is affected. Add its sites to narrow this down.')}
           </p>
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">

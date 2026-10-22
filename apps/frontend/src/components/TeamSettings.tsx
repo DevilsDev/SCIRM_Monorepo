@@ -10,6 +10,12 @@ const ROLE_HELP: Record<Role, string> = {
   auditor: 'read-only, plus the audit log',
 };
 
+/** users.last_login_at is stored as UTC without a zone ("2026-10-22T00:23:21"); a string
+ *  like that would otherwise be read as local time. Values with a zone are left alone. */
+export function utcDate(value: string): Date {
+  return new Date(/(Z|[+-]\d\d:?\d\d)$/.test(value) ? value : `${value}Z`);
+}
+
 function errorText(err: any, fallback: string): string {
   return err?.response?.data?.detail || fallback;
 }
@@ -62,6 +68,16 @@ export default function TeamSettings() {
       await load();
     } catch (err) {
       setError(errorText(err, t('team.updateFailed', 'Could not update this member.')));
+    }
+  };
+
+  const resetMfa = async (member: TeamMember) => {
+    setError('');
+    try {
+      await api.resetMemberMfa(member.id);
+      await load();
+    } catch (err) {
+      setError(errorText(err, t('team.resetMfaFailed', 'Could not reset two-step sign-in.')));
     }
   };
 
@@ -152,7 +168,8 @@ export default function TeamSettings() {
               <td className="py-2">
                 <p className="font-medium text-gray-900 dark:text-white">{m.name}{m.id === user?.id && ` (${t('team.you', 'you')})`}</p>
                 <p className="text-xs text-gray-500">{m.email}{!m.is_active && ` · ${t('team.deactivated', 'deactivated')}`}
-                  {m.demo && ` · ${t('team.demo', 'demo account')}`}</p>
+                  {m.demo && ` · ${t('team.demo', 'demo account')}`}
+                  {m.mfa_enabled && ` · ${t('team.mfaOn', 'two-step sign-in on')}`}</p>
               </td>
               <td className="py-2">
                 {isAdmin && !m.demo ? (
@@ -164,13 +181,21 @@ export default function TeamSettings() {
                   <span className="text-xs capitalize">{m.roles.join(', ')}</span>
                 )}
               </td>
-              <td className="py-2 text-xs text-gray-500">{m.last_login_at ? new Date(m.last_login_at).toLocaleString() : t('team.never', 'never')}</td>
+              <td className="py-2 text-xs text-gray-500">{m.last_login_at ? utcDate(m.last_login_at).toLocaleString() : t('team.never', 'never')}</td>
               <td className="py-2 text-right">
                 {isAdmin && !m.demo && m.id !== user?.id && (
-                  <button type="button" className="text-xs text-blue-600 hover:underline"
-                    onClick={() => change(m, { is_active: !m.is_active })}>
-                    {m.is_active ? t('team.deactivate', 'Deactivate') : t('team.reactivate', 'Reactivate')}
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button type="button" className="text-xs text-blue-600 hover:underline"
+                      onClick={() => change(m, { is_active: !m.is_active })}>
+                      {m.is_active ? t('team.deactivate', 'Deactivate') : t('team.reactivate', 'Reactivate')}
+                    </button>
+                    {m.mfa_enabled && (
+                      <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => resetMfa(m)}
+                        title={t('team.resetMfaHint', 'For a lost phone: they can sign in with their password and set it up again.')}>
+                        {t('team.resetMfa', 'Reset two-step sign-in')}
+                      </button>
+                    )}
+                  </div>
                 )}
               </td>
             </tr>

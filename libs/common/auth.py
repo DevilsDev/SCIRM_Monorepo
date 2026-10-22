@@ -52,7 +52,9 @@ ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 # window. JWT_EXPIRATION_HOURS is still honoured if set explicitly.
 ACCESS_TOKEN_EXPIRE_MINUTES = (int(os.environ["JWT_EXPIRATION_HOURS"]) * 60 if os.getenv("JWT_EXPIRATION_HOURS")
                                else int(os.getenv("JWT_EXPIRATION_MINUTES", "60")))
-MFA_ENABLED = os.getenv("MFA_ENABLED", "false").lower() == "true"
+# Users who have confirmed two-step sign-in are asked for a code at login. On by default:
+# turning it off (MFA_ENABLED=false) lets enrolled users sign in with a password alone.
+MFA_ENABLED = os.getenv("MFA_ENABLED", "true").lower() == "true"
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "")
 
 # Token types — verify_token only accepts "access"; refresh and mfa_pending
