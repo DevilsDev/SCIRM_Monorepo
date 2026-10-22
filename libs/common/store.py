@@ -660,10 +660,15 @@ class MemoryStore:
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
-        self.audit.append({**entry, "organization_id": org, "created_at": _now()})
+        self.audit.append({**entry, "id": str(uuid.uuid4()), "organization_id": org, "created_at": _now()})
 
-    async def list_audit(self, org: str, limit: int = 100) -> List[Dict[str, Any]]:
-        return [a for a in reversed(self.audit) if a.get("organization_id") == org][:limit]
+    async def list_audit(self, org: str, limit: int = 100,
+                         filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Newest first. filters: category, actor, failed, since, until (ISO), before (cursor)."""
+        filters = filters or {}
+        found = [a for a in self.audit if a.get("organization_id") == org and _audit_matches(a, filters)]
+        found.sort(key=lambda a: (a["created_at"], a["id"]), reverse=True)
+        return found[:limit]
 
 
 # --- ERP connections (shared) ---------------------------------------------------
@@ -744,6 +749,100 @@ def _iso(value: Any) -> Any:
 
 def _jsonable(row: Dict[str, Any]) -> Dict[str, Any]:
     return {k: (str(v) if isinstance(v, uuid.UUID) else _iso(v)) for k, v in row.items()}
+
+
+# --- audit log filters (shared) ------------------------------------------------
+# Categories for the audit log screen, as SQL LIKE patterns on the action. Named actions
+# (auth.login, mfa.enabled, ...) and the middleware's "METHOD /api/v1/<route>" both match.
+# "changes" is everything not in another category.
+AUDIT_CATEGORIES: Dict[str, Tuple[str, ...]] = {
+    "sign_in": ("auth.%",),
+    "access": ("mfa.%", "invitation.%", "% /api/v1/org/%", "% /api/v1/auth/%", "% /api/v1/invitations/%"),
+    "integrations": ("integrations.%", "suppliers.import.%", "% /api/v1/integrations/%"),
+}
+AUDIT_CATEGORY_NAMES = (*AUDIT_CATEGORIES, "changes")
+
+
+def _like(pattern: str, value: str) -> bool:
+    return re.fullmatch(".*".join(re.escape(p) for p in pattern.split("%")), value or "", re.S) is not None
+
+
+def audit_category(action: str) -> str:
+    for name, patterns in AUDIT_CATEGORIES.items():
+        if any(_like(p, action) for p in patterns):
+            return name
+    return "changes"
+
+
+def _naive_utc(value: Optional[str]) -> Optional[datetime]:
+    """An ISO timestamp (with or without a zone) as naive UTC, like audit_logs.created_at."""
+    if not value:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None) if parsed.tzinfo else parsed
+
+
+def audit_cursor(entry: Dict[str, Any]) -> str:
+    """Opaque position after `entry`, for the next (older) page."""
+    return f"{entry['created_at']}|{entry['id']}"
+
+
+def _parse_cursor(cursor: Optional[str]) -> Optional[Tuple[datetime, str]]:
+    if not cursor or "|" not in cursor:
+        return None
+    at, entry_id = cursor.rsplit("|", 1)
+    return _naive_utc(at), entry_id
+
+
+def _audit_where(filters: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any]]:
+    """SQL conditions and parameters for the audit filters (PostgresStore)."""
+    where, params = [], {}
+    category = filters.get("category")
+    if category in AUDIT_CATEGORIES:
+        names = [f"c{i}" for i in range(len(AUDIT_CATEGORIES[category]))]
+        where.append("(" + " OR ".join(f"action LIKE :{n}" for n in names) + ")")
+        params.update(dict(zip(names, AUDIT_CATEGORIES[category])))
+    elif category == "changes":
+        every = [p for patterns in AUDIT_CATEGORIES.values() for p in patterns]
+        names = [f"c{i}" for i in range(len(every))]
+        where.append("NOT (" + " OR ".join(f"action LIKE :{n}" for n in names) + ")")
+        params.update(dict(zip(names, every)))
+    if filters.get("actor"):
+        where.append("actor ILIKE :actor")
+        params["actor"] = "%" + filters["actor"].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    if filters.get("failed"):
+        where.append("status_code >= 400")
+    if filters.get("since"):
+        where.append("created_at >= :since")
+        params["since"] = _naive_utc(filters["since"])
+    if filters.get("until"):
+        where.append("created_at < :until")
+        params["until"] = _naive_utc(filters["until"])
+    position = _parse_cursor(filters.get("before"))
+    if position:
+        where.append("(created_at, id) < (:before_at, CAST(:before_id AS uuid))")
+        params.update(before_at=position[0], before_id=position[1])
+    return where, params
+
+
+def _audit_matches(entry: Dict[str, Any], filters: Dict[str, Any]) -> bool:
+    """The same filters for MemoryStore, which keeps created_at as naive-UTC ISO strings."""
+    category = filters.get("category")
+    if category in AUDIT_CATEGORY_NAMES and audit_category(entry.get("action", "")) != category:
+        return False
+    if filters.get("actor") and filters["actor"].lower() not in (entry.get("actor") or "").lower():
+        return False
+    if filters.get("failed") and not (entry.get("status_code") or 0) >= 400:
+        return False
+    at = datetime.fromisoformat(entry["created_at"])
+    if filters.get("since") and at < _naive_utc(filters["since"]):
+        return False
+    if filters.get("until") and at >= _naive_utc(filters["until"]):
+        return False
+    position = _parse_cursor(filters.get("before"))
+    if position and (at, entry["id"]) >= position:
+        return False
+    return True
 
 
 class PostgresStore:
@@ -1576,8 +1675,13 @@ class PostgresStore:
              "details": json.dumps(entry.get("details", {}), default=str), "ip": entry.get("ip_address"),
              "status": entry.get("status_code")})])
 
-    async def list_audit(self, org: str, limit: int = 100) -> List[Dict[str, Any]]:
-        rows = await self._all(org, "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT :limit", {"limit": limit})
+    async def list_audit(self, org: str, limit: int = 100,
+                         filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Newest first. filters: category, actor, failed, since, until (ISO), before (cursor)."""
+        where, params = _audit_where(filters or {})
+        sql = ("SELECT * FROM audit_logs" + (" WHERE " + " AND ".join(where) if where else "")
+               + " ORDER BY created_at DESC, id DESC LIMIT :limit")
+        rows = await self._all(org, sql, {**params, "limit": limit})
         return [_jsonable(r) for r in rows]
 
     # --- development seed ---------------------------------------------------

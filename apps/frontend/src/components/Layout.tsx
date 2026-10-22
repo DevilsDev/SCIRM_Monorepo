@@ -15,6 +15,7 @@ import {
   CubeIcon,
   SunIcon,
   MoonIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useState } from 'react';
@@ -29,7 +30,9 @@ import NotificationBell from './NotificationBell';
 import Breadcrumbs from './Breadcrumbs';
 import { isSamplePath, useFeatures } from '../services/features';
 
-const navGroups = [
+type NavItem = { to: string; tKey: string; fallback: string; icon: typeof HomeIcon; roles?: string[] };
+
+const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem[] }> = [
   {
     labelKey: 'common.overview',
     fallbackLabel: 'Overview',
@@ -65,6 +68,13 @@ const navGroups = [
       { to: '/procurement', tKey: 'nav.procurement', fallback: 'Procurement', icon: ShoppingCartIcon },
       { to: '/assessments/new', tKey: 'nav.newAssessment', fallback: 'New Assessment', icon: PlusCircleIcon },
       { to: '/recommendations', tKey: 'nav.recommendations', fallback: 'Recommendations', icon: LightBulbIcon },
+    ],
+  },
+  {
+    labelKey: 'common.administration',
+    fallbackLabel: 'Administration',
+    items: [
+      { to: '/audit', tKey: 'nav.audit', fallback: 'Audit log', icon: ClipboardDocumentListIcon, roles: ['admin', 'auditor'] },
     ],
   },
 ];
@@ -105,11 +115,15 @@ export default function Layout() {
 
         {/* Grouped navigation */}
         <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-4">
-          {navGroups.map((group) => (
+          {navGroups.map((group) => ({
+            ...group,
+            items: group.items.filter((item) => (samplePages || !isSamplePath(item.to))
+              && (!item.roles || item.roles.some((r) => user?.roles?.includes(r)))),
+          })).filter((group) => group.items.length > 0).map((group) => (
             <div key={group.labelKey}>
               <p className="px-3 mb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{t(group.labelKey, group.fallbackLabel)}</p>
               <div className="space-y-0.5">
-                {group.items.filter(({ to }) => samplePages || !isSamplePath(to)).map(({ to, tKey, fallback, icon: Icon }) => (
+                {group.items.map(({ to, tKey, fallback, icon: Icon }) => (
                   <NavLink
                     key={to}
                     to={to}

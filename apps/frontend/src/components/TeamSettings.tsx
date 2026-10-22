@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { api, Invitation, Role, ROLES, TeamMember } from '../services/api';
+import { utcDate } from '../services/time';
 
 const ROLE_HELP: Record<Role, string> = {
   admin: 'manages the team and settings',
@@ -9,12 +10,6 @@ const ROLE_HELP: Record<Role, string> = {
   viewer: 'read-only',
   auditor: 'read-only, plus the audit log',
 };
-
-/** users.last_login_at is stored as UTC without a zone ("2026-10-22T00:23:21"); a string
- *  like that would otherwise be read as local time. Values with a zone are left alone. */
-export function utcDate(value: string): Date {
-  return new Date(/(Z|[+-]\d\d:?\d\d)$/.test(value) ? value : `${value}Z`);
-}
 
 function errorText(err: any, fallback: string): string {
   return err?.response?.data?.detail || fallback;

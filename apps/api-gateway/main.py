@@ -5,6 +5,7 @@ Central entry point for all client requests, routing to appropriate agent servic
 
 import asyncio
 import hmac
+import json
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -28,7 +29,8 @@ from libs.common.auth import (
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
-from libs.common.store import FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin, create_store
+from libs.common.store import (AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
+                               audit_category, audit_cursor, create_store)
 from libs.common import secret_box
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -81,7 +83,24 @@ _AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _SELF_AUDITED_PATHS = {"/api/v1/auth/login", "/api/v1/invitations/accept", "/api/v1/invitations/lookup"}
 
 
-async def _audit_auth(action: str, email: str, user_info: Optional[Dict[str, Any]], ok: bool) -> None:
+async def _account_owner(email: str) -> Optional[Dict[str, Any]]:
+    """The organization and id of an existing account, so a failed sign-in on it shows in
+    that organization's audit log. Unknown emails stay unattributed."""
+    email = (email or "").strip().lower()
+    demo = DEV_USERS.get(email)
+    if demo:
+        return {"org_id": demo["org_id"], "id": demo["id"]}
+    try:
+        row = await audit_store.find_login_user(email)
+    except Exception:
+        return None
+    return {"org_id": str(row["organization_id"]), "id": str(row["id"])} if row else None
+
+
+async def _audit_auth(action: str, email: str, user_info: Optional[Dict[str, Any]], ok: bool,
+                      ip: Optional[str] = None) -> None:
+    if not ok:
+        user_info = await _account_owner(email)
     try:
         await audit_store.record_audit(user_info["org_id"] if user_info else None, {
             "user_id": user_info["id"] if user_info else None,
@@ -90,6 +109,7 @@ async def _audit_auth(action: str, email: str, user_info: Optional[Dict[str, Any
             "action": action if ok else f"{action}_failed",
             "resource_type": "auth",
             "status_code": 200 if ok else 401,
+            "ip_address": ip,
         })
     except Exception as exc:
         logger.error("Audit write failed", error=str(exc), action=action)
@@ -293,11 +313,12 @@ async def client_config(token: str = Depends(security)):
 
 
 @app.post("/api/v1/auth/login")
-async def login(request: LoginRequest):
+async def login(request: LoginRequest, http_request: Request):
     """Authenticate user. If MFA is enabled, returns mfa_required=true with a temporary token."""
     user_info = await _check_password(request.email, request.password)
     # Record the attempt with the email (never the password); the middleware cannot read bodies.
-    await _audit_auth("auth.login", request.email, user_info, ok=bool(user_info))
+    await _audit_auth("auth.login", request.email, user_info, ok=bool(user_info),
+                      ip=http_request.client.host if http_request.client else None)
     if not user_info:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -357,7 +378,7 @@ async def _save_mfa(org: str, user_id: str, email: str, secret: Optional[str], e
         raise HTTPException(status_code=404, detail="Account not found")
 
 
-async def _audit_mfa(org: str, user_id: str, actor: str, action: str, target: Optional[str] = None) -> None:
+async def _audit_event(org: str, user_id: str, actor: str, action: str, target: Optional[str] = None) -> None:
     try:
         await audit_store.record_audit(org, {
             "user_id": user_id, "actor_type": "user", "actor": actor, "action": action,
@@ -407,7 +428,7 @@ async def confirm_mfa(body: MFACodeRequest, token: str = Depends(security)):
     if not verify_totp(info["mfa_secret"], body.totp_code):
         raise HTTPException(status_code=400, detail="That code is not valid. Check the time on your device and try again.")
     await _save_mfa(user.organization_id, user.id, user.email, info["mfa_secret"], enabled=True)
-    await _audit_mfa(user.organization_id, user.id, user.email, "mfa.enabled")
+    await _audit_event(user.organization_id, user.id, user.email, "mfa.enabled")
     return {"enabled": True}
 
 
@@ -421,7 +442,7 @@ async def disable_mfa(body: MFACodeRequest, token: str = Depends(security)):
     if not verify_totp(info["mfa_secret"], body.totp_code):
         raise HTTPException(status_code=400, detail="That code is not valid.")
     await _save_mfa(user.organization_id, user.id, user.email, None, enabled=False)
-    await _audit_mfa(user.organization_id, user.id, user.email, "mfa.disabled")
+    await _audit_event(user.organization_id, user.id, user.email, "mfa.disabled")
     return {"enabled": False}
 
 
@@ -537,7 +558,7 @@ async def reset_member_mfa(member_id: str, token: str = Depends(security)):
         demo.update(mfa_secret=None, mfa_enabled=False)
     elif not await audit_store.set_mfa_secret(user.organization_id, member_id, None, False):
         raise HTTPException(status_code=404, detail="Member not found")
-    await _audit_mfa(user.organization_id, user.id, user.email, "mfa.reset_by_admin", target=member_id)
+    await _audit_event(user.organization_id, user.id, user.email, "mfa.reset_by_admin", target=member_id)
     return {"reset": True}
 
 
@@ -1741,14 +1762,92 @@ async def list_risk_dimensions(token: str = Depends(security)):
 
 # --- ERP Integration ---
 
-@app.get("/api/v1/audit")
-async def list_audit_log(limit: int = 100, token: str = Depends(security)):
-    """Audit trail for the caller's organization (admins and auditors only)."""
-    user = await verify_token(token.credentials)
+AUDIT_EXPORT_MAX = 50_000
+_AUDIT_CSV_COLUMNS = ("created_at", "actor", "actor_type", "action", "category", "resource_type", "resource_id",
+                      "status_code", "ip_address", "details", "id")
+
+
+async def _audit_reader(token: str):
+    user = await verify_token(token)
     if not {"admin", "auditor"} & set(user.roles):
         raise HTTPException(status_code=403, detail="Admins and auditors only")
-    entries = await audit_store.list_audit(user.organization_id, limit=min(max(limit, 1), 1000))
-    return {"entries": entries, "total": len(entries)}
+    return user
+
+
+def _audit_filters(category: Optional[str], actor: Optional[str], failed: bool, since: Optional[str],
+                   until: Optional[str], before: Optional[str] = None) -> Dict[str, Any]:
+    if category and category not in AUDIT_CATEGORY_NAMES:
+        raise HTTPException(status_code=400, detail=f"category must be one of: {', '.join(AUDIT_CATEGORY_NAMES)}")
+    for name, value in (("since", since), ("until", until)):
+        if value:
+            try:
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"{name} must be an ISO date or time")
+    if before and "|" not in before:
+        raise HTTPException(status_code=400, detail="Invalid cursor")
+    return {"category": category, "actor": (actor or "").strip()[:255] or None, "failed": failed,
+            "since": since, "until": until, "before": before}
+
+
+def _audit_view(entry: Dict[str, Any]) -> Dict[str, Any]:
+    details = entry.get("details")
+    if isinstance(details, str):  # asyncpg returns json as text
+        try:
+            details = json.loads(details)
+        except ValueError:
+            details = {"raw": details}
+    return {**entry, "details": details or {}, "category": audit_category(entry.get("action") or "")}
+
+
+@app.get("/api/v1/audit")
+async def list_audit_log(limit: int = 100, category: Optional[str] = None, actor: Optional[str] = None,
+                         failed: bool = False, since: Optional[str] = None, until: Optional[str] = None,
+                         before: Optional[str] = None, token: str = Depends(security)):
+    """Audit trail for the caller's organization, newest first (admins and auditors only).
+    Filter by category (sign_in, access, integrations, changes), actor (part of the email),
+    failed (status 400 or more) and a time range; page with next_cursor -> before."""
+    user = await _audit_reader(token.credentials)
+    limit = min(max(limit, 1), 500)
+    filters = _audit_filters(category, actor, failed, since, until, before)
+    # One extra row tells whether there is another page, without a count over the table.
+    rows = await audit_store.list_audit(user.organization_id, limit=limit + 1, filters=filters)
+    entries = [_audit_view(e) for e in rows[:limit]]
+    return {"entries": entries, "total": len(entries),
+            "next_cursor": audit_cursor(rows[limit - 1]) if len(rows) > limit else None}
+
+
+@app.get("/api/v1/audit/export")
+async def export_audit_log(category: Optional[str] = None, actor: Optional[str] = None, failed: bool = False,
+                           since: Optional[str] = None, until: Optional[str] = None, token: str = Depends(security)):
+    """The filtered audit trail as CSV, newest first, up to AUDIT_EXPORT_MAX rows. The
+    export itself is recorded in the audit log."""
+    import csv
+    import io
+    from fastapi.responses import Response
+    user = await _audit_reader(token.credentials)
+    filters = _audit_filters(category, actor, failed, since, until)
+    rows: List[Dict[str, Any]] = []
+    while len(rows) < AUDIT_EXPORT_MAX:
+        page = await audit_store.list_audit(user.organization_id, limit=min(1000, AUDIT_EXPORT_MAX - len(rows)),
+                                            filters=filters)
+        rows.extend(page)
+        if len(page) < 1000:
+            break
+        filters = {**filters, "before": audit_cursor(page[-1])}
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["created_at_utc", *_AUDIT_CSV_COLUMNS[1:]])  # stored as UTC without a zone
+    for entry in map(_audit_view, rows):
+        values = {**entry, "details": json.dumps(entry["details"], default=str, sort_keys=True)}
+        # Cells that a spreadsheet would run as a formula are prefixed (CSV injection).
+        writer.writerow(["'" + str(v) if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else
+                         ("" if v is None else v) for v in (values.get(c) for c in _AUDIT_CSV_COLUMNS)])
+    await _audit_event(user.organization_id, user.id, user.email, "audit.exported")
+    stamp = datetime.utcnow().strftime("%Y%m%d-%H%M")
+    return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="scirm-audit-{stamp}.csv"',
+        "X-Rows": str(len(rows)), "X-Truncated": "true" if len(rows) >= AUDIT_EXPORT_MAX else "false"})
 
 
 # WebSocket for real-time updates

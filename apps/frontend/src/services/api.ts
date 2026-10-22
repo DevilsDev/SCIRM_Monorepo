@@ -305,6 +305,47 @@ export interface SapSpendResult {
   suppliers: number;
 }
 
+export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
+
+export interface AuditFilters {
+  category?: AuditCategory | '';
+  /** Part of the actor's email. */
+  actor?: string;
+  failed?: boolean;
+  /** ISO timestamps; until is exclusive. */
+  since?: string;
+  until?: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  created_at: string;
+  actor: string | null;
+  actor_type: string;
+  action: string;
+  category: AuditCategory;
+  resource_type: string;
+  resource_id: string | null;
+  status_code: number | null;
+  ip_address: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[];
+  /** Pass as `before` for the next (older) page; null on the last page. */
+  next_cursor: string | null;
+}
+
+function auditParams(filters: AuditFilters & { limit?: number; before?: string }): Record<string, string | number> {
+  const params: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === '' || value === false) continue;
+    params[key] = value === true ? 'true' : value;
+  }
+  return params;
+}
+
 /** The organization's SAP S/4HANA connection, as the API shows it (never the password). */
 export interface SapConnection {
   id: string;
@@ -472,6 +513,18 @@ export const api = {
 
   async updateMember(id: string, changes: { roles?: Role[]; is_active?: boolean }): Promise<TeamMember> {
     return (await apiClient.patch(`/api/v1/org/members/${encodeURIComponent(id)}`, changes)).data;
+  },
+
+  // Audit log (admins and auditors)
+  async listAudit(filters: AuditFilters & { limit?: number; before?: string }): Promise<AuditPage> {
+    return (await apiClient.get('/api/v1/audit', { params: auditParams(filters) })).data;
+  },
+
+  /** The filtered log as CSV (the export is itself recorded in the log). */
+  async exportAudit(filters: AuditFilters): Promise<{ csv: Blob; rows: number; truncated: boolean }> {
+    const response = await apiClient.get('/api/v1/audit/export', { params: auditParams(filters), responseType: 'blob' });
+    return { csv: response.data, rows: Number(response.headers['x-rows'] ?? 0),
+      truncated: response.headers['x-truncated'] === 'true' };
   },
 
   /** Admin: turn off a teammate's two-step sign-in (lost phone). Not for one's own account. */
