@@ -82,6 +82,33 @@ def invitation_hash(token: str) -> str:
     return hashlib.sha256((token or "").encode()).hexdigest()
 
 
+API_KEY_PREFIX = "scirm_"
+_API_KEY_RE = re.compile(r"^scirm_([A-Za-z0-9]{8})_[A-Za-z0-9_-]{43}$")
+
+
+def new_api_key() -> Tuple[str, str, str]:
+    """(key for the caller, its prefix, SHA-256 hash to store). Only the hash is kept."""
+    import hashlib
+    import secrets
+    import string
+    short = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
+    key = f"{API_KEY_PREFIX}{short}_{secrets.token_urlsafe(32)}"
+    return key, f"{API_KEY_PREFIX}{short}", hashlib.sha256(key.encode()).hexdigest()
+
+
+def is_api_key(value: str) -> bool:
+    return bool(_API_KEY_RE.match(value or ""))
+
+
+def api_key_hash(key: str) -> str:
+    import hashlib
+    return hashlib.sha256((key or "").encode()).hexdigest()
+
+
+_API_KEY_PUBLIC = ("id", "name", "prefix", "scopes", "created_by", "created_at", "expires_at", "last_used_at",
+                   "revoked_at")
+
+
 def _member(user: Dict[str, Any]) -> Dict[str, Any]:
     """A user as shown to colleagues: no password hash, no MFA secret."""
     return {k: user.get(k) for k in ("id", "email", "name", "roles", "is_active", "mfa_enabled",
@@ -200,6 +227,7 @@ class MemoryStore:
         self.embeddings: Dict[Tuple[str, str], Tuple[List[float], str, str]] = {}
         self.source_runs: Dict[str, Dict[str, Any]] = {}
         self.erp_connections: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self.api_keys: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
         return None
@@ -658,6 +686,42 @@ class MemoryStore:
         if row is not None and kind in ("last_test", "last_import"):
             row[kind] = {**result, "at": _now()}
 
+    # --- API keys -----------------------------------------------------------
+    async def create_api_key(self, org: str, name: str, created_by: Optional[str],
+                             expires_at: Optional[str] = None) -> Tuple[Dict[str, Any], str]:
+        key, prefix, digest = new_api_key()
+        row = {"id": str(uuid.uuid4()), "organization_id": org, "name": name, "prefix": prefix, "key_hash": digest,
+               "scopes": ["read"], "created_by": created_by, "created_at": _now(), "expires_at": expires_at,
+               "last_used_at": None, "revoked_at": None}
+        self.api_keys[row["id"]] = row
+        return {k: row[k] for k in _API_KEY_PUBLIC}, key
+
+    async def list_api_keys(self, org: str) -> List[Dict[str, Any]]:
+        rows = [r for r in self.api_keys.values() if r["organization_id"] == org]
+        return [{k: r[k] for k in _API_KEY_PUBLIC} for r in sorted(rows, key=lambda r: r["created_at"], reverse=True)]
+
+    async def revoke_api_key(self, org: str, key_id: str) -> Optional[Dict[str, Any]]:
+        row = self.api_keys.get(str(key_id))
+        if not row or row["organization_id"] != org or row["revoked_at"]:
+            return None
+        row["revoked_at"] = _now()
+        return {k: row[k] for k in _API_KEY_PUBLIC}
+
+    async def find_api_key(self, key: str) -> Optional[Dict[str, Any]]:
+        """Before the organization is known: a key by its value, with live = not revoked
+        and not expired. Callers must refuse a key that is not live."""
+        digest = api_key_hash(key)
+        row = next((r for r in self.api_keys.values() if r["key_hash"] == digest), None)
+        if not row:
+            return None
+        live = not row["revoked_at"] and not (row["expires_at"] and _naive_utc(row["expires_at"]) <= datetime.utcnow())
+        return {**{k: row[k] for k in ("id", "organization_id", "name", "prefix", "scopes")}, "live": bool(live)}
+
+    async def touch_api_key(self, org: str, key_id: str) -> None:
+        row = self.api_keys.get(str(key_id))
+        if row and row["organization_id"] == org:
+            row["last_used_at"] = _now()
+
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
         self.audit.append({**entry, "id": str(uuid.uuid4()), "organization_id": org, "created_at": _now()})
@@ -757,7 +821,8 @@ def _jsonable(row: Dict[str, Any]) -> Dict[str, Any]:
 # "changes" is everything not in another category.
 AUDIT_CATEGORIES: Dict[str, Tuple[str, ...]] = {
     "sign_in": ("auth.%",),
-    "access": ("mfa.%", "invitation.%", "% /api/v1/org/%", "% /api/v1/auth/%", "% /api/v1/invitations/%"),
+    "access": ("mfa.%", "invitation.%", "api_key.%", "% /api/v1/org/%", "% /api/v1/auth/%",
+               "% /api/v1/invitations/%"),
     "integrations": ("integrations.%", "suppliers.import.%", "% /api/v1/integrations/%"),
 }
 AUDIT_CATEGORY_NAMES = (*AUDIT_CATEGORIES, "changes")
@@ -1674,6 +1739,52 @@ class PostgresStore:
              "rtype": entry.get("resource_type", "unknown"), "rid": (entry.get("resource_id") or None) and str(entry["resource_id"])[:64],
              "details": json.dumps(entry.get("details", {}), default=str), "ip": entry.get("ip_address"),
              "status": entry.get("status_code")})])
+
+    # --- API keys -----------------------------------------------------------
+    _API_KEY_COLUMNS = ", ".join(_API_KEY_PUBLIC)
+
+    async def create_api_key(self, org: str, name: str, created_by: Optional[str],
+                             expires_at: Optional[str] = None) -> Tuple[Dict[str, Any], str]:
+        key, prefix, digest = new_api_key()
+        expires = _naive_utc(expires_at)
+        rows = await self._all(org, (
+            "INSERT INTO api_keys (organization_id, name, prefix, key_hash, created_by, expires_at) "
+            "VALUES (CAST(:org AS uuid), :n, :p, :h, :by, :exp) "
+            f"RETURNING {self._API_KEY_COLUMNS}"),
+            {"org": org, "n": name, "p": prefix, "h": digest, "by": created_by,
+             "exp": expires.replace(tzinfo=timezone.utc) if expires else None})
+        return self._api_key_row(rows[0]), key
+
+    @staticmethod
+    def _api_key_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = _jsonable(row)
+        out["scopes"] = list(out.get("scopes") or [])
+        return out
+
+    async def list_api_keys(self, org: str) -> List[Dict[str, Any]]:
+        rows = await self._all(org, f"SELECT {self._API_KEY_COLUMNS} FROM api_keys ORDER BY created_at DESC")
+        return [self._api_key_row(r) for r in rows]
+
+    async def revoke_api_key(self, org: str, key_id: str) -> Optional[Dict[str, Any]]:
+        if not _is_uuid(key_id):
+            return None
+        rows = await self._all(org, (
+            "UPDATE api_keys SET revoked_at = now() WHERE id = CAST(:i AS uuid) AND revoked_at IS NULL "
+            f"RETURNING {self._API_KEY_COLUMNS}"), {"i": key_id})
+        return self._api_key_row(rows[0]) if rows else None
+
+    async def find_api_key(self, key: str) -> Optional[Dict[str, Any]]:
+        """Before the organization is known: a key by its value, with live = not revoked
+        and not expired. Callers must refuse a key that is not live."""
+        rows = await self._all(None, "SELECT * FROM scirm_api_key_lookup(:h)", {"h": api_key_hash(key)})
+        return self._api_key_row(rows[0]) if rows else None
+
+    async def touch_api_key(self, org: str, key_id: str) -> None:
+        # At most once a minute per key, so a busy integration does not write on every call.
+        if _is_uuid(key_id):
+            await self._exec(org, [(
+                "UPDATE api_keys SET last_used_at = now() WHERE id = CAST(:i AS uuid) "
+                "AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute')", {"i": key_id})])
 
     async def list_audit(self, org: str, limit: int = 100,
                          filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:

@@ -222,22 +222,25 @@ class TestAccounts:
         with db["owner"].cursor() as cur:
             cur.execute("DROP ROLE IF EXISTS scirm_plain_owner")
             cur.execute("CREATE ROLE scirm_plain_owner NOSUPERUSER NOBYPASSRLS")
-            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations"):
+            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys"):
                 cur.execute(f"ALTER {obj} OWNER TO scirm_plain_owner")
             for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
-                       "scirm_accept_invitation(text, text, text)"):
+                       "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)"):
                 cur.execute(f"ALTER FUNCTION {fn} OWNER TO scirm_plain_owner")
         try:
             rows = as_org(db["app"], "", "SELECT email FROM scirm_login_lookup('managed@example.com')")
             assert rows == [("managed@example.com",)]
+            as_org(db["app"], db["a"], "INSERT INTO api_keys (organization_id, name, prefix, key_hash) "
+                   "VALUES (%s, 'm', 'scirm_ABCDEFGH', %s)", (db["a"], "9" * 64))
+            assert as_org(db["app"], "", "SELECT name FROM scirm_api_key_lookup(%s)", ("9" * 64,)) == [("m",)]
         finally:
             with db["owner"].cursor() as cur:
                 cur.execute("SELECT current_user")
                 me = cur.fetchone()[0]
-                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations"):
+                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys"):
                     cur.execute(f"ALTER {obj} OWNER TO {me}")
                 for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
-                           "scirm_accept_invitation(text, text, text)"):
+                           "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)"):
                     cur.execute(f"ALTER FUNCTION {fn} OWNER TO {me}")
 
     def test_an_invitation_can_be_accepted_only_once_even_concurrently(self, db):
@@ -280,6 +283,41 @@ def test_feedback_is_tenant_scoped(db):
     bad = as_org(db["app"], db["a"], "INSERT INTO feedback (organization_id, user_id, target_type, target_id, verdict) "
                                      "VALUES (%s, 'u1', 'answer', 'x', 'great')", (db["a"],))
     assert isinstance(bad, psycopg2.errors.CheckViolation)
+
+class TestApiKeys:
+    """Migration 019: keys are tenant-scoped; the pre-tenant lookup finds only live keys."""
+
+    def _key(self, db, org, digest, **extra):
+        cols = ", ".join(["organization_id", "name", "prefix", "key_hash", *extra])
+        marks = ", ".join(["%s"] * (4 + len(extra)))
+        return as_org(db["app"], org, f"INSERT INTO api_keys ({cols}) VALUES ({marks})",
+                      (org, "k", "scirm_ABCDEFGH", digest, *extra.values()))
+
+    def test_tenant_scoped(self, db):
+        assert self._key(db, db["a"], "a" * 64) == 1
+        # Org B cannot create a key in org A's name.
+        into_a = as_org(db["app"], db["b"], "INSERT INTO api_keys (organization_id, name, prefix, key_hash) "
+                        "VALUES (%s, 'k', 'scirm_ABCDEFGH', %s)", (db["a"], "d" * 64))
+        assert isinstance(into_a, psycopg2.errors.InsufficientPrivilege)
+        assert as_org(db["app"], db["b"], "SELECT count(*) FROM api_keys WHERE key_hash = %s", ("a" * 64,)) == [(0,)]
+        assert as_org(db["app"], db["b"], "UPDATE api_keys SET revoked_at = now() WHERE key_hash = %s", ("a" * 64,)) == 0
+
+    def test_lookup_works_before_any_tenant_is_known_and_flags_dead_keys(self, db):
+        self._key(db, db["a"], "e" * 64)
+        self._key(db, db["a"], "f" * 64, revoked_at="2026-01-01T00:00:00Z")
+        self._key(db, db["a"], "0" * 64, expires_at="2020-01-01T00:00:00Z")
+        lookup = "SELECT organization_id::text, live FROM scirm_api_key_lookup(%s)"
+        assert as_org(db["app"], "", lookup, ("e" * 64,)) == [(db["a"], True)]
+        assert as_org(db["app"], "", lookup, ("f" * 64,)) == [(db["a"], False)]
+        assert as_org(db["app"], "", lookup, ("0" * 64,)) == [(db["a"], False)]
+        assert as_org(db["app"], "", lookup, ("7" * 64,)) == []
+
+    def test_only_read_scope_and_hashes_are_accepted(self, db):
+        bad_scope = as_org(db["app"], db["a"], "INSERT INTO api_keys (organization_id, name, prefix, key_hash, scopes) "
+                           "VALUES (%s, 'k', 'scirm_ABCDEFGH', %s, '{write}')", (db["a"], "1" * 64))
+        assert isinstance(bad_scope, psycopg2.errors.CheckViolation)
+        assert isinstance(self._key(db, db["a"], "not-a-hash"), psycopg2.errors.CheckViolation)
+
 
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
