@@ -7,8 +7,7 @@ import Toggle from '../components/Toggle';
 import TeamSettings from '../components/TeamSettings';
 import PilotMetrics from '../components/PilotMetrics';
 import MfaSettings from '../components/MfaSettings';
-import ApiKeysSettings from '../components/ApiKeysSettings';
-import WebhooksSettings from '../components/WebhooksSettings';
+import { Link } from 'react-router-dom';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -90,9 +89,12 @@ export default function SettingsPage() {
 
       <TeamSettings />
 
-      {user?.roles?.includes('admin') && <ApiKeysSettings />}
-
-      {user?.roles?.includes('admin') && <WebhooksSettings />}
+      {user?.roles?.includes('admin') && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {t('settings.integrationsMoved', 'SAP, API keys and webhooks are under')}{' '}
+          <Link to="/integrations" className="text-blue-600 hover:underline">{t('nav.integrations', 'Integrations')}</Link>.
+        </p>
+      )}
 
       {user?.roles?.some((r) => r === 'admin' || r === 'auditor') && <PilotMetrics />}
 
