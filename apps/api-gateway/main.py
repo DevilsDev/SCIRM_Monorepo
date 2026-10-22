@@ -15,7 +15,7 @@ from urllib.parse import quote, urlencode
 from uuid import uuid4
 
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
@@ -33,7 +33,7 @@ from libs.common.security import setup_cors, setup_rate_limiting
 from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
                                audit_category, audit_cursor, create_store, is_api_key)
 from libs.common import secret_box
-from libs.integrations import webhooks
+from libs.integrations import reports, webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
 secret_box.require_key()
@@ -765,6 +765,124 @@ async def list_webhook_deliveries(webhook_id: str, limit: int = 20, token: str =
     _require_admin(user, "manage webhooks")
     return {"deliveries": await audit_store.list_webhook_deliveries(user.organization_id, webhook_id,
                                                                     limit=min(max(limit, 1), 100))}
+
+
+class ReportScheduleRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    frequency: str
+    hour_utc: int = Field(..., ge=0, le=23)
+    weekday: Optional[int] = Field(None, ge=0, le=6)
+    recipients: List[str] = Field(..., min_length=1, max_length=20)
+    skip_empty: bool = False
+
+
+class ReportScheduleUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    frequency: Optional[str] = None
+    hour_utc: Optional[int] = Field(None, ge=0, le=23)
+    weekday: Optional[int] = Field(None, ge=0, le=6)
+    recipients: Optional[List[str]] = Field(None, min_length=1, max_length=20)
+    skip_empty: Optional[bool] = None
+    active: Optional[bool] = None
+
+
+async def _member_emails(org: str) -> set:
+    emails = {m["email"].lower() for m in await audit_store.list_members(org) if m.get("is_active")}
+    return emails | {email for email, info in DEV_USERS.items() if info["org_id"] == org}
+
+
+async def _valid_recipients(org: str, recipients: List[str]) -> List[str]:
+    """Only active members of the organization: a schedule must not mail supplier data out."""
+    wanted = list(dict.fromkeys(r.strip().lower() for r in recipients if r.strip()))
+    outside = [r for r in wanted if r not in await _member_emails(org)]
+    if not wanted or outside:
+        raise HTTPException(status_code=400, detail="Reports can only go to members of your organization"
+                            + (f": not a member: {', '.join(outside)}" if outside else ""))
+    return wanted
+
+
+def _schedule_timing(frequency: str, hour_utc: int, weekday: Optional[int]) -> Dict[str, Any]:
+    if frequency not in reports.FREQUENCIES:
+        raise HTTPException(status_code=400, detail=f"frequency must be one of: {', '.join(reports.FREQUENCIES)}")
+    if frequency == "weekly" and weekday is None:
+        raise HTTPException(status_code=400, detail="A weekly report needs a weekday (0 = Monday)")
+    weekday = weekday if frequency == "weekly" else None
+    nxt = reports.next_run(frequency, hour_utc, weekday, datetime.now(timezone.utc))
+    return {"frequency": frequency, "hour_utc": hour_utc, "weekday": weekday, "next_run_at": nxt.isoformat()}
+
+
+def _schedule_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {**row, "when": reports.describe(row["frequency"], row["hour_utc"], row.get("weekday"))}
+
+
+@app.get("/api/v1/org/reports")
+async def list_report_schedules(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage scheduled reports")
+    rows = await audit_store.list_report_schedules(user.organization_id)
+    return {"schedules": [_schedule_view(r) for r in rows], "email_configured": reports.smtp_config() is not None,
+            "members": sorted(await _member_emails(user.organization_id))}
+
+
+@app.post("/api/v1/org/reports")
+async def create_report_schedule(body: ReportScheduleRequest, token: str = Depends(security)):
+    """A supplier risk digest emailed to members on a schedule (times in UTC)."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage scheduled reports")
+    fields = {"name": body.name.strip(), "skip_empty": body.skip_empty,
+              "recipients": await _valid_recipients(user.organization_id, body.recipients),
+              **_schedule_timing(body.frequency, body.hour_utc, body.weekday)}
+    row = await audit_store.create_report_schedule(user.organization_id, fields, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "report.scheduled", target=str(row["id"]))
+    return {"schedule": _schedule_view(row)}
+
+
+@app.patch("/api/v1/org/reports/{schedule_id}")
+async def update_report_schedule(schedule_id: str, body: ReportScheduleUpdate, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage scheduled reports")
+    current = next((s for s in await audit_store.list_report_schedules(user.organization_id) if s["id"] == schedule_id),
+                   None)
+    if not current:
+        raise HTTPException(status_code=404, detail="Scheduled report not found")
+    fields: Dict[str, Any] = {k: v for k, v in body.model_dump(exclude_unset=True).items()
+                              if k in ("name", "skip_empty", "active") and v is not None}
+    if body.recipients is not None:
+        fields["recipients"] = await _valid_recipients(user.organization_id, body.recipients)
+    if {"frequency", "hour_utc", "weekday"} & body.model_fields_set:
+        fields.update(_schedule_timing(body.frequency or current["frequency"],
+                                       body.hour_utc if body.hour_utc is not None else current["hour_utc"],
+                                       body.weekday if "weekday" in body.model_fields_set else current.get("weekday")))
+    elif fields.get("active"):  # resumed: next occurrence from now, not a missed one in the past
+        fields["next_run_at"] = reports.next_run(current["frequency"], current["hour_utc"], current.get("weekday"),
+                                                 datetime.now(timezone.utc)).isoformat()
+    row = await audit_store.update_report_schedule(user.organization_id, schedule_id, fields)
+    return {"schedule": _schedule_view(row)}
+
+
+@app.delete("/api/v1/org/reports/{schedule_id}")
+async def delete_report_schedule(schedule_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage scheduled reports")
+    if not await audit_store.delete_report_schedule(user.organization_id, schedule_id):
+        raise HTTPException(status_code=404, detail="Scheduled report not found")
+    await _audit_event(user.organization_id, user.id, user.email, "report.deleted", target=schedule_id)
+    return {"deleted": True}
+
+
+@app.post("/api/v1/org/reports/{schedule_id}/send-now")
+async def send_report_now(schedule_id: str, token: str = Depends(security)):
+    """Queue this report for the next pass (within about a minute). Its regular schedule
+    continues afterwards."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage scheduled reports")
+    if reports.smtp_config() is None:
+        raise HTTPException(status_code=409, detail="Email is not configured on this deployment (SMTP_HOST).")
+    row = await audit_store.update_report_schedule(user.organization_id, schedule_id,
+                                                   {"next_run_at": await audit_store.db_now(), "active": True})
+    if not row:
+        raise HTTPException(status_code=404, detail="Scheduled report not found")
+    return {"schedule": _schedule_view(row), "note": "Queued: it is sent within about a minute."}
 
 
 @app.post("/api/v1/org/invitations")

@@ -319,9 +319,9 @@ class TestApiKeys:
         assert isinstance(self._key(db, db["a"], "not-a-hash"), psycopg2.errors.CheckViolation)
 
 
-def test_webhook_tables_are_tenant_scoped_with_forced_rls(db):
-    """Migration 020: all four tables force row-level security; another org sees nothing."""
-    tables = ("webhooks", "webhook_events", "webhook_deliveries", "notification_state")
+def test_webhook_and_report_tables_are_tenant_scoped_with_forced_rls(db):
+    """Migrations 020 and 021: these tables force row-level security; another org sees nothing."""
+    tables = ("webhooks", "webhook_events", "webhook_deliveries", "notification_state", "report_schedules")
     with db["owner"].cursor() as cur:
         cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY(%s)",
                     (list(tables),))

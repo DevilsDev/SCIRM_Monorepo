@@ -114,6 +114,11 @@ _DELIVERY_PUBLIC = ("id", "event_id", "status", "attempts", "last_status_code", 
                     "delivered_at", "created_at")
 
 
+_REPORT_PUBLIC = ("id", "name", "kind", "frequency", "weekday", "hour_utc", "recipients", "skip_empty", "active",
+                  "next_run_at", "last_run_at", "last_status", "created_by", "created_at")
+_REPORT_EDITABLE = ("name", "frequency", "weekday", "hour_utc", "recipients", "skip_empty", "active", "next_run_at")
+
+
 def _webhook_bound(org: str, webhook_id: str) -> str:
     """What a webhook's encrypted secret is bound to: it opens only for this webhook."""
     return f"webhook:{org}:{webhook_id}"
@@ -246,6 +251,7 @@ class MemoryStore:
         self.webhook_events: Dict[str, Dict[str, Any]] = {}
         self.webhook_deliveries: Dict[str, Dict[str, Any]] = {}
         self.notification_state: Dict[str, str] = {}
+        self.report_schedules: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
         return None
@@ -882,6 +888,65 @@ class MemoryStore:
         if hook:
             hook["last_delivery"] = {"at": await self.db_now(), "ok": bool(result.get("ok")),
                                      "status_code": result.get("status_code"), "error": d["last_error"]}
+
+    # --- scheduled reports --------------------------------------------------
+    def _own_report(self, org: str, schedule_id: str) -> Optional[Dict[str, Any]]:
+        row = self.report_schedules.get(str(schedule_id))
+        return row if row and row["organization_id"] == org else None
+
+    async def create_report_schedule(self, org: str, fields: Dict[str, Any], created_by: Optional[str]) -> Dict[str, Any]:
+        row = {"id": str(uuid.uuid4()), "organization_id": org, "kind": "supplier_digest", "skip_empty": False,
+               "active": True, "weekday": None, "last_run_at": None, "last_status": None, "created_by": created_by,
+               "created_at": await self.db_now(), **{k: fields[k] for k in _REPORT_EDITABLE if k in fields}}
+        self.report_schedules[row["id"]] = row
+        return {k: row.get(k) for k in _REPORT_PUBLIC}
+
+    async def list_report_schedules(self, org: str) -> List[Dict[str, Any]]:
+        rows = sorted((r for r in self.report_schedules.values() if r["organization_id"] == org),
+                      key=lambda r: r["created_at"])
+        return [{k: r.get(k) for k in _REPORT_PUBLIC} for r in rows]
+
+    async def update_report_schedule(self, org: str, schedule_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        row = self._own_report(org, schedule_id)
+        if not row:
+            return None
+        row.update({k: v for k, v in fields.items() if k in _REPORT_EDITABLE})
+        return {k: row.get(k) for k in _REPORT_PUBLIC}
+
+    async def delete_report_schedule(self, org: str, schedule_id: str) -> bool:
+        if not self._own_report(org, schedule_id):
+            return False
+        del self.report_schedules[str(schedule_id)]
+        return True
+
+    async def claim_due_reports(self, org: str, lease_seconds: int = 600) -> List[Dict[str, Any]]:
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        due = [r for r in self.report_schedules.values() if r["organization_id"] == org and r["active"]
+               and datetime.fromisoformat(r["next_run_at"]) <= now]
+        for r in due:
+            r["next_run_at"] = _utc_iso(now + timedelta(seconds=lease_seconds))
+        return [{k: r.get(k) for k in _REPORT_PUBLIC} for r in due]
+
+    async def finish_report(self, org: str, schedule_id: str, next_run_at: str, last_run_at: Optional[str],
+                            status: Dict[str, Any]) -> None:
+        row = self._own_report(org, schedule_id)
+        if row:
+            row.update(next_run_at=next_run_at, last_status=status)
+            if last_run_at:
+                row["last_run_at"] = last_run_at
+
+    async def list_events(self, org: str, since: str, until: str) -> List[Dict[str, Any]]:
+        """The organization's new-match events created in (since, until], oldest first. The
+        next report starts where this one ended, so a boundary event is in exactly one."""
+        lo, hi = datetime.fromisoformat(since), datetime.fromisoformat(until)
+        rows = [e for e in self.webhook_events.values() if e["organization_id"] == org and e["type"] != "ping"
+                and lo < datetime.fromisoformat(e["created_at"]) <= hi]
+        return [{k: e[k] for k in ("id", "type", "payload", "created_at")}
+                for e in sorted(rows, key=lambda e: e["created_at"])]
+
+    async def organization_name(self, org: str) -> str:
+        return (self.orgs.get(org) or {}).get("name") or "your organization"
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
@@ -2103,11 +2168,99 @@ class PostgresStore:
              "WHERE id = (SELECT webhook_id FROM webhook_deliveries WHERE id = CAST(:i AS uuid))",
              {"ok": ok, "code": result.get("status_code"), "err": error, "i": delivery_id})])
 
+    # --- scheduled reports --------------------------------------------------
+    _REPORT_COLUMNS = ", ".join(_REPORT_PUBLIC)
+
+    @staticmethod
+    def _report_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = _jsonable(row)
+        out["recipients"] = list(out.get("recipients") or [])
+        if isinstance(out.get("last_status"), str):
+            out["last_status"] = json.loads(out["last_status"])
+        return out
+
+    @staticmethod
+    def _report_params(fields: Dict[str, Any]) -> Dict[str, Any]:
+        params = {k: fields.get(k) for k in _REPORT_EDITABLE}
+        if params.get("next_run_at"):
+            params["next_run_at"] = datetime.fromisoformat(params["next_run_at"])
+        if params.get("recipients") is not None:
+            params["recipients"] = list(params["recipients"])
+        return params
+
+    async def create_report_schedule(self, org: str, fields: Dict[str, Any], created_by: Optional[str]) -> Dict[str, Any]:
+        p = self._report_params(fields)
+        rows = await self._all(org, (
+            "INSERT INTO report_schedules (organization_id, name, frequency, weekday, hour_utc, recipients, skip_empty, "
+            "next_run_at, created_by) VALUES (CAST(:org AS uuid), :name, :frequency, :weekday, :hour_utc, "
+            "CAST(:recipients AS text[]), COALESCE(:skip_empty, false), :next_run_at, :by) "
+            f"RETURNING {self._REPORT_COLUMNS}"),
+            {**{k: p[k] for k in ("name", "frequency", "weekday", "hour_utc", "recipients", "skip_empty", "next_run_at")},
+             "org": org, "by": created_by})
+        return self._report_row(rows[0])
+
+    async def list_report_schedules(self, org: str) -> List[Dict[str, Any]]:
+        rows = await self._all(org, f"SELECT {self._REPORT_COLUMNS} FROM report_schedules ORDER BY created_at")
+        return [self._report_row(r) for r in rows]
+
+    async def update_report_schedule(self, org: str, schedule_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if not _is_uuid(schedule_id):
+            return None
+        sets = [k for k in _REPORT_EDITABLE if k in fields]
+        if not sets:
+            rows = await self._all(org, f"SELECT {self._REPORT_COLUMNS} FROM report_schedules WHERE id = CAST(:i AS uuid)",
+                                   {"i": schedule_id})
+            return self._report_row(rows[0]) if rows else None
+        assignments = ", ".join(f"{k} = CAST(:{k} AS text[])" if k == "recipients" else f"{k} = :{k}" for k in sets)
+        p = self._report_params(fields)
+        rows = await self._all(org, (
+            f"UPDATE report_schedules SET {assignments} WHERE id = CAST(:i AS uuid) RETURNING {self._REPORT_COLUMNS}"),
+            {**{k: p[k] for k in sets}, "i": schedule_id})
+        return self._report_row(rows[0]) if rows else None
+
+    async def delete_report_schedule(self, org: str, schedule_id: str) -> bool:
+        if not _is_uuid(schedule_id):
+            return False
+        return bool(await self._all(org, "DELETE FROM report_schedules WHERE id = CAST(:i AS uuid) RETURNING id",
+                                    {"i": schedule_id}))
+
+    async def claim_due_reports(self, org: str, lease_seconds: int = 600) -> List[Dict[str, Any]]:
+        """Due active schedules, moved to a short lease first (FOR UPDATE SKIP LOCKED), so a
+        second worker skips them while this one sends."""
+        rows = await self._all(org, (
+            "WITH due AS (SELECT id FROM report_schedules WHERE active AND next_run_at <= now() "
+            "ORDER BY next_run_at FOR UPDATE SKIP LOCKED) "
+            "UPDATE report_schedules r SET next_run_at = now() + make_interval(secs => :lease) FROM due "
+            f"WHERE r.id = due.id RETURNING {', '.join('r.' + c for c in _REPORT_PUBLIC)}"), {"lease": lease_seconds})
+        return [self._report_row(r) for r in rows]
+
+    async def finish_report(self, org: str, schedule_id: str, next_run_at: str, last_run_at: Optional[str],
+                            status: Dict[str, Any]) -> None:
+        await self._exec(org, [(
+            "UPDATE report_schedules SET next_run_at = :n, last_run_at = COALESCE(:l, last_run_at), "
+            "last_status = CAST(:s AS jsonb) WHERE id = CAST(:i AS uuid)",
+            {"n": datetime.fromisoformat(next_run_at), "l": datetime.fromisoformat(last_run_at) if last_run_at else None,
+             "s": json.dumps(status, default=str), "i": schedule_id})])
+
+    async def list_events(self, org: str, since: str, until: str) -> List[Dict[str, Any]]:
+        """The organization's new-match events created in (since, until], oldest first. The
+        next report starts where this one ended, so a boundary event is in exactly one."""
+        rows = await self._all(org, (
+            "SELECT id, type, payload, created_at FROM webhook_events WHERE type <> 'ping' "
+            "AND created_at > :since AND created_at <= :until ORDER BY created_at LIMIT 5000"),
+            {"since": datetime.fromisoformat(since), "until": datetime.fromisoformat(until)})
+        return [{"id": str(r["id"]), "type": r["type"], "created_at": _utc_iso(r["created_at"]),
+                 "payload": json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]} for r in rows]
+
+    async def organization_name(self, org: str) -> str:
+        rows = await self._all(None, "SELECT name FROM organizations WHERE id = CAST(:o AS uuid)", {"o": org})
+        return rows[0]["name"] if rows else "your organization"
+
     async def list_audit(self, org: str, limit: int = 100,
                          filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Newest first. filters: category, actor, failed, since, until (ISO), before (cursor)."""
         where, params = _audit_where(filters or {})
-        sql =("SELECT * FROM audit_logs" + (" WHERE " + " AND ".join(where) if where else "")
+        sql = ("SELECT * FROM audit_logs" + (" WHERE " + " AND ".join(where) if where else "")
                + " ORDER BY created_at DESC, id DESC LIMIT :limit")
         rows = await self._all(org, sql, {**params, "limit": limit})
         return [_jsonable(r) for r in rows]

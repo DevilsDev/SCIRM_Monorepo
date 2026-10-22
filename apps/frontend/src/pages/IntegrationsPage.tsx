@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { utcDate } from '../services/time';
 import ApiKeysSettings from '../components/ApiKeysSettings';
 import WebhooksSettings from '../components/WebhooksSettings';
+import ReportsSettings from '../components/ReportsSettings';
 
 type Tone = 'ok' | 'warn' | 'bad' | 'off';
 const TONES: Record<Tone, string> = {
@@ -128,6 +129,7 @@ export default function IntegrationsPage() {
 
       <ApiKeysSettings />
       <WebhooksSettings />
+      <ReportsSettings />
     </div>
   );
 }

@@ -344,6 +344,29 @@ export interface WebhookDelivery {
   created_at: string;
 }
 
+export type ReportFrequency = 'daily' | 'weekly' | 'monthly';
+
+export interface ReportScheduleInput {
+  name: string;
+  frequency: ReportFrequency;
+  hour_utc: number;
+  /** 0 = Monday; weekly only. */
+  weekday?: number | null;
+  recipients: string[];
+  skip_empty?: boolean;
+}
+
+export interface ReportSchedule extends ReportScheduleInput {
+  id: string;
+  active: boolean;
+  /** e.g. "Every Monday at 07:00 UTC" */
+  when: string;
+  next_run_at: string;
+  last_run_at: string | null;
+  last_status: { ok: boolean; sent: boolean; events?: number; recipients?: number; error?: string; detail?: string; at: string } | null;
+  created_by: string | null;
+}
+
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
@@ -601,6 +624,27 @@ export const api = {
 
   async listWebhookDeliveries(id: string): Promise<{ deliveries: WebhookDelivery[] }> {
     return (await apiClient.get(`/api/v1/org/webhooks/${encodeURIComponent(id)}/deliveries`)).data;
+  },
+
+  // Scheduled reports (admins)
+  async listReports(): Promise<{ schedules: ReportSchedule[]; email_configured: boolean; members: string[] }> {
+    return (await apiClient.get('/api/v1/org/reports')).data;
+  },
+
+  async createReport(body: ReportScheduleInput): Promise<ReportSchedule> {
+    return (await apiClient.post('/api/v1/org/reports', body)).data.schedule;
+  },
+
+  async updateReport(id: string, changes: Partial<ReportScheduleInput> & { active?: boolean }): Promise<ReportSchedule> {
+    return (await apiClient.patch(`/api/v1/org/reports/${encodeURIComponent(id)}`, changes)).data.schedule;
+  },
+
+  async deleteReport(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/org/reports/${encodeURIComponent(id)}`);
+  },
+
+  async sendReportNow(id: string): Promise<void> {
+    await apiClient.post(`/api/v1/org/reports/${encodeURIComponent(id)}/send-now`);
   },
 
   // Audit log (admins and auditors)

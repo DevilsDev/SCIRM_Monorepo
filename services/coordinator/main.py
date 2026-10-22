@@ -32,7 +32,7 @@ from libs.common import secret_box
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
-from libs.integrations import sap_import, sap_odata, sap_spend, webhooks
+from libs.integrations import reports, sap_import, sap_odata, sap_spend, webhooks
 from libs.intel import geo
 
 # ---------------------------------------------------------------------------
@@ -54,6 +54,8 @@ AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "false").lower() == "tr
 WEBHOOKS_ENABLED = os.getenv("WEBHOOKS_ENABLED", "true").lower() == "true"
 WEBHOOK_TICK_SECONDS = int(os.getenv("WEBHOOK_TICK_SECONDS", "30"))
 WEBHOOK_DETECT_SECONDS = int(os.getenv("WEBHOOK_DETECT_SECONDS", "300"))
+# Links in report emails (none when unset).
+PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "").rstrip("/")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 logger = structlog.get_logger()
@@ -172,7 +174,7 @@ async def webhook_tick(detect_now: bool) -> Dict[str, int]:
     """One pass over every organization: send due deliveries and, when detect_now, turn
     newly seen public records into events (libs/integrations/webhooks.py). One
     organization's failure never stops the others."""
-    totals = {"events": 0, "delivered": 0, "failed": 0}
+    totals = {"events": 0, "delivered": 0, "failed": 0, "reports": 0, "reports_failed": 0}
     for org_id in await store.list_org_ids():
         try:
             if detect_now:
@@ -181,6 +183,11 @@ async def webhook_tick(detect_now: bool) -> Dict[str, int]:
                 totals["delivered" if result["ok"] else "failed"] += 1
         except Exception as exc:
             logger.error("Webhook pass failed", org_id=org_id, error=type(exc).__name__)
+        try:  # scheduled reports read the events above (libs/integrations/reports.py)
+            for result in await reports.run_due(store, org_id, PUBLIC_APP_URL):
+                totals["reports" if result["ok"] else "reports_failed"] += 1
+        except Exception as exc:
+            logger.error("Report pass failed", org_id=org_id, error=type(exc).__name__)
     return totals
 
 

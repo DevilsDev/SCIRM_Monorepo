@@ -22,6 +22,7 @@ nav:
       - Audit log: audit-log.md
       - Public API: public-api.md
       - Webhooks: webhooks.md
+      - Scheduled reports: scheduled-reports.md
   - Development:
       - Branching: development/branching.md
   - Operations:
