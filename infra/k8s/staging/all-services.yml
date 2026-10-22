@@ -398,6 +398,37 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: mfa-encryption-key
+        # Scheduled report emails (optional: without smtp-host nothing is sent and the UI says so).
+        - name: SMTP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-host
+              optional: true
+        - name: SMTP_PORT
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-port
+              optional: true
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-username
+              optional: true
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-password
+              optional: true
+        - name: SMTP_FROM
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-from
+              optional: true
         # Users who set up two-step sign-in are asked for a code (the default; explicit here).
         - name: MFA_ENABLED
           value: "true"
