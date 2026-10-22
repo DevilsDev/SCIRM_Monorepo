@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function NotFoundPage() {
   const { t } = useTranslation();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -14,9 +16,11 @@ export default function NotFoundPage() {
           <Link to="/dashboard" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             {t('common.goToDashboard', 'Go to Dashboard')}
           </Link>
-          <Link to="/login" className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600">
-            {t('auth.signIn', 'Sign In')}
-          </Link>
+          {!isAuthenticated && (
+            <Link to="/login" className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600">
+              {t('auth.signIn', 'Sign In')}
+            </Link>
+          )}
         </div>
       </div>
     </div>

@@ -232,7 +232,14 @@ _DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(16))
 
 def _account_info(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": str(row["id"]), "name": row["name"], "roles": list(row["roles"] or []),
-            "org_id": str(row["organization_id"]), "mfa_secret": row.get("mfa_secret"), "stored": True}
+            "org_id": str(row["organization_id"]), "mfa_secret": row.get("mfa_secret"),
+            "mfa_enabled": bool(row.get("mfa_enabled")), "stored": True}
+
+
+def _mfa_on(user_info: Dict[str, Any]) -> bool:
+    """Confirmed two-step sign-in. A seed alone may be a pending enrollment nobody has
+    confirmed, and must not lock its owner out."""
+    return bool(user_info.get("mfa_secret")) and bool(user_info.get("mfa_enabled"))
 
 
 async def _find_user_by_id(user_id: str) -> Optional[tuple]:
@@ -295,7 +302,7 @@ async def login(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Check if MFA is required
-    if MFA_ENABLED and user_info.get("mfa_secret"):
+    if MFA_ENABLED and _mfa_on(user_info):
         mfa_token = create_access_token(
             data={"sub": user_info["id"], "type": TOKEN_TYPE_MFA_PENDING, "email": request.email.strip().lower()},
             expires_delta=timedelta(minutes=5),
@@ -326,7 +333,7 @@ async def verify_mfa(request: MFAVerifyRequest):
     if not found or found[0] != (payload.get("email") or "").lower():
         raise HTTPException(status_code=401, detail="Invalid MFA token")
     email, user_info = found
-    if not user_info.get("mfa_secret"):
+    if not _mfa_on(user_info):
         raise HTTPException(status_code=400, detail="MFA not configured for this user")
 
     if not verify_totp(user_info["mfa_secret"], request.totp_code):
@@ -336,22 +343,86 @@ async def verify_mfa(request: MFAVerifyRequest):
     return _issue_tokens(email, user_info)
 
 
-@app.post("/api/v1/auth/mfa/setup")
-async def setup_mfa(token: str = Depends(security)):
-    """Generate a TOTP secret and QR code URI for MFA enrollment."""
-    user = await verify_token(token.credentials)
-    secret = generate_totp_secret()
-    uri = get_totp_uri(secret, user.email)
+class MFACodeRequest(BaseModel):
+    totp_code: str = Field(..., min_length=6, max_length=8)
 
+
+async def _save_mfa(org: str, user_id: str, email: str, secret: Optional[str], enabled: bool) -> None:
     # Demo accounts (development only) keep it in memory; real accounts store it encrypted
     # (libs/common/secret_box.py, applied by the store).
-    demo = DEV_USERS.get(user.email.lower())
-    if demo:
-        demo["mfa_secret"] = secret
-    elif not await audit_store.set_mfa_secret(user.organization_id, user.id, secret):
+    demo = DEV_USERS.get(email.lower())
+    if demo and demo["id"] == user_id:
+        demo.update(mfa_secret=secret, mfa_enabled=bool(secret) and enabled)
+    elif not await audit_store.set_mfa_secret(org, user_id, secret, enabled):
         raise HTTPException(status_code=404, detail="Account not found")
 
-    return {"secret": secret, "otpauth_uri": uri, "message": "Scan the QR code with your authenticator app"}
+
+async def _audit_mfa(org: str, user_id: str, actor: str, action: str, target: Optional[str] = None) -> None:
+    try:
+        await audit_store.record_audit(org, {
+            "user_id": user_id, "actor_type": "user", "actor": actor, "action": action,
+            "resource_type": "auth", "resource_id": target, "status_code": 200})
+    except Exception as exc:
+        logger.error("Audit write failed", error=type(exc).__name__, action=action)
+
+
+async def _own_account(token: str) -> tuple:
+    user = await verify_token(token)
+    found = await _find_user_by_id(user.id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return user, found[1]
+
+
+@app.get("/api/v1/auth/mfa")
+async def mfa_status(token: str = Depends(security)):
+    """Whether the caller has two-step sign-in on, and whether this deployment asks for it."""
+    _, info = await _own_account(token.credentials)
+    return {"enabled": _mfa_on(info), "pending": bool(info.get("mfa_secret")) and not _mfa_on(info),
+            "enforced_at_sign_in": MFA_ENABLED}
+
+
+@app.post("/api/v1/auth/mfa/setup")
+async def setup_mfa(token: str = Depends(security)):
+    """Start enrollment: a new TOTP seed, stored as pending. Sign-in does not ask for codes
+    until /mfa/confirm proves the authenticator works. Refused while two-step sign-in is on,
+    so a stolen session cannot swap in another authenticator; turn it off first (needs a code)."""
+    user, info = await _own_account(token.credentials)
+    if _mfa_on(info):
+        raise HTTPException(status_code=409, detail="Two-step sign-in is already on. Turn it off first.")
+    secret = generate_totp_secret()
+    await _save_mfa(user.organization_id, user.id, user.email, secret, enabled=False)
+    return {"secret": secret, "otpauth_uri": get_totp_uri(secret, user.email),
+            "message": "Add this key to your authenticator app, then confirm with a code from it."}
+
+
+@app.post("/api/v1/auth/mfa/confirm")
+async def confirm_mfa(body: MFACodeRequest, token: str = Depends(security)):
+    """Finish enrollment with a current code from the authenticator."""
+    user, info = await _own_account(token.credentials)
+    if _mfa_on(info):
+        return {"enabled": True}
+    if not info.get("mfa_secret"):
+        raise HTTPException(status_code=400, detail="Start setup first")
+    if not verify_totp(info["mfa_secret"], body.totp_code):
+        raise HTTPException(status_code=400, detail="That code is not valid. Check the time on your device and try again.")
+    await _save_mfa(user.organization_id, user.id, user.email, info["mfa_secret"], enabled=True)
+    await _audit_mfa(user.organization_id, user.id, user.email, "mfa.enabled")
+    return {"enabled": True}
+
+
+@app.post("/api/v1/auth/mfa/disable")
+async def disable_mfa(body: MFACodeRequest, token: str = Depends(security)):
+    """Turn two-step sign-in off. Needs a current code, so a stolen session alone cannot."""
+    user, info = await _own_account(token.credentials)
+    if not _mfa_on(info):
+        await _save_mfa(user.organization_id, user.id, user.email, None, enabled=False)  # drop a pending seed
+        return {"enabled": False}
+    if not verify_totp(info["mfa_secret"], body.totp_code):
+        raise HTTPException(status_code=400, detail="That code is not valid.")
+    await _save_mfa(user.organization_id, user.id, user.email, None, enabled=False)
+    await _audit_mfa(user.organization_id, user.id, user.email, "mfa.disabled")
+    return {"enabled": False}
 
 
 @app.post("/api/v1/auth/refresh")
@@ -429,7 +500,7 @@ async def list_members(token: str = Depends(security)):
     members = await audit_store.list_members(user.organization_id)
     # Development only: the built-in demo accounts are not stored, so list them read-only.
     demo = [{"id": info["id"], "email": email, "name": info["name"], "roles": info["roles"], "is_active": True,
-             "mfa_enabled": bool(info.get("mfa_secret")), "created_at": None, "last_login_at": None, "demo": True}
+             "mfa_enabled": _mfa_on(info), "created_at": None, "last_login_at": None, "demo": True}
             for email, info in DEV_USERS.items() if info["org_id"] == user.organization_id]
     return {"members": demo + members}
 
@@ -450,6 +521,24 @@ async def update_member(member_id: str, body: MemberUpdate, token: str = Depends
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     return member
+
+
+@app.post("/api/v1/org/members/{member_id}/mfa/reset")
+async def reset_member_mfa(member_id: str, token: str = Depends(security)):
+    """Admin: turn off a teammate's two-step sign-in, e.g. after a lost phone, so they can
+    sign in with their password and set it up again. Not for one's own account: that needs
+    a current code (/auth/mfa/disable), so a stolen admin session cannot remove it."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "reset two-step sign-in")
+    if member_id == user.id:
+        raise HTTPException(status_code=400, detail="Turn off your own two-step sign-in in your settings, with a code.")
+    demo = next((i for i in DEV_USERS.values() if i["id"] == member_id and i["org_id"] == user.organization_id), None)
+    if demo:
+        demo.update(mfa_secret=None, mfa_enabled=False)
+    elif not await audit_store.set_mfa_secret(user.organization_id, member_id, None, False):
+        raise HTTPException(status_code=404, detail="Member not found")
+    await _audit_mfa(user.organization_id, user.id, user.email, "mfa.reset_by_admin", target=member_id)
+    return {"reset": True}
 
 
 @app.post("/api/v1/org/invitations")
@@ -508,7 +597,8 @@ async def accept_invitation(body: AcceptInvitationRequest):
     if not accepted:
         raise HTTPException(status_code=404, detail="This invitation is not valid. Ask for a new one.")
     user_info = {"id": str(accepted["user_id"]), "name": body.name.strip(), "roles": list(accepted["roles"]),
-                 "org_id": str(accepted["organization_id"])}
+                 "org_id": str(accepted["organization_id"]), "stored": True}
+    await _record_login(user_info)  # accepting signs them in
     try:
         await audit_store.record_audit(user_info["org_id"], {
             "user_id": user_info["id"], "actor_type": "user", "actor": accepted["email"],

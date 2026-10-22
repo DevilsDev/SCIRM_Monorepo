@@ -18,6 +18,7 @@ nav:
       - Connecting to SAP S/4HANA: sap-connection.md
       - Bedrock (EU) setup: bedrock-setup.md
       - Disaster exposure by site: site-exposure.md
+      - Two-step sign-in: two-step-sign-in.md
   - Development:
       - Branching: development/branching.md
   - Operations:

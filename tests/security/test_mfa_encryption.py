@@ -83,6 +83,8 @@ class TestStoredAccounts:
         setup = client.post("/api/v1/auth/mfa/setup", headers=bearer(member["tokens"]["access_token"])).json()
         stored = raw_secret(apps, member["id"])
         assert stored.startswith("enc:v1:") and setup["secret"] not in stored
+        assert client.post("/api/v1/auth/mfa/confirm", json={"totp_code": generate_totp(setup["secret"])},
+                           headers=bearer(member["tokens"]["access_token"])).status_code == 200
         challenge = login(member["email"], "a-good-password").json()
         assert challenge.get("mfa_required") is True, challenge
         verified = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": challenge["mfa_token"],

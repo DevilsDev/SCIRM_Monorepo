@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast';
 import Toggle from '../components/Toggle';
 import TeamSettings from '../components/TeamSettings';
 import PilotMetrics from '../components/PilotMetrics';
+import MfaSettings from '../components/MfaSettings';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -82,6 +83,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <MfaSettings />
 
       <TeamSettings />
 

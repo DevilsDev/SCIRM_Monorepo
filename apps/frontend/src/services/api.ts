@@ -471,6 +471,29 @@ export const api = {
     return (await apiClient.patch(`/api/v1/org/members/${encodeURIComponent(id)}`, changes)).data;
   },
 
+  /** Admin: turn off a teammate's two-step sign-in (lost phone). Not for one's own account. */
+  async resetMemberMfa(id: string): Promise<void> {
+    await apiClient.post(`/api/v1/org/members/${encodeURIComponent(id)}/mfa/reset`);
+  },
+
+  // Two-step sign-in (Settings > Two-step sign-in)
+  async getMfaStatus(): Promise<{ enabled: boolean; pending: boolean; enforced_at_sign_in: boolean }> {
+    return (await apiClient.get('/api/v1/auth/mfa')).data;
+  },
+
+  /** Starts enrollment; the seed stays pending until confirmMfa succeeds. */
+  async setupMfa(): Promise<{ secret: string; otpauth_uri: string }> {
+    return (await apiClient.post('/api/v1/auth/mfa/setup')).data;
+  },
+
+  async confirmMfa(totpCode: string): Promise<void> {
+    await apiClient.post('/api/v1/auth/mfa/confirm', { totp_code: totpCode });
+  },
+
+  async disableMfa(totpCode: string): Promise<void> {
+    await apiClient.post('/api/v1/auth/mfa/disable', { totp_code: totpCode });
+  },
+
   async listInvitations(): Promise<{ invitations: Invitation[] }> {
     return (await apiClient.get('/api/v1/org/invitations')).data;
   },
