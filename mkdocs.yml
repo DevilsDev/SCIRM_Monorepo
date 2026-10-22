@@ -20,6 +20,7 @@ nav:
       - Disaster exposure by site: site-exposure.md
       - Two-step sign-in: two-step-sign-in.md
       - Audit log: audit-log.md
+      - Public API: public-api.md
   - Development:
       - Branching: development/branching.md
   - Operations:

@@ -45,8 +45,11 @@ def setup_cors(app: FastAPI) -> None:
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        # PATCH: changing a teammate's role or access (Settings > Team).
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
+        # Read by the web app: the audit export's row count and whether it hit the limit.
+        expose_headers=["X-Rows", "X-Truncated", "Content-Disposition"],
     )
 
 

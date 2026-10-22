@@ -305,7 +305,20 @@ export interface SapSpendResult {
   suppliers: number;
 }
 
-export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
+export interface ApiKey {
+  id: string;
+  name: string;
+  /** "scirm_" and 8 characters: identifies the key in lists and the audit log. */
+  prefix: string;
+  scopes: string[];
+  created_by: string | null;
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export type AuditCategory ='sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
   category?: AuditCategory | '';
@@ -513,6 +526,20 @@ export const api = {
 
   async updateMember(id: string, changes: { roles?: Role[]; is_active?: boolean }): Promise<TeamMember> {
     return (await apiClient.patch(`/api/v1/org/members/${encodeURIComponent(id)}`, changes)).data;
+  },
+
+  // API keys (admins)
+  async listApiKeys(): Promise<{ api_keys: ApiKey[] }> {
+    return (await apiClient.get('/api/v1/org/api-keys')).data;
+  },
+
+  /** The key itself is returned only here, once. */
+  async createApiKey(name: string, expiresInDays?: number): Promise<{ api_key: ApiKey; key: string }> {
+    return (await apiClient.post('/api/v1/org/api-keys', { name, expires_in_days: expiresInDays ?? null })).data;
+  },
+
+  async revokeApiKey(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/org/api-keys/${encodeURIComponent(id)}`);
   },
 
   // Audit log (admins and auditors)

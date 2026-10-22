@@ -29,8 +29,8 @@ from libs.common.auth import (
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
-from libs.common.store import (AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
-                               audit_category, audit_cursor, create_store)
+from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
+                               audit_category, audit_cursor, create_store, is_api_key)
 from libs.common import secret_box
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -162,6 +162,82 @@ async def audit_writes(request: Request, call_next):
         except Exception as exc:  # never lose the error silently
             logger.error("Audit write failed", error=str(exc), path=request.url.path)
     return response
+
+
+# The read-only public API: the only routes an API key can call, as exact (method, route
+# template) pairs. Anything else (team, MFA, audit log, integrations, writes, ...) is refused.
+API_KEY_ROUTES = frozenset({
+    ("GET", "/api/v1/suppliers"),
+    ("GET", "/api/v1/suppliers/{supplier_id}"),
+    ("GET", "/api/v1/suppliers/{supplier_id}/signals"),
+    ("GET", "/api/v1/signals/suppliers"),
+    ("GET", "/api/v1/alerts"),
+    ("GET", "/api/v1/risks"),
+    ("GET", "/api/v1/risks/{risk_id}"),
+    ("GET", "/api/v1/intelligence/feed"),
+    ("GET", "/api/v1/intelligence/sources"),
+    ("GET", "/api/v1/export/suppliers"),
+})
+
+
+def _presented_api_key(request: Request) -> Optional[str]:
+    explicit = request.headers.get("x-api-key", "").strip()
+    if explicit:
+        return explicit
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer ") and auth[7:].strip().startswith(API_KEY_PREFIX):
+        return auth[7:].strip()
+    return None
+
+
+def _route_template(scope) -> Optional[str]:
+    from starlette.routing import Match
+    for route in app.router.routes:
+        match, _ = route.matches(scope)
+        if match == Match.FULL:
+            return getattr(route, "path", None)
+    return None
+
+
+@app.middleware("http")
+async def api_key_auth(request: Request, call_next):
+    """Accept an API key on the public API's routes only. It is swapped for a one-minute
+    internal access token with the viewer role, so the handlers and their checks run
+    unchanged; the key's id stands in for the user. Refusals are audited by prefix."""
+    key = _presented_api_key(request)
+    if key is None:
+        return await call_next(request)
+    from fastapi.responses import JSONResponse
+    found = await audit_store.find_api_key(key) if is_api_key(key) else None
+    template = _route_template(request.scope)
+
+    async def refuse(status: int, detail: str):
+        try:
+            await audit_store.record_audit(found["organization_id"] if found else None, {
+                "actor_type": "api_key", "actor": f"api-key:{key[:14]}", "action": "api_key.refused",
+                "resource_type": "api_key", "resource_id": found["id"] if found else None, "status_code": status,
+                "ip_address": request.client.host if request.client else None,
+                "details": {"method": request.method, "path": request.url.path}})
+        except Exception as exc:
+            logger.error("Audit write failed", error=type(exc).__name__, action="api_key.refused")
+        return JSONResponse(status_code=status, content={"detail": detail})
+
+    if not found or not found.get("live"):
+        return await refuse(401, "Invalid, expired or revoked API key")
+    if (request.method, template) not in API_KEY_ROUTES:
+        return await refuse(403, "API keys can only read suppliers, their public records, alerts, risks and the "
+                                 "intelligence feed. See the API documentation.")
+    token = create_access_token(data={
+        "sub": str(found["id"]), "email": f"api-key:{found['name']} ({found['prefix']})", "name": found["name"],
+        "roles": ["viewer"], "org_id": str(found["organization_id"]), "api_key": True,
+    }, expires_delta=timedelta(minutes=1))
+    request.scope["headers"] = [(k, v) for k, v in request.scope["headers"] if k not in (b"authorization", b"x-api-key")]
+    request.scope["headers"].append((b"authorization", f"Bearer {token}".encode()))
+    try:
+        await audit_store.touch_api_key(str(found["organization_id"]), str(found["id"]))
+    except Exception as exc:
+        logger.warning("Could not record API key use", error=type(exc).__name__)
+    return await call_next(request)
 
 
 setup_cors(app)
@@ -560,6 +636,43 @@ async def reset_member_mfa(member_id: str, token: str = Depends(security)):
         raise HTTPException(status_code=404, detail="Member not found")
     await _audit_event(user.organization_id, user.id, user.email, "mfa.reset_by_admin", target=member_id)
     return {"reset": True}
+
+
+class ApiKeyRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    expires_in_days: Optional[int] = Field(None, ge=1, le=730)
+
+
+@app.get("/api/v1/org/api-keys")
+async def list_api_keys(token: str = Depends(security)):
+    """The organization's API keys (prefix only; a key is shown once, when created)."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage API keys")
+    return {"api_keys": await audit_store.list_api_keys(user.organization_id)}
+
+
+@app.post("/api/v1/org/api-keys")
+async def create_api_key(body: ApiKeyRequest, token: str = Depends(security)):
+    """A read-only key for the public API. Returns the key once; only its hash is stored."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage API keys")
+    expires = (datetime.utcnow() + timedelta(days=body.expires_in_days)).isoformat() if body.expires_in_days else None
+    row, key = await audit_store.create_api_key(user.organization_id, body.name.strip(), user.email, expires)
+    await _audit_event(user.organization_id, user.id, user.email, "api_key.created", target=str(row["id"]))
+    return {"api_key": row, "key": key,
+            "note": "Copy this key now: it cannot be shown again. Send it as 'Authorization: Bearer <key>'."}
+
+
+@app.delete("/api/v1/org/api-keys/{key_id}")
+async def revoke_api_key(key_id: str, token: str = Depends(security)):
+    """Revoke a key. Requests with it fail from the next one on."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage API keys")
+    row = await audit_store.revoke_api_key(user.organization_id, key_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="No active API key with that id")
+    await _audit_event(user.organization_id, user.id, user.email, "api_key.revoked", target=key_id)
+    return {"api_key": row}
 
 
 @app.post("/api/v1/org/invitations")

@@ -7,6 +7,7 @@ import Toggle from '../components/Toggle';
 import TeamSettings from '../components/TeamSettings';
 import PilotMetrics from '../components/PilotMetrics';
 import MfaSettings from '../components/MfaSettings';
+import ApiKeysSettings from '../components/ApiKeysSettings';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -87,6 +88,8 @@ export default function SettingsPage() {
       <MfaSettings />
 
       <TeamSettings />
+
+      {user?.roles?.includes('admin') && <ApiKeysSettings />}
 
       {user?.roles?.some((r) => r === 'admin' || r === 'auditor') && <PilotMetrics />}
 
