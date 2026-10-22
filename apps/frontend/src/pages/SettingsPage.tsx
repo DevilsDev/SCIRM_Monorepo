@@ -8,6 +8,7 @@ import TeamSettings from '../components/TeamSettings';
 import PilotMetrics from '../components/PilotMetrics';
 import MfaSettings from '../components/MfaSettings';
 import ApiKeysSettings from '../components/ApiKeysSettings';
+import WebhooksSettings from '../components/WebhooksSettings';
 
 const LANGUAGES = [
   { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
@@ -90,6 +91,8 @@ export default function SettingsPage() {
       <TeamSettings />
 
       {user?.roles?.includes('admin') && <ApiKeysSettings />}
+
+      {user?.roles?.includes('admin') && <WebhooksSettings />}
 
       {user?.roles?.some((r) => r === 'admin' || r === 'auditor') && <PilotMetrics />}
 

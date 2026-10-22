@@ -31,10 +31,8 @@ proxy); the guard is not relaxed for it. Error messages give SAP's HTTP status, 
 its response body, and never the password.
 """
 
-import ipaddress
 import os
 import re
-import socket
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -43,6 +41,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from libs.common import outbound
 from libs.integrations import sap_import, sap_spend
 
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
@@ -83,11 +82,7 @@ TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 transport_factory: Optional[Callable[[], httpx.AsyncBaseTransport]] = None
 
 
-def _system_resolve(host: str, port: int) -> List[str]:
-    return sorted({info[4][0] for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)})
-
-
-resolve: Callable[[str, int], List[str]] = _system_resolve
+resolve: Callable[[str, int], List[str]] = outbound.system_resolve
 
 
 class SapError(Exception):
@@ -132,42 +127,18 @@ def validate_client(value: Optional[str]) -> Optional[str]:
     return value or None
 
 
-def _public(ip: str) -> bool:
-    addr = ipaddress.ip_address(ip)
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
-        addr = addr.ipv4_mapped
-    return addr.is_global and not addr.is_multicast
-
-
 def _target(base_url: str, strict: bool) -> Tuple[str, Optional[str]]:
     """(URL to send requests to, TLS/Host name). In strict mode the host is resolved,
-    every address must be public, and the URL names the checked address."""
-    parts = urlsplit(base_url)
-    host = parts.hostname or ""
-    if not strict:
-        return base_url, None
-    port = parts.port or 443
+    every address must be public, and the URL names the checked address
+    (libs/common/outbound.py, shared with webhooks)."""
     try:
-        addresses = [host] if _is_ip(host) else resolve(host, port)
-    except (OSError, UnicodeError):
-        raise SapError(f"The SAP host {host} could not be found (DNS).")
-    if not addresses:
-        raise SapError(f"The SAP host {host} could not be found (DNS).")
-    if not all(_public(a) for a in addresses):
-        raise SapError(f"The SAP host {host} resolves to a private or reserved address. SCIRM only connects "
+        return outbound.pin(base_url, strict, resolve)
+    except outbound.OutboundError as exc:
+        if exc.kind == "dns":
+            raise SapError(f"The SAP host {exc.host} could not be found (DNS).")
+        raise SapError(f"The SAP host {exc.host} resolves to a private or reserved address. SCIRM only connects "
                        "to SAP systems reachable on the public internet (for example through SAP API "
                        "Management, SAP BTP or a reverse proxy).")
-    ip = addresses[0]
-    literal = f"[{ip}]" if ":" in ip else ip
-    return f"{parts.scheme}://{literal}:{port}{parts.path}", host
-
-
-def _is_ip(host: str) -> bool:
-    try:
-        ipaddress.ip_address(host)
-        return True
-    except ValueError:
-        return False
 
 
 # --- HTTP ---------------------------------------------------------------------
