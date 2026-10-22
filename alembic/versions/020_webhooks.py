@@ -44,6 +44,8 @@ def upgrade() -> None:
         CREATE TABLE notification_state (
             organization_id uuid PRIMARY KEY REFERENCES organizations(id),
             watermark timestamptz NOT NULL,
+            -- The first run: scans re-read a margin before the watermark, never before this.
+            started_at timestamptz NOT NULL,
             updated_at timestamptz NOT NULL DEFAULT now()
         )
     """)

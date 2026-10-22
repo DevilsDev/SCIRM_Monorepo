@@ -803,11 +803,17 @@ class MemoryStore:
         return sorted(set(self.orgs) | {u["organization_id"] for u in self.users.values()}
                       | {s["organization_id"] for s in self.suppliers.values() if s.get("organization_id")})
 
-    async def get_watermark(self, org: str) -> Optional[str]:
-        return self.notification_state.get(org)
+    async def get_watermark(self, org: str) -> Optional[Dict[str, str]]:
+        """{"watermark", "started_at"} for webhook detection, or None before the first run."""
+        state = self.notification_state.get(org)
+        return dict(state) if state else None
 
     async def set_watermark(self, org: str, at: str) -> None:
-        self.notification_state[org] = at
+        state = self.notification_state.get(org)
+        if state is None:
+            self.notification_state[org] = {"watermark": at, "started_at": at}
+        elif datetime.fromisoformat(at) > datetime.fromisoformat(state["watermark"]):
+            state["watermark"] = at
 
     async def record_events(self, org: str, events: List[Tuple[str, str, Dict[str, Any]]],
                             only_webhook: Optional[str] = None) -> List[str]:
@@ -842,8 +848,9 @@ class MemoryStore:
         is needed to send them."""
         from datetime import timedelta
         now = datetime.now(timezone.utc)
+        active = {h["id"] for h in self.webhooks.values() if h["organization_id"] == org and h["active"]}
         due = [d for d in self.webhook_deliveries.values()
-               if d["organization_id"] == org and d["status"] == "pending"
+               if d["organization_id"] == org and d["status"] == "pending" and d["webhook_id"] in active
                and datetime.fromisoformat(d["next_attempt_at"]) <= now and (only is None or d["event_id"] in only)]
         due.sort(key=lambda d: d["next_attempt_at"])
         out = []
@@ -2011,14 +2018,17 @@ class PostgresStore:
     async def list_org_ids(self) -> List[str]:
         return [str(r["id"]) for r in await self._all(None, "SELECT id FROM organizations ORDER BY id")]
 
-    async def get_watermark(self, org: str) -> Optional[str]:
-        rows = await self._all(org, "SELECT watermark FROM notification_state")
-        return _utc_iso(rows[0]["watermark"]) if rows else None
+    async def get_watermark(self, org: str) -> Optional[Dict[str, str]]:
+        """{"watermark", "started_at"} for webhook detection, or None before the first run."""
+        rows = await self._all(org, "SELECT watermark, started_at FROM notification_state")
+        return {"watermark": _utc_iso(rows[0]["watermark"]), "started_at": _utc_iso(rows[0]["started_at"])} if rows else None
 
     async def set_watermark(self, org: str, at: str) -> None:
-        # Never moves back, so a slow replica cannot replay a window another one finished.
+        # Never moves back, so a slow replica cannot replay a window another one finished;
+        # started_at is set once, by the first run.
         await self._exec(org, [(
-            "INSERT INTO notification_state (organization_id, watermark) VALUES (CAST(:org AS uuid), :w) "
+            "INSERT INTO notification_state (organization_id, watermark, started_at) "
+            "VALUES (CAST(:org AS uuid), :w, :w) "
             "ON CONFLICT (organization_id) DO UPDATE SET watermark = GREATEST(notification_state.watermark, "
             "EXCLUDED.watermark), updated_at = now()", {"org": org, "w": datetime.fromisoformat(at)})])
 
@@ -2052,9 +2062,11 @@ class PostgresStore:
         """Due pending deliveries, leased for lease_seconds (FOR UPDATE SKIP LOCKED, so two
         workers never take the same one), with what is needed to send them."""
         rows = await self._all(org, (
-            "WITH due AS (SELECT id FROM webhook_deliveries WHERE status = 'pending' AND next_attempt_at <= now() "
-            "AND (CAST(:only AS uuid[]) IS NULL OR event_id = ANY(CAST(:only AS uuid[]))) "
-            "ORDER BY next_attempt_at LIMIT :limit FOR UPDATE SKIP LOCKED), "
+            # Paused webhooks keep their queue untouched (no attempt is spent) until resumed.
+            "WITH due AS (SELECT d.id FROM webhook_deliveries d JOIN webhooks w ON w.id = d.webhook_id "
+            "WHERE w.active AND d.status = 'pending' AND d.next_attempt_at <= now() "
+            "AND (CAST(:only AS uuid[]) IS NULL OR d.event_id = ANY(CAST(:only AS uuid[]))) "
+            "ORDER BY d.next_attempt_at LIMIT :limit FOR UPDATE OF d SKIP LOCKED), "
             "claimed AS (UPDATE webhook_deliveries d SET attempts = d.attempts + 1, "
             "next_attempt_at = now() + make_interval(secs => :lease) FROM due WHERE d.id = due.id "
             "RETURNING d.id, d.attempts, d.webhook_id, d.event_id) "

@@ -178,6 +178,44 @@ class TestDetection:
         assert body["data"]["event_key"] == "fda_recalls:event:E-1"
         assert webhooks.verify(secret, receiver.requests[-1].headers["SCIRM-Signature"], receiver.requests[-1].content)
 
+    def test_a_record_that_commits_late_is_still_sent(self, apps, receiver):
+        """first_seen_at is the ingestion transaction's start: a row can commit with a time
+        just below a watermark that a detection run already moved past."""
+        store = apps["gateway"].audit_store
+
+        async def scenario():
+            from datetime import datetime, timedelta
+            org = await store.create_organization(f"Late org {uuid.uuid4().hex[:6]}")
+            await store.create_supplier(org, {"name": "Quorvane Laboratories", "supplier_code": "QV-1",
+                                              "supplier_type": "manufacturer", "country_code": "US"})
+            await store.create_webhook(org, "https://hooks.example.com/late", None, ["record.matched"],
+                                       webhooks.new_secret(), "t")
+            now = datetime.fromisoformat(await store.db_now())
+            await store.set_watermark(org, (now - timedelta(minutes=10)).isoformat())  # webhooks started earlier
+            await store.upsert_signals([self._signal(entity_names=["Quorvane Laboratories"], entity_keys=["quorvane"],
+                                                     raw={"event_id": f"LATE-{uuid.uuid4().hex[:6]}"})])
+            await store.set_watermark(org, (now + timedelta(seconds=60)).isoformat())  # a run already moved past it
+            return await webhooks.detect(store, org), await webhooks.detect(store, org)
+
+        assert asyncio.run(scenario()) == (1, 0)  # sent once, and the overlap never repeats it
+
+    def test_pausing_holds_queued_retries_until_resumed(self, apps, receiver):
+        store = apps["gateway"].audit_store
+
+        async def scenario():
+            org = await store.create_organization(f"Pause org {uuid.uuid4().hex[:6]}")
+            hook = await store.create_webhook(org, "https://hooks.example.com/p", None, ["record.matched"],
+                                              webhooks.new_secret(), "t")
+            await store.record_events(org, [("record.matched", f"record.matched:s:{uuid.uuid4()}", {"x": 1})])
+            await store.update_webhook(org, hook["id"], active=False)
+            paused = await webhooks.deliver_due(store, org)
+            await store.update_webhook(org, hook["id"], active=True)
+            resumed = await webhooks.deliver_due(store, org)
+            return paused, resumed
+
+        paused, resumed = asyncio.run(scenario())
+        assert paused == [] and len(resumed) == 1 and resumed[0]["attempts"] == 1
+
     def test_events_are_inserted_once_even_when_recorded_twice(self, apps):
         store = apps["gateway"].audit_store
 

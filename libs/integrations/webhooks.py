@@ -20,6 +20,7 @@ development HTTPS only, public addresses only, pinned to the checked address, no
 followed, short timeout, and only the status code of the answer is kept.
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -44,6 +45,12 @@ MIN_CONFIDENCE = float(os.getenv("WEBHOOK_MIN_CONFIDENCE", "0.6"))  # as the sup
 BACKOFF = (60, 300, 1800, 7200, 21600, 43200)
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 MAX_PAYLOAD_RECORDS = 25
+# Longer than the longest ingestion transaction (see detect()).
+OVERLAP_SECONDS = int(os.getenv("WEBHOOK_OVERLAP_SECONDS", "1800"))
+# Deliveries claimed per pass, and how long a claim lasts: longer than a full batch can take
+# (BATCH x 10 s timeout), so another replica never re-claims a delivery still being sent.
+BATCH = 10
+LEASE_SECONDS = 300
 
 # Code-only hooks for tests: an httpx transport, and the DNS resolver.
 transport_factory: Optional[Callable[[], httpx.AsyncBaseTransport]] = None
@@ -151,7 +158,8 @@ async def deliver(url: str, secret: str, event: Dict[str, Any], strict: Optional
     strict = STRICT if strict is None else strict
     try:
         url = validate_url(url, strict)
-        target, sni = outbound.pin(url, strict, resolve)
+        # DNS resolution blocks; keep it off the event loop that also serves the API.
+        target, sni = await asyncio.to_thread(outbound.pin, url, strict, resolve)
     except WebhookError as exc:
         return {"ok": False, "status_code": None, "error": str(exc)}
     except outbound.OutboundError as exc:
@@ -189,10 +197,16 @@ async def detect(store: Any, org: str) -> int:
     """Turn public records first seen since the organization's watermark into events.
     The first run only sets the watermark. Returns the number of new events."""
     until = await store.db_now()  # database time: first_seen_at is set by the database
-    after = await store.get_watermark(org)
-    if after is None:
+    state = await store.get_watermark(org)
+    if state is None:
         await store.set_watermark(org, until)
         return 0
+    # first_seen_at is the start time of the ingestion transaction, which commits later (a
+    # whole source in one transaction). Re-reading the last OVERLAP_SECONDS catches rows that
+    # committed after the previous run read past their timestamp; the dedupe key makes the
+    # overlap harmless. Never before the first run, so the archive is not replayed.
+    after = max(datetime.fromisoformat(state["watermark"]) - timedelta(seconds=OVERLAP_SECONDS),
+                datetime.fromisoformat(state["started_at"])).isoformat()
     suppliers, _ = await store.list_suppliers(org, limit=None)
     suppliers = [s for s in suppliers if s.get("is_active", True)]
     created = 0
@@ -206,10 +220,11 @@ async def detect(store: Any, org: str) -> int:
 
 
 async def deliver_due(store: Any, org: str, only_events: Optional[List[str]] = None,
-                      limit: int = 20) -> List[Dict[str, Any]]:
-    """Send this organization's due deliveries; record each outcome and schedule retries."""
+                      limit: int = BATCH) -> List[Dict[str, Any]]:
+    """Send this organization's due deliveries (paused webhooks are skipped); record each
+    outcome and schedule retries."""
     results = []
-    for job in await store.claim_deliveries(org, limit=limit, only=only_events):
+    for job in await store.claim_deliveries(org, limit=limit, lease_seconds=LEASE_SECONDS, only=only_events):
         result = await deliver(job["url"], job["secret"], job["event"])
         retry_at = None if result["ok"] else next_attempt(job["attempts"], utcnow())
         await store.finish_delivery(org, job["delivery_id"], result, retry_at)
