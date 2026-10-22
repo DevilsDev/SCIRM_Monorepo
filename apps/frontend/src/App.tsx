@@ -26,6 +26,7 @@ import SimulatorPage from './pages/SimulatorPage';
 import ProcurementPage from './pages/ProcurementPage';
 import ComponentsPage from './pages/ComponentsPage';
 import SettingsPage from './pages/SettingsPage';
+import AuditLogPage from './pages/AuditLogPage';
 
 export default function App() {
   return (
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/procurement" element={<SampleRoute><ProcurementPage /></SampleRoute>} />
             <Route path="/components" element={<SampleRoute><ComponentsPage /></SampleRoute>} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/audit" element={<AuditLogPage />} />
           </Route>
         </Route>
 

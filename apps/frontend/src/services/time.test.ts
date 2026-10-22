@@ -1,9 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-
-// The component module imports the API client, which needs a browser; only utcDate is tested.
-vi.mock('../services/api', () => ({ api: {}, ROLES: [] }));
-
-import { utcDate } from './TeamSettings';
+import { describe, expect, it } from 'vitest';
+import { utcDate } from './time';
 
 describe('utcDate', () => {
   it('reads a zone-less timestamp as UTC', () => {
