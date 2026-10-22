@@ -319,6 +319,23 @@ class TestApiKeys:
         assert isinstance(self._key(db, db["a"], "not-a-hash"), psycopg2.errors.CheckViolation)
 
 
+def test_webhook_tables_are_tenant_scoped_with_forced_rls(db):
+    """Migration 020: all four tables force row-level security; another org sees nothing."""
+    tables = ("webhooks", "webhook_events", "webhook_deliveries", "notification_state")
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY(%s)",
+                    (list(tables),))
+        flags = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+    assert flags == {t: (True, True) for t in tables}
+    insert = ("INSERT INTO webhook_events (organization_id, type, dedupe_key, payload) "
+              "VALUES (%s, 'ping', %s, '{}')")
+    assert as_org(db["app"], db["a"], insert, (db["a"], "rls-ping")) == 1
+    assert isinstance(as_org(db["app"], db["b"], insert, (db["a"], "rls-ping-2")), psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM webhook_events WHERE dedupe_key = 'rls-ping'") == [(0,)]
+    duplicate = as_org(db["app"], db["a"], insert, (db["a"], "rls-ping"))
+    assert isinstance(duplicate, psycopg2.errors.UniqueViolation)
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

@@ -32,7 +32,7 @@ from libs.common import secret_box
 from libs.common.security import setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
-from libs.integrations import sap_import, sap_odata, sap_spend
+from libs.integrations import sap_import, sap_odata, sap_spend, webhooks
 from libs.intel import geo
 
 # ---------------------------------------------------------------------------
@@ -50,6 +50,10 @@ AUTO_REFRESH_INTERVAL = int(os.getenv("AUTO_REFRESH_INTERVAL_MINUTES", "15"))
 # Off by default: each refresh stores a new copy of every risk, so persisted data
 # would grow without bound. Re-enable once refreshes supersede earlier results.
 AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "false").lower() == "true"
+# Webhooks: new public records matching a tenant's suppliers, sent to its endpoints.
+WEBHOOKS_ENABLED = os.getenv("WEBHOOKS_ENABLED", "true").lower() == "true"
+WEBHOOK_TICK_SECONDS = int(os.getenv("WEBHOOK_TICK_SECONDS", "30"))
+WEBHOOK_DETECT_SECONDS = int(os.getenv("WEBHOOK_DETECT_SECONDS", "300"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 logger = structlog.get_logger()
@@ -88,11 +92,14 @@ async def lifespan(app: FastAPI):
     if AUTO_REFRESH_ENABLED:
         refresh_task = asyncio.create_task(_auto_refresh_loop())
         logger.info("Auto-refresh enabled", interval_minutes=AUTO_REFRESH_INTERVAL)
+    webhook_task = asyncio.create_task(_webhook_loop()) if WEBHOOKS_ENABLED else None
 
     yield
 
     if refresh_task:
         refresh_task.cancel()
+    if webhook_task:
+        webhook_task.cancel()
     await _http_client.aclose()
     await store.close()
     logger.info("Coordinator agent stopped")
@@ -159,6 +166,42 @@ async def _auto_refresh_loop():
         except Exception as exc:
             logger.error("Auto-refresh failed", error=str(exc))
             await asyncio.sleep(60)  # Wait 1 min before retrying on error
+
+
+async def webhook_tick(detect_now: bool) -> Dict[str, int]:
+    """One pass over every organization: send due deliveries and, when detect_now, turn
+    newly seen public records into events (libs/integrations/webhooks.py). One
+    organization's failure never stops the others."""
+    totals = {"events": 0, "delivered": 0, "failed": 0}
+    for org_id in await store.list_org_ids():
+        try:
+            if detect_now:
+                totals["events"] += await webhooks.detect(store, org_id)
+            for result in await webhooks.deliver_due(store, org_id):
+                totals["delivered" if result["ok"] else "failed"] += 1
+        except Exception as exc:
+            logger.error("Webhook pass failed", org_id=org_id, error=type(exc).__name__)
+    return totals
+
+
+async def _webhook_loop():
+    """Deliveries every WEBHOOK_TICK_SECONDS; detection every WEBHOOK_DETECT_SECONDS."""
+    await asyncio.sleep(15)  # let the other services start
+    last_detect = 0.0
+    while True:
+        try:
+            now = asyncio.get_running_loop().time()
+            detect_now = now - last_detect >= WEBHOOK_DETECT_SECONDS
+            totals = await webhook_tick(detect_now)
+            if detect_now:
+                last_detect = now
+            if any(totals.values()):
+                logger.info("Webhooks", **totals)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Webhook loop failed", error=type(exc).__name__)
+        await asyncio.sleep(WEBHOOK_TICK_SECONDS)
 
 
 class AgentUnavailable(Exception):

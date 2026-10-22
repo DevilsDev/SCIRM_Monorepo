@@ -318,7 +318,33 @@ export interface ApiKey {
   revoked_at: string | null;
 }
 
-export type AuditCategory ='sign_in' | 'access' | 'integrations' | 'changes';
+export type WebhookEvent = 'record.matched' | 'exposure.detected';
+
+export interface Webhook {
+  id: string;
+  url: string;
+  description: string | null;
+  events: WebhookEvent[];
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  last_delivery: { at: string; ok: boolean; status_code: number | null; error: string | null } | null;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event_id: string;
+  type: WebhookEvent | 'ping';
+  status: 'pending' | 'delivered' | 'failed';
+  attempts: number;
+  last_status_code: number | null;
+  last_error: string | null;
+  next_attempt_at: string;
+  delivered_at: string | null;
+  created_at: string;
+}
+
+export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
   category?: AuditCategory | '';
@@ -540,6 +566,32 @@ export const api = {
 
   async revokeApiKey(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/org/api-keys/${encodeURIComponent(id)}`);
+  },
+
+  // Webhooks (admins)
+  async listWebhooks(): Promise<{ webhooks: Webhook[]; event_types: WebhookEvent[] }> {
+    return (await apiClient.get('/api/v1/org/webhooks')).data;
+  },
+
+  /** The signing secret is returned only here, once. */
+  async createWebhook(url: string, events: WebhookEvent[], description?: string): Promise<{ webhook: Webhook; secret: string }> {
+    return (await apiClient.post('/api/v1/org/webhooks', { url, events, description: description || null })).data;
+  },
+
+  async updateWebhook(id: string, changes: { active?: boolean; events?: WebhookEvent[] }): Promise<Webhook> {
+    return (await apiClient.patch(`/api/v1/org/webhooks/${encodeURIComponent(id)}`, changes)).data.webhook;
+  },
+
+  async deleteWebhook(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/org/webhooks/${encodeURIComponent(id)}`);
+  },
+
+  async testWebhook(id: string): Promise<{ ok: boolean; status_code: number | null; error: string | null }> {
+    return (await apiClient.post(`/api/v1/org/webhooks/${encodeURIComponent(id)}/test`)).data;
+  },
+
+  async listWebhookDeliveries(id: string): Promise<{ deliveries: WebhookDelivery[] }> {
+    return (await apiClient.get(`/api/v1/org/webhooks/${encodeURIComponent(id)}/deliveries`)).data;
   },
 
   // Audit log (admins and auditors)

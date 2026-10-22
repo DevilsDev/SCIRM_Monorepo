@@ -108,6 +108,20 @@ def api_key_hash(key: str) -> str:
 _API_KEY_PUBLIC = ("id", "name", "prefix", "scopes", "created_by", "created_at", "expires_at", "last_used_at",
                    "revoked_at")
 
+# Webhooks (migration 020). The secret is never part of the public view.
+_WEBHOOK_PUBLIC = ("id", "url", "description", "events", "active", "created_by", "created_at", "last_delivery")
+_DELIVERY_PUBLIC = ("id", "event_id", "status", "attempts", "last_status_code", "last_error", "next_attempt_at",
+                    "delivered_at", "created_at")
+
+
+def _webhook_bound(org: str, webhook_id: str) -> str:
+    """What a webhook's encrypted secret is bound to: it opens only for this webhook."""
+    return f"webhook:{org}:{webhook_id}"
+
+
+def _utc_iso(value: datetime) -> str:
+    return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).astimezone(timezone.utc).isoformat()
+
 
 def _member(user: Dict[str, Any]) -> Dict[str, Any]:
     """A user as shown to colleagues: no password hash, no MFA secret."""
@@ -228,6 +242,10 @@ class MemoryStore:
         self.source_runs: Dict[str, Dict[str, Any]] = {}
         self.erp_connections: Dict[Tuple[str, str], Dict[str, Any]] = {}
         self.api_keys: Dict[str, Dict[str, Any]] = {}
+        self.webhooks: Dict[str, Dict[str, Any]] = {}
+        self.webhook_events: Dict[str, Dict[str, Any]] = {}
+        self.webhook_deliveries: Dict[str, Dict[str, Any]] = {}
+        self.notification_state: Dict[str, str] = {}
 
     async def close(self) -> None:
         return None
@@ -412,6 +430,18 @@ class MemoryStore:
                  and (source is None or s["source"] == source) and (since is None or _activity(s) >= since)]
         found.sort(key=lambda s: (_activity(s), s["external_id"]), reverse=True)
         return found[:limit], len(found)
+
+    async def new_signal_candidates(self, keys: List[str], countries: List[str], after: str, until: str,
+                                    limit: int = 5000) -> List[Dict[str, Any]]:
+        """Like signal_candidates, for signals first seen in (after, until] (webhooks)."""
+        lo, hi = _naive_utc(after), _naive_utc(until)
+        keys_set, countries_set = set(keys), set(countries)
+        found = [s for s in self.signals.values()
+                 if not s.get("delisted_at") and lo < _naive_utc(s["first_seen_at"]) <= hi
+                 and (keys_set & set(s.get("entity_keys") or [])
+                      or (s["signal_type"] == "disaster" and countries_set & set(s.get("country_codes") or [])))]
+        found.sort(key=lambda s: s["first_seen_at"])
+        return found[:limit]
 
     async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
                                 limit: int = 2000) -> List[Dict[str, Any]]:
@@ -721,6 +751,137 @@ class MemoryStore:
         row = self.api_keys.get(str(key_id))
         if row and row["organization_id"] == org:
             row["last_used_at"] = _now()
+
+    # --- webhooks -----------------------------------------------------------
+    def _own_webhook(self, org: str, webhook_id: str) -> Optional[Dict[str, Any]]:
+        row = self.webhooks.get(str(webhook_id))
+        return row if row and row["organization_id"] == org else None
+
+    async def create_webhook(self, org: str, url: str, description: Optional[str], events: List[str], secret: str,
+                             created_by: Optional[str]) -> Dict[str, Any]:
+        webhook_id = str(uuid.uuid4())
+        row = {"id": webhook_id, "organization_id": org, "url": url, "description": description, "events": list(events),
+               "secret_enc": secret_box.encrypt(secret, _webhook_bound(org, webhook_id)), "active": True,
+               "created_by": created_by, "created_at": _now(), "last_delivery": None}
+        self.webhooks[webhook_id] = row
+        return {k: row[k] for k in _WEBHOOK_PUBLIC}
+
+    async def list_webhooks(self, org: str) -> List[Dict[str, Any]]:
+        rows = sorted((r for r in self.webhooks.values() if r["organization_id"] == org), key=lambda r: r["created_at"])
+        return [{k: r[k] for k in _WEBHOOK_PUBLIC} for r in rows]
+
+    async def update_webhook(self, org: str, webhook_id: str, active: Optional[bool] = None,
+                             events: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        row = self._own_webhook(org, webhook_id)
+        if not row:
+            return None
+        if active is not None:
+            row["active"] = bool(active)
+        if events is not None:
+            row["events"] = list(events)
+        return {k: row[k] for k in _WEBHOOK_PUBLIC}
+
+    async def delete_webhook(self, org: str, webhook_id: str) -> bool:
+        if not self._own_webhook(org, webhook_id):
+            return False
+        del self.webhooks[str(webhook_id)]
+        for did in [d for d, row in self.webhook_deliveries.items() if row["webhook_id"] == str(webhook_id)]:
+            del self.webhook_deliveries[did]
+        return True
+
+    async def list_webhook_deliveries(self, org: str, webhook_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+        rows = [d for d in self.webhook_deliveries.values()
+                if d["organization_id"] == org and d["webhook_id"] == str(webhook_id)]
+        rows.sort(key=lambda d: d["created_at"], reverse=True)
+        return [{**{k: d[k] for k in _DELIVERY_PUBLIC}, "type": self.webhook_events[d["event_id"]]["type"]}
+                for d in rows[:limit]]
+
+    async def db_now(self) -> str:
+        return _utc_iso(datetime.now(timezone.utc))
+
+    async def list_org_ids(self) -> List[str]:
+        return sorted(set(self.orgs) | {u["organization_id"] for u in self.users.values()}
+                      | {s["organization_id"] for s in self.suppliers.values() if s.get("organization_id")})
+
+    async def get_watermark(self, org: str) -> Optional[Dict[str, str]]:
+        """{"watermark", "started_at"} for webhook detection, or None before the first run."""
+        state = self.notification_state.get(org)
+        return dict(state) if state else None
+
+    async def set_watermark(self, org: str, at: str) -> None:
+        state = self.notification_state.get(org)
+        if state is None:
+            self.notification_state[org] = {"watermark": at, "started_at": at}
+        elif datetime.fromisoformat(at) > datetime.fromisoformat(state["watermark"]):
+            state["watermark"] = at
+
+    async def record_events(self, org: str, events: List[Tuple[str, str, Dict[str, Any]]],
+                            only_webhook: Optional[str] = None) -> List[str]:
+        """Insert events not seen before (by dedupe key) and a pending delivery for each
+        active webhook subscribed to the type (or only `only_webhook`, for a test ping).
+        Returns the ids of the events inserted."""
+        seen = {e["dedupe_key"] for e in self.webhook_events.values() if e["organization_id"] == org}
+        inserted = []
+        for etype, key, payload in events:
+            if key in seen:
+                continue
+            seen.add(key)
+            event = {"id": str(uuid.uuid4()), "organization_id": org, "type": etype, "dedupe_key": key,
+                     "payload": payload, "created_at": await self.db_now()}
+            self.webhook_events[event["id"]] = event
+            inserted.append(event["id"])
+            for hook in self.webhooks.values():
+                if hook["organization_id"] != org or not hook["active"]:
+                    continue
+                if (only_webhook and hook["id"] != only_webhook) or (not only_webhook and etype not in hook["events"]):
+                    continue
+                did = str(uuid.uuid4())
+                self.webhook_deliveries[did] = {
+                    "id": did, "organization_id": org, "webhook_id": hook["id"], "event_id": event["id"],
+                    "status": "pending", "attempts": 0, "next_attempt_at": await self.db_now(),
+                    "last_status_code": None, "last_error": None, "delivered_at": None, "created_at": _now()}
+        return inserted
+
+    async def claim_deliveries(self, org: str, limit: int = 20, lease_seconds: int = 120,
+                               only: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Due pending deliveries (only: of these event ids), leased for lease_seconds, with what
+        is needed to send them."""
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        active = {h["id"] for h in self.webhooks.values() if h["organization_id"] == org and h["active"]}
+        due = [d for d in self.webhook_deliveries.values()
+               if d["organization_id"] == org and d["status"] == "pending" and d["webhook_id"] in active
+               and datetime.fromisoformat(d["next_attempt_at"]) <= now and (only is None or d["event_id"] in only)]
+        due.sort(key=lambda d: d["next_attempt_at"])
+        out = []
+        for d in due[:limit]:
+            hook = self.webhooks.get(d["webhook_id"])
+            event = self.webhook_events[d["event_id"]]
+            if not hook:
+                continue
+            d["attempts"] += 1
+            d["next_attempt_at"] = _utc_iso(now + timedelta(seconds=lease_seconds))
+            out.append({"delivery_id": d["id"], "attempts": d["attempts"], "webhook_id": hook["id"], "url": hook["url"],
+                        "secret": secret_box.decrypt(hook["secret_enc"], _webhook_bound(org, hook["id"]))[0],
+                        "event": {k: event[k] for k in ("id", "type", "payload", "created_at")}})
+        return out
+
+    async def finish_delivery(self, org: str, delivery_id: str, result: Dict[str, Any],
+                              retry_at: Optional[datetime]) -> None:
+        d = self.webhook_deliveries.get(str(delivery_id))
+        if not d or d["organization_id"] != org:
+            return
+        d.update(last_status_code=result.get("status_code"), last_error=(result.get("error") or None) and result["error"][:300])
+        if result.get("ok"):
+            d.update(status="delivered", delivered_at=await self.db_now())
+        elif retry_at is None:
+            d["status"] = "failed"
+        else:
+            d["next_attempt_at"] = _utc_iso(retry_at)
+        hook = self.webhooks.get(d["webhook_id"])
+        if hook:
+            hook["last_delivery"] = {"at": await self.db_now(), "ok": bool(result.get("ok")),
+                                     "status_code": result.get("status_code"), "error": d["last_error"]}
 
     # --- audit --------------------------------------------------------------
     async def record_audit(self, org: Optional[str], entry: Dict[str, Any]) -> None:
@@ -1392,6 +1553,19 @@ class PostgresStore:
         total = (await self._all(None, f"SELECT count(*) AS n FROM public_signals {where}", params))[0]["n"]
         return [self._signal_row(r) for r in rows], total
 
+    async def new_signal_candidates(self, keys: List[str], countries: List[str], after: str, until: str,
+                                    limit: int = 5000) -> List[Dict[str, Any]]:
+        """Like signal_candidates, for signals first seen in (after, until] (webhooks)."""
+        rows = await self._all(None, (
+            "SELECT * FROM public_signals WHERE delisted_at IS NULL "
+            "AND first_seen_at > :after AND first_seen_at <= :until "
+            "AND (entity_keys && CAST(:keys AS text[]) "
+            "OR (signal_type = 'disaster' AND country_codes && CAST(:countries AS varchar(3)[]))) "
+            "ORDER BY first_seen_at LIMIT :limit"),
+            {"keys": list(keys), "countries": list(countries), "after": datetime.fromisoformat(after),
+             "until": datetime.fromisoformat(until), "limit": limit})
+        return [self._signal_row(r) for r in rows]
+
     async def signal_candidates(self, keys: List[str], countries: List[str], since: Optional[str] = None,
                                 limit: int = 2000) -> List[Dict[str, Any]]:
         rows = await self._all(None, (
@@ -1786,11 +1960,154 @@ class PostgresStore:
                 "UPDATE api_keys SET last_used_at = now() WHERE id = CAST(:i AS uuid) "
                 "AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute')", {"i": key_id})])
 
+    # --- webhooks -----------------------------------------------------------
+    _WEBHOOK_COLUMNS = ", ".join(_WEBHOOK_PUBLIC)
+
+    @staticmethod
+    def _webhook_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = _jsonable(row)
+        out["events"] = list(out.get("events") or [])
+        if isinstance(out.get("last_delivery"), str):
+            out["last_delivery"] = json.loads(out["last_delivery"])
+        return out
+
+    async def create_webhook(self, org: str, url: str, description: Optional[str], events: List[str], secret: str,
+                             created_by: Optional[str]) -> Dict[str, Any]:
+        webhook_id = str(uuid.uuid4())
+        rows = await self._all(org, (
+            "INSERT INTO webhooks (id, organization_id, url, description, events, secret_enc, created_by) "
+            "VALUES (CAST(:id AS uuid), CAST(:org AS uuid), :u, :d, CAST(:e AS text[]), :s, :by) "
+            f"RETURNING {self._WEBHOOK_COLUMNS}"),
+            {"id": webhook_id, "org": org, "u": url, "d": description, "e": list(events),
+             "s": secret_box.encrypt(secret, _webhook_bound(org, webhook_id)), "by": created_by})
+        return self._webhook_row(rows[0])
+
+    async def list_webhooks(self, org: str) -> List[Dict[str, Any]]:
+        rows = await self._all(org, f"SELECT {self._WEBHOOK_COLUMNS} FROM webhooks ORDER BY created_at")
+        return [self._webhook_row(r) for r in rows]
+
+    async def update_webhook(self, org: str, webhook_id: str, active: Optional[bool] = None,
+                             events: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        if not _is_uuid(webhook_id):
+            return None
+        rows = await self._all(org, (
+            "UPDATE webhooks SET active = COALESCE(:a, active), events = COALESCE(CAST(:e AS text[]), events) "
+            f"WHERE id = CAST(:i AS uuid) RETURNING {self._WEBHOOK_COLUMNS}"),
+            {"a": active, "e": list(events) if events is not None else None, "i": webhook_id})
+        return self._webhook_row(rows[0]) if rows else None
+
+    async def delete_webhook(self, org: str, webhook_id: str) -> bool:
+        if not _is_uuid(webhook_id):
+            return False
+        rows = await self._all(org, "DELETE FROM webhooks WHERE id = CAST(:i AS uuid) RETURNING id", {"i": webhook_id})
+        return bool(rows)
+
+    async def list_webhook_deliveries(self, org: str, webhook_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+        if not _is_uuid(webhook_id):
+            return []
+        rows = await self._all(org, (
+            "SELECT d.id, d.event_id, d.status, d.attempts, d.last_status_code, d.last_error, d.next_attempt_at, "
+            "d.delivered_at, d.created_at, e.type FROM webhook_deliveries d JOIN webhook_events e ON e.id = d.event_id "
+            "WHERE d.webhook_id = CAST(:w AS uuid) ORDER BY d.created_at DESC LIMIT :limit"),
+            {"w": webhook_id, "limit": limit})
+        return [_jsonable(r) for r in rows]
+
+    async def db_now(self) -> str:
+        return _utc_iso((await self._all(None, "SELECT now() AS n"))[0]["n"])
+
+    async def list_org_ids(self) -> List[str]:
+        return [str(r["id"]) for r in await self._all(None, "SELECT id FROM organizations ORDER BY id")]
+
+    async def get_watermark(self, org: str) -> Optional[Dict[str, str]]:
+        """{"watermark", "started_at"} for webhook detection, or None before the first run."""
+        rows = await self._all(org, "SELECT watermark, started_at FROM notification_state")
+        return {"watermark": _utc_iso(rows[0]["watermark"]), "started_at": _utc_iso(rows[0]["started_at"])} if rows else None
+
+    async def set_watermark(self, org: str, at: str) -> None:
+        # Never moves back, so a slow replica cannot replay a window another one finished;
+        # started_at is set once, by the first run.
+        await self._exec(org, [(
+            "INSERT INTO notification_state (organization_id, watermark, started_at) "
+            "VALUES (CAST(:org AS uuid), :w, :w) "
+            "ON CONFLICT (organization_id) DO UPDATE SET watermark = GREATEST(notification_state.watermark, "
+            "EXCLUDED.watermark), updated_at = now()", {"org": org, "w": datetime.fromisoformat(at)})])
+
+    async def record_events(self, org: str, events: List[Tuple[str, str, Dict[str, Any]]],
+                            only_webhook: Optional[str] = None) -> List[str]:
+        """Insert events not seen before (by dedupe key) and a pending delivery for each
+        active webhook subscribed to the type (or only `only_webhook`, for a test ping).
+        Returns the ids of the events inserted; a concurrent duplicate inserts nothing."""
+        from sqlalchemy import text
+        inserted: List[str] = []
+        async with self._tx(org) as conn:
+            for etype, key, payload in events:
+                row = (await conn.execute(text(
+                    "INSERT INTO webhook_events (organization_id, type, dedupe_key, payload) "
+                    "VALUES (CAST(:org AS uuid), :t, :k, CAST(:p AS jsonb)) "
+                    "ON CONFLICT (organization_id, dedupe_key) DO NOTHING RETURNING id"),
+                    {"org": org, "t": etype, "k": key, "p": json.dumps(payload, default=str)})).first()
+                if row is None:
+                    continue
+                inserted.append(str(row[0]))
+                await conn.execute(text(
+                    "INSERT INTO webhook_deliveries (organization_id, webhook_id, event_id) "
+                    "SELECT organization_id, id, CAST(:e AS uuid) FROM webhooks WHERE active AND "
+                    "(CASE WHEN CAST(:only AS uuid) IS NULL THEN :t = ANY(events) ELSE id = CAST(:only AS uuid) END) "
+                    "ON CONFLICT (webhook_id, event_id) DO NOTHING"),
+                    {"e": str(row[0]), "t": etype, "only": only_webhook})
+        return inserted
+
+    async def claim_deliveries(self, org: str, limit: int = 20, lease_seconds: int = 120,
+                               only: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Due pending deliveries, leased for lease_seconds (FOR UPDATE SKIP LOCKED, so two
+        workers never take the same one), with what is needed to send them."""
+        rows = await self._all(org, (
+            # Paused webhooks keep their queue untouched (no attempt is spent) until resumed.
+            "WITH due AS (SELECT d.id FROM webhook_deliveries d JOIN webhooks w ON w.id = d.webhook_id "
+            "WHERE w.active AND d.status = 'pending' AND d.next_attempt_at <= now() "
+            "AND (CAST(:only AS uuid[]) IS NULL OR d.event_id = ANY(CAST(:only AS uuid[]))) "
+            "ORDER BY d.next_attempt_at LIMIT :limit FOR UPDATE OF d SKIP LOCKED), "
+            "claimed AS (UPDATE webhook_deliveries d SET attempts = d.attempts + 1, "
+            "next_attempt_at = now() + make_interval(secs => :lease) FROM due WHERE d.id = due.id "
+            "RETURNING d.id, d.attempts, d.webhook_id, d.event_id) "
+            "SELECT c.id AS delivery_id, c.attempts, w.id AS webhook_id, w.url, w.secret_enc, "
+            "e.id AS event_id, e.type, e.payload, e.created_at "
+            "FROM claimed c JOIN webhooks w ON w.id = c.webhook_id JOIN webhook_events e ON e.id = c.event_id"),
+            {"only": list(only) if only is not None else None, "limit": limit, "lease": lease_seconds})
+        out = []
+        for r in rows:
+            payload = json.loads(r["payload"]) if isinstance(r["payload"], str) else r["payload"]
+            out.append({"delivery_id": str(r["delivery_id"]), "attempts": r["attempts"], "webhook_id": str(r["webhook_id"]),
+                        "url": r["url"],
+                        "secret": secret_box.decrypt(r["secret_enc"], _webhook_bound(org, str(r["webhook_id"])))[0],
+                        "event": {"id": str(r["event_id"]), "type": r["type"], "payload": payload,
+                                  "created_at": _utc_iso(r["created_at"])}})
+        return out
+
+    async def finish_delivery(self, org: str, delivery_id: str, result: Dict[str, Any],
+                              retry_at: Optional[datetime]) -> None:
+        if not _is_uuid(delivery_id):
+            return
+        ok = bool(result.get("ok"))
+        error = (result.get("error") or None) and result["error"][:300]
+        status = "delivered" if ok else ("failed" if retry_at is None else "pending")
+        await self._exec(org, [
+            ("UPDATE webhook_deliveries SET status = :st, last_status_code = :code, last_error = :err, "
+             "delivered_at = CASE WHEN CAST(:ok AS boolean) THEN now() ELSE delivered_at END, "
+             "next_attempt_at = COALESCE(:retry, next_attempt_at) WHERE id = CAST(:i AS uuid)",
+             {"st": status, "code": result.get("status_code"), "err": error, "ok": ok,
+              "retry": retry_at if retry_at is None or retry_at.tzinfo else retry_at.replace(tzinfo=timezone.utc),
+              "i": delivery_id}),
+            ("UPDATE webhooks SET last_delivery = jsonb_build_object('at', now(), 'ok', CAST(:ok AS boolean), 'status_code', "
+             "CAST(:code AS integer), 'error', CAST(:err AS text)) "
+             "WHERE id = (SELECT webhook_id FROM webhook_deliveries WHERE id = CAST(:i AS uuid))",
+             {"ok": ok, "code": result.get("status_code"), "err": error, "i": delivery_id})])
+
     async def list_audit(self, org: str, limit: int = 100,
                          filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Newest first. filters: category, actor, failed, since, until (ISO), before (cursor)."""
         where, params = _audit_where(filters or {})
-        sql = ("SELECT * FROM audit_logs" + (" WHERE " + " AND ".join(where) if where else "")
+        sql =("SELECT * FROM audit_logs" + (" WHERE " + " AND ".join(where) if where else "")
                + " ORDER BY created_at DESC, id DESC LIMIT :limit")
         rows = await self._all(org, sql, {**params, "limit": limit})
         return [_jsonable(r) for r in rows]

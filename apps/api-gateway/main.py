@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import secrets
+import uuid
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List, Optional
 from urllib.parse import quote, urlencode
@@ -32,6 +33,7 @@ from libs.common.security import setup_cors, setup_rate_limiting
 from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
                                audit_category, audit_cursor, create_store, is_api_key)
 from libs.common import secret_box
+from libs.integrations import webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
 secret_box.require_key()
@@ -673,6 +675,96 @@ async def revoke_api_key(key_id: str, token: str = Depends(security)):
         raise HTTPException(status_code=404, detail="No active API key with that id")
     await _audit_event(user.organization_id, user.id, user.email, "api_key.revoked", target=key_id)
     return {"api_key": row}
+
+
+class WebhookRequest(BaseModel):
+    url: str = Field(..., min_length=8, max_length=500)
+    description: Optional[str] = Field(None, max_length=200)
+    events: List[str] = Field(default_factory=lambda: list(webhooks.EVENT_TYPES), min_length=1, max_length=2)
+
+
+class WebhookUpdate(BaseModel):
+    active: Optional[bool] = None
+    events: Optional[List[str]] = Field(None, min_length=1, max_length=2)
+
+
+def _webhook_events(events: List[str]) -> List[str]:
+    events = list(dict.fromkeys(events))
+    unknown = [e for e in events if e not in webhooks.EVENT_TYPES]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown event(s): {', '.join(unknown)}. "
+                                                    f"Allowed: {', '.join(webhooks.EVENT_TYPES)}")
+    return events
+
+
+@app.get("/api/v1/org/webhooks")
+async def list_webhooks(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage webhooks")
+    return {"webhooks": await audit_store.list_webhooks(user.organization_id), "event_types": list(webhooks.EVENT_TYPES)}
+
+
+@app.post("/api/v1/org/webhooks")
+async def create_webhook(body: WebhookRequest, token: str = Depends(security)):
+    """Add an endpoint. Returns the signing secret once; it is stored encrypted."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage webhooks")
+    try:
+        url = webhooks.validate_url(body.url)
+    except webhooks.WebhookError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    secret = webhooks.new_secret()
+    row = await audit_store.create_webhook(user.organization_id, url, (body.description or "").strip() or None,
+                                           _webhook_events(body.events), secret, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "webhook.created", target=str(row["id"]))
+    return {"webhook": row, "secret": secret,
+            "note": "Copy the signing secret now: it cannot be shown again. Use it to verify SCIRM-Signature."}
+
+
+@app.patch("/api/v1/org/webhooks/{webhook_id}")
+async def update_webhook(webhook_id: str, body: WebhookUpdate, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage webhooks")
+    events = _webhook_events(body.events) if body.events is not None else None
+    row = await audit_store.update_webhook(user.organization_id, webhook_id, active=body.active, events=events)
+    if not row:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return {"webhook": row}
+
+
+@app.delete("/api/v1/org/webhooks/{webhook_id}")
+async def delete_webhook(webhook_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage webhooks")
+    if not await audit_store.delete_webhook(user.organization_id, webhook_id):
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    await _audit_event(user.organization_id, user.id, user.email, "webhook.deleted", target=webhook_id)
+    return {"deleted": True}
+
+
+@app.post("/api/v1/org/webhooks/{webhook_id}/test")
+async def test_webhook(webhook_id: str, token: str = Depends(security)):
+    """Send a signed ping event to this endpoint now and report what it answered."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage webhooks")
+    if not any(w["id"] == webhook_id for w in await audit_store.list_webhooks(user.organization_id)):
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    event_ids = await audit_store.record_events(user.organization_id, [(
+        "ping", f"ping:{uuid.uuid4()}", {"message": "Test event from SCIRM", "sent_by": user.email})],
+        only_webhook=webhook_id)
+    results = await webhooks.deliver_due(audit_store, user.organization_id, only_events=event_ids)
+    if not results:
+        raise HTTPException(status_code=409, detail="The webhook is paused. Resume it to send a test.")
+    r = results[0]
+    return {"ok": r["ok"], "status_code": r["status_code"], "error": r["error"], "event_id": r["event_id"]}
+
+
+@app.get("/api/v1/org/webhooks/{webhook_id}/deliveries")
+async def list_webhook_deliveries(webhook_id: str, limit: int = 20, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage webhooks")
+    return {"deliveries": await audit_store.list_webhook_deliveries(user.organization_id, webhook_id,
+                                                                    limit=min(max(limit, 1), 100))}
 
 
 @app.post("/api/v1/org/invitations")
