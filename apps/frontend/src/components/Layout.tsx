@@ -16,6 +16,7 @@ import {
   SunIcon,
   MoonIcon,
   ClipboardDocumentListIcon,
+  PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useState } from 'react';
@@ -74,6 +75,7 @@ const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem
     labelKey: 'common.administration',
     fallbackLabel: 'Administration',
     items: [
+      { to: '/integrations', tKey: 'nav.integrations', fallback: 'Integrations', icon: PuzzlePieceIcon, roles: ['admin'] },
       { to: '/audit', tKey: 'nav.audit', fallback: 'Audit log', icon: ClipboardDocumentListIcon, roles: ['admin', 'auditor'] },
     ],
   },

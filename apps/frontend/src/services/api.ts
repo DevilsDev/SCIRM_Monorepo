@@ -483,6 +483,15 @@ export interface PublicSourceStatus {
   error?: string | null;
   last_run_at?: string;
   last_success_at?: string | null;
+  signals_seen?: number;
+  signals_new?: number;
+}
+
+export interface EmbeddingStatus {
+  status: 'disabled' | 'on';
+  model?: string;
+  embedded?: number;
+  total?: number;
 }
 
 export const api = {
@@ -818,7 +827,8 @@ export const api = {
     return response.data;
   },
 
-  async getIntelligenceSources(): Promise<{ sources: Record<string, PublicSourceStatus>; available: string[]; total_documents: number }> {
+  async getIntelligenceSources(): Promise<{ sources: Record<string, PublicSourceStatus>; available: string[];
+    total_documents: number; embeddings?: EmbeddingStatus }> {
     const response = await apiClient.get('/api/v1/intelligence/sources');
     return response.data;
   },

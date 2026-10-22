@@ -27,6 +27,7 @@ import ProcurementPage from './pages/ProcurementPage';
 import ComponentsPage from './pages/ComponentsPage';
 import SettingsPage from './pages/SettingsPage';
 import AuditLogPage from './pages/AuditLogPage';
+import IntegrationsPage from './pages/IntegrationsPage';
 
 export default function App() {
   return (
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/components" element={<SampleRoute><ComponentsPage /></SampleRoute>} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/audit" element={<AuditLogPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
           </Route>
         </Route>
 

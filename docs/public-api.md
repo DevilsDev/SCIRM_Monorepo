@@ -5,7 +5,7 @@ The API is **read-only**.
 
 ## Keys
 
-An administrator creates keys in **Settings → API keys**, with a name and an expiry (30
+An administrator creates keys in **Administration → Integrations → API keys**, with a name and an expiry (30
 days, 90 days, 1 year or never).
 - **Shown once.** The key is shown only when it is created; SCIRM stores only its SHA-256
   hash.

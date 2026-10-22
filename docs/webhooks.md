@@ -19,7 +19,7 @@ public sources are ingested hourly.
 
 ## Setting up
 
-An administrator adds endpoints in **Settings → Webhooks**: a URL, an optional
+An administrator adds endpoints in **Administration → Integrations → Webhooks**: a URL, an optional
 description, and the event types to send.
 - **Secret shown once.** The signing secret (`whsec_…`) is shown only when the endpoint is
   added. SCIRM stores it encrypted (AES-256-GCM, `MFA_ENCRYPTION_KEY`).
