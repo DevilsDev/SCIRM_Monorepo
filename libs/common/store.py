@@ -252,6 +252,7 @@ class MemoryStore:
         self.webhook_deliveries: Dict[str, Dict[str, Any]] = {}
         self.notification_state: Dict[str, str] = {}
         self.report_schedules: Dict[str, Dict[str, Any]] = {}
+        self.password_resets: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
         return None
@@ -660,6 +661,40 @@ class MemoryStore:
         user = self.users.get(str(user_id))
         if user and user["organization_id"] == org:
             user["last_login_at"] = _now()
+
+    async def set_password(self, org: str, user_id: str, hashed_password: str) -> bool:
+        user = self.users.get(str(user_id))
+        if not user or user["organization_id"] != org:
+            return False
+        user.update(hashed_password=hashed_password, password_changed_at=await self.db_now())
+        return True
+
+    async def request_password_reset(self, email: str, token_hash: str, expires_at: str) -> Optional[Dict[str, Any]]:
+        """Before sign-in: a reset token for an active account (earlier ones stop working),
+        or None when there is no such account."""
+        user = self._user_by_email(email)
+        if not user or not user["is_active"]:
+            return None
+        resets = self.password_resets
+        for r in resets.values():
+            if r["user_id"] == user["id"] and r["used_at"] is None:
+                r["used_at"] = _now()
+        resets[token_hash] = {"user_id": user["id"], "organization_id": user["organization_id"],
+                              "expires_at": expires_at, "used_at": None}
+        return {"user_id": user["id"], "organization_id": user["organization_id"], "email": user["email"],
+                "name": user["name"]}
+
+    async def consume_password_reset(self, token_hash: str, hashed_password: str) -> Optional[Dict[str, Any]]:
+        """Set the new password and use the token, once; None if it is unknown, used or expired."""
+        r = self.password_resets.get(token_hash)
+        if not r or r["used_at"] or datetime.fromisoformat(r["expires_at"]) <= datetime.now(timezone.utc):
+            return None
+        r["used_at"] = _now()
+        user = self.users.get(r["user_id"])
+        if not user or not user["is_active"]:
+            return None
+        user.update(hashed_password=hashed_password, password_changed_at=await self.db_now())
+        return {"user_id": user["id"], "organization_id": user["organization_id"], "email": user["email"]}
 
     # --- feedback -----------------------------------------------------------
     async def record_feedback(self, org: str, user_id: str, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -1869,6 +1904,27 @@ class PostgresStore:
         if _is_uuid(user_id):
             await self._exec(org, [("UPDATE users SET last_login_at = now() WHERE id = CAST(:i AS uuid)",
                                     {"i": user_id})])
+
+    async def set_password(self, org: str, user_id: str, hashed_password: str) -> bool:
+        if not _is_uuid(user_id):
+            return False
+        rows = await self._all(org, (
+            "UPDATE users SET hashed_password = :h, password_changed_at = now(), updated_at = now() "
+            "WHERE id = CAST(:i AS uuid) RETURNING id"), {"h": hashed_password, "i": user_id})
+        return bool(rows)
+
+    async def request_password_reset(self, email: str, token_hash: str, expires_at: str) -> Optional[Dict[str, Any]]:
+        """Before sign-in: a reset token for an active account (earlier ones stop working),
+        or None when there is no such account."""
+        rows = await self._all(None, "SELECT * FROM scirm_password_reset_request(:e, :h, :x)",
+                               {"e": (email or "").lower(), "h": token_hash, "x": datetime.fromisoformat(expires_at)})
+        return _jsonable(rows[0]) if rows else None
+
+    async def consume_password_reset(self, token_hash: str, hashed_password: str) -> Optional[Dict[str, Any]]:
+        """Set the new password and use the token, once; None if it is unknown, used or expired."""
+        rows = await self._all(None, "SELECT * FROM scirm_password_reset_consume(:h, :p)",
+                               {"h": token_hash, "p": hashed_password})
+        return _jsonable(rows[0]) if rows else None
 
     # --- feedback -----------------------------------------------------------
     async def record_feedback(self, org: str, user_id: str, item: Dict[str, Any]) -> Dict[str, Any]:

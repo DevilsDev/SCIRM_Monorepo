@@ -253,7 +253,7 @@
     "newPassword": "New password (min 8 characters)",
     "confirmNewPassword": "Confirm new password",
     "updatePassword": "Update Password",
-    "passwordUpdated": "Your password has been changed successfully.",
+    "passwordUpdated": "Your password has been changed. Other sessions are signed out.",
     "dataExport": "Data Export",
     "dataExportDesc": "Download reports for board meetings and auditors",
     "exportRisks": "Export Risks (CSV)",

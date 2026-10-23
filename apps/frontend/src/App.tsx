@@ -7,6 +7,7 @@ import SampleRoute from './components/SampleRoute';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SupplierScanPage from './pages/SupplierScanPage';
 import SapImportPage from './pages/SapImportPage';
@@ -68,6 +69,7 @@ export default function App() {
 
         {/* Invitation links: public, whether or not someone is signed in on this browser */}
         <Route path="/invite" element={<AcceptInvitePage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* 404 catch-all */}
         <Route path="*" element={<NotFoundPage />} />

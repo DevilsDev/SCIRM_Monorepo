@@ -19,7 +19,7 @@ const LANGUAGES = [
 ];
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, changePassword } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { addToast } = useToast();
   const { t, i18n } = useTranslation();
@@ -38,7 +38,7 @@ export default function SettingsPage() {
     addToast('success', t('settings.languageUpdated', 'Language updated'), t('settings.languageSetTo', 'Language set to {{language}}', { language: LANGUAGES.find((l) => l.code === code)?.label }));
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     setPasswordError('');
     if (newPassword.length < 8) {
       setPasswordError(t('auth.passwordTooShort', 'Password must be at least 8 characters'));
@@ -48,8 +48,14 @@ export default function SettingsPage() {
       setPasswordError(t('auth.passwordMismatch', 'Passwords do not match'));
       return;
     }
-    // In production, call API to change password
-    addToast('success', t('settings.changePassword', 'Change Password'), t('settings.passwordUpdated', 'Your password has been changed successfully.'));
+    try {
+      await changePassword(currentPassword, newPassword);
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.detail || t('settings.passwordFailed', 'The password could not be changed.'));
+      return;
+    }
+    addToast('success', t('settings.changePassword', 'Change Password'),
+      t('settings.passwordUpdated', 'Your password has been changed. Other sessions are signed out.'));
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');

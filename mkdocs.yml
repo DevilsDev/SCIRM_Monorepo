@@ -19,6 +19,7 @@ nav:
       - Bedrock (EU) setup: bedrock-setup.md
       - Disaster exposure by site: site-exposure.md
       - Two-step sign-in: two-step-sign-in.md
+      - Passwords: passwords.md
       - Audit log: audit-log.md
       - Public API: public-api.md
       - Webhooks: webhooks.md
