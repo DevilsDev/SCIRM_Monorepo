@@ -7,6 +7,7 @@ import asyncio
 import hmac
 import json
 import os
+import re
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -32,7 +33,7 @@ from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import setup_cors, setup_rate_limiting
 from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
                                audit_category, audit_cursor, create_store, is_api_key)
-from libs.common import secret_box
+from libs.common import oidc, secret_box
 from libs.integrations import reports, webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -82,7 +83,8 @@ app = FastAPI(
 
 _AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 # Recorded by the handlers themselves, with the account email.
-_SELF_AUDITED_PATHS = {"/api/v1/auth/login", "/api/v1/invitations/accept", "/api/v1/invitations/lookup"}
+_SELF_AUDITED_PATHS = {"/api/v1/auth/login", "/api/v1/invitations/accept", "/api/v1/invitations/lookup",
+                       "/api/v1/auth/sso/exchange"}
 
 
 async def _account_owner(email: str) -> Optional[Dict[str, Any]]:
@@ -400,6 +402,10 @@ async def login(request: LoginRequest, http_request: Request):
                       ip=http_request.client.host if http_request.client else None)
     if not user_info:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Checked only after a correct password, so it reveals nothing to someone guessing.
+    if user_info.get("stored") and await _sso_enforced_for(user_info["org_id"], user_info["roles"]):
+        raise HTTPException(status_code=403, detail="Your organization signs in with single sign-on. "
+                                                    "Use 'Sign in with SSO'.")
 
     # Check if MFA is required
     if MFA_ENABLED and _mfa_on(user_info):
@@ -956,13 +962,20 @@ async def accept_invitation(body: AcceptInvitationRequest):
         raise HTTPException(status_code=404, detail="This invitation is not valid. Ask for a new one.")
     user_info = {"id": str(accepted["user_id"]), "name": body.name.strip(), "roles": list(accepted["roles"]),
                  "org_id": str(accepted["organization_id"]), "stored": True}
-    await _record_login(user_info)  # accepting signs them in
+    # In an organization that requires single sign-on, members get no password session here.
+    sso_required = await _sso_enforced_for(user_info["org_id"], user_info["roles"])
+    if not sso_required:
+        await _record_login(user_info)  # accepting signs them in
     try:
         await audit_store.record_audit(user_info["org_id"], {
             "user_id": user_info["id"], "actor_type": "user", "actor": accepted["email"],
             "action": "invitation.accepted", "resource_type": "auth", "status_code": 200})
     except Exception as exc:
         logger.error("Audit write failed", error=type(exc).__name__, action="invitation.accepted")
+    if sso_required:
+        return {"sso_required": True, "email": accepted["email"],
+                "message": "Your account is ready. Your organization signs in with single sign-on: use "
+                           "'Sign in with SSO' on the sign-in page."}
     return _issue_tokens(accepted["email"], user_info)
 
 
@@ -1806,6 +1819,225 @@ async def export_full_report(token: str = Depends(security)):
 
 # --- Password Reset ---
 
+# ---------------------------------------------------------------------------
+# Single sign-on (OpenID Connect, per organization) - libs/common/oidc.py
+# ---------------------------------------------------------------------------
+
+# The gateway's own public address: the redirect URI registered at identity providers.
+# Configured, never taken from the request's Host header.
+PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", "http://localhost:8000" if IS_DEV else "").rstrip("/")
+SSO_COOKIE, SSO_COOKIE_PATH, SSO_STATE_TYPE = "scirm_sso", "/api/v1/auth/sso", "sso_state"
+SSO_HANDOFF_SECONDS = 60
+
+
+def _sso_redirect_uri() -> str:
+    return f"{PUBLIC_API_URL}/api/v1/auth/sso/callback"
+
+
+def _safe_next(path: Optional[str]) -> str:
+    """Where to land after sign-in: a path in this app only (no //host, no scheme)."""
+    path = (path or "").strip()
+    if not path.startswith("/") or path.startswith("//") or "\\" in path or ":" in path.split("?")[0]:
+        return "/dashboard"
+    return path[:300]
+
+
+async def _sso_enforced_for(org: str, roles: List[str]) -> bool:
+    """Members of an organization that enforces SSO sign in through it; administrators keep
+    their password (and two-step sign-in) as a way in when the identity provider is down."""
+    if "admin" in roles:
+        return False
+    try:
+        config = await audit_store.get_sso_config(org)
+    except Exception:
+        return False
+    return bool(config and config.get("enforce"))
+
+
+def _to_login(reason: str):
+    from fastapi.responses import RedirectResponse
+    response = RedirectResponse(f"{PUBLIC_APP_URL}/login?sso={reason}", status_code=302)
+    response.delete_cookie(SSO_COOKIE, path=SSO_COOKIE_PATH)
+    return response
+
+
+async def _audit_sso_failure(org: Optional[str], actor: Optional[str], reason: str) -> None:
+    try:
+        await audit_store.record_audit(org, {"actor_type": "user", "actor": actor, "action": "auth.sso_login_failed",
+                                             "resource_type": "auth", "status_code": 401, "details": {"reason": reason}})
+    except Exception as exc:
+        logger.error("Audit write failed", error=type(exc).__name__, action="auth.sso_login_failed")
+
+
+@app.get("/api/v1/auth/sso/start")
+async def sso_start(email: str, binding: str = "", next: Optional[str] = None):
+    """Begin SSO for this email's account: off to its organization's identity provider.
+    `binding` is the SHA-256 (hex) of a random value the login page keeps in the browser; the
+    one-time code at the end only works with that value, so a sign-in started or captured
+    elsewhere cannot be completed in someone else's browser (login CSRF)."""
+    from fastapi.responses import RedirectResponse
+    if not PUBLIC_APP_URL or not PUBLIC_API_URL:
+        raise HTTPException(status_code=503, detail="Single sign-on is not set up on this deployment.")
+    if not re.fullmatch(r"[0-9a-f]{64}", binding or ""):
+        raise HTTPException(status_code=400, detail="Start single sign-on from the SCIRM sign-in page.")
+    account = await audit_store.find_login_user((email or "").strip().lower())
+    if not account or not account["is_active"]:
+        return _to_login("unavailable")  # the same answer as an organization without SSO
+    org = str(account["organization_id"])
+    config = await audit_store.get_sso_config(org)
+    if not config:
+        return _to_login("unavailable")
+    try:
+        doc = await oidc.discover(config["issuer"])
+    except oidc.OidcError as exc:
+        await _audit_sso_failure(org, account["email"], exc.reason)
+        return _to_login("provider_error")
+    verifier, challenge = oidc.pkce_pair()
+    state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+    cookie = create_access_token(data={"sub": "sso", "type": SSO_STATE_TYPE, "org": org, "state": state,
+                                       "nonce": nonce, "verifier": verifier, "bind": binding,
+                                       "next": _safe_next(next)},
+                                 expires_delta=timedelta(minutes=10))
+    response = RedirectResponse(oidc.authorization_url(doc, config["client_id"], _sso_redirect_uri(), state, nonce,
+                                                       challenge, login_hint=account["email"]), status_code=302)
+    response.set_cookie(SSO_COOKIE, cookie, max_age=600, httponly=True, secure=not IS_DEV, samesite="lax",
+                        path=SSO_COOKIE_PATH)
+    return response
+
+
+@app.get("/api/v1/auth/sso/callback")
+async def sso_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None,
+                       error: Optional[str] = None):
+    """The identity provider's answer. Sign-in completes in the app with a one-time code."""
+    from fastapi.responses import RedirectResponse
+    from urllib.parse import quote
+    raw = request.cookies.get(SSO_COOKIE)
+    if not raw:
+        await _audit_sso_failure(None, None, "no_session")
+        return _to_login("expired")
+    try:
+        payload = decode_token(raw, SSO_STATE_TYPE)
+    except HTTPException:
+        await _audit_sso_failure(None, None, "expired")
+        return _to_login("expired")
+    org = str(payload["org"])  # from the signed cookie, never from the query
+    if error:
+        await _audit_sso_failure(org, None, f"provider_{str(error)[:40]}")
+        return _to_login("denied")
+    if not state or not code or not secrets.compare_digest(str(state), str(payload.get("state", ""))):
+        await _audit_sso_failure(org, None, "bad_state")
+        return _to_login("failed")
+    config = await audit_store.get_sso_config(org, with_secret=True)
+    if not config:
+        await _audit_sso_failure(org, None, "not_configured")
+        return _to_login("unavailable")
+    try:
+        doc = await oidc.discover(config["issuer"])
+        tokens = await oidc.exchange_code(doc, config["client_id"], config["client_secret"], code,
+                                          payload["verifier"], _sso_redirect_uri())
+        if not isinstance(tokens.get("id_token"), str):
+            raise oidc.OidcError("no_id_token", "The identity provider sent no ID token.")
+        claims = await oidc.verify_id_token(tokens["id_token"], doc, config["client_id"], payload["nonce"])
+    except oidc.OidcError as exc:
+        await _audit_sso_failure(org, None, exc.reason)
+        return _to_login("failed")
+    issuer, subject = doc["issuer"], str(claims["sub"])
+    member = await audit_store.sso_member(org, issuer=issuer, subject=subject)
+    if member is None:  # first SSO sign-in: link by the verified email, once
+        email = oidc.email_from(claims)
+        member = await audit_store.sso_member(org, email=email) if email else None
+        if member is None:
+            await _audit_sso_failure(org, email, "no_account" if email else "no_verified_email")
+            return _to_login("no_account")
+        if not await audit_store.link_sso(org, member["id"], issuer, subject):
+            await _audit_sso_failure(org, member["email"], "subject_mismatch")
+            return _to_login("failed")
+    if not member["is_active"]:
+        await _audit_sso_failure(org, member["email"], "inactive")
+        return _to_login("no_account")
+    import hashlib
+    handoff = secrets.token_urlsafe(32)
+    expires = (datetime.now(timezone.utc) + timedelta(seconds=SSO_HANDOFF_SECONDS)).isoformat()
+    await audit_store.create_sso_handoff(org, str(member["id"]), hashlib.sha256(handoff.encode()).hexdigest(),
+                                         str(payload["bind"]), expires)
+    await _record_login({"stored": True, "org_id": org, "id": str(member["id"])})
+    await _audit_event(org, str(member["id"]), member["email"], "auth.sso_login")
+    response = RedirectResponse(f"{PUBLIC_APP_URL}/sso/complete#code={handoff}&next={quote(payload['next'], safe='/')}",
+                                status_code=302)
+    response.delete_cookie(SSO_COOKIE, path=SSO_COOKIE_PATH)
+    return response
+
+
+class SsoExchangeRequest(BaseModel):
+    code: str = Field(..., min_length=20, max_length=200)
+    # The random value whose hash started the sign-in (kept by the login page in this browser).
+    binding: str = Field(..., min_length=20, max_length=200)
+
+
+@app.post("/api/v1/auth/sso/exchange")
+async def sso_exchange(body: SsoExchangeRequest):
+    """The app trades the one-time code (60 s, single use) for tokens. The identity provider
+    did the authentication, including its own two-step sign-in."""
+    import hashlib
+    consumed = await audit_store.consume_sso_handoff(hashlib.sha256(body.code.encode()).hexdigest(),
+                                                     hashlib.sha256(body.binding.encode()).hexdigest())
+    if not consumed:
+        raise HTTPException(status_code=400, detail="This sign-in link has expired. Sign in again.")
+    found = await _find_user_by_id(str(consumed["user_id"]))
+    if not found:
+        raise HTTPException(status_code=401, detail="Account not found")
+    return _issue_tokens(*found)
+
+
+class SsoConfigRequest(BaseModel):
+    issuer: str = Field(..., min_length=8, max_length=300)
+    client_id: str = Field(..., min_length=1, max_length=300)
+    client_secret: Optional[str] = Field(None, max_length=500)
+    enforce: bool = False
+
+
+def _sso_view(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    return {"config": config, "redirect_uri": _sso_redirect_uri() if PUBLIC_API_URL else None,
+            "available": bool(PUBLIC_APP_URL and PUBLIC_API_URL)}
+
+
+@app.get("/api/v1/org/sso")
+async def get_sso(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage single sign-on")
+    return _sso_view(await audit_store.get_sso_config(user.organization_id))
+
+
+@app.put("/api/v1/org/sso")
+async def put_sso(body: SsoConfigRequest, token: str = Depends(security)):
+    """Save the identity provider after checking its metadata is reachable and consistent.
+    The client secret is write-only (leave it out to keep the stored one)."""
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage single sign-on")
+    try:
+        issuer = oidc.validate_issuer(body.issuer)
+        await oidc.discover(issuer)
+    except oidc.OidcError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    try:
+        config = await audit_store.set_sso_config(user.organization_id, issuer, body.client_id.strip(),
+                                                  (body.client_secret or "").strip() or None, body.enforce, user.email)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Enter the client secret.")
+    await _audit_event(user.organization_id, user.id, user.email, "sso.configured")
+    return _sso_view(config)
+
+
+@app.delete("/api/v1/org/sso")
+async def delete_sso(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "manage single sign-on")
+    if not await audit_store.delete_sso_config(user.organization_id):
+        raise HTTPException(status_code=404, detail="Single sign-on is not configured")
+    await _audit_event(user.organization_id, user.id, user.email, "sso.removed")
+    return {"deleted": True}
+
+
 PASSWORD_RESET_MINUTES = int(os.getenv("PASSWORD_RESET_MINUTES", "30"))
 _RESET_SENT = "If an account exists for this email, a reset link has been sent. It works once, for 30 minutes."
 
@@ -1846,6 +2078,9 @@ async def forgot_password(body: ForgotPasswordRequest):
         raise HTTPException(status_code=503, detail="Password reset by email is not set up on this deployment. "
                                                     "Ask an administrator of your organization.")
     import hashlib
+    existing = await audit_store.find_login_user(body.email.strip().lower())
+    if existing and await _sso_enforced_for(str(existing["organization_id"]), list(existing["roles"] or [])):
+        return {"message": _RESET_SENT}  # their password is not used; the same answer as always
     token_value = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_MINUTES)).isoformat()
     account = await audit_store.request_password_reset(body.email.strip().lower(),
@@ -1876,6 +2111,9 @@ async def change_password(body: ChangePasswordRequest, token: str = Depends(secu
     user = await verify_token(token.credentials)
     if DEV_USERS.get(user.email.lower()):
         raise HTTPException(status_code=400, detail="Demo accounts use DEV_PASSWORD and cannot change it.")
+    if await _sso_enforced_for(user.organization_id, user.roles):
+        raise HTTPException(status_code=400, detail="Your organization signs in with single sign-on; "
+                                                    "change your password with your identity provider.")
     _password_ok(body.new_password)
     if body.new_password == body.current_password:
         raise HTTPException(status_code=400, detail="Choose a password different from the current one.")

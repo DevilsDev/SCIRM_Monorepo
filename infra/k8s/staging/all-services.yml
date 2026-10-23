@@ -388,6 +388,9 @@ spec:
         # Base URL for invitation links (scripts/create_tenant.py, Settings > Team).
         - name: PUBLIC_APP_URL
           value: "REPLACE_WITH_STAGING_APP_URL"
+        # The gateway's own public address: the SSO redirect URI is <this>/api/v1/auth/sso/callback.
+        - name: PUBLIC_API_URL
+          value: "REPLACE_WITH_STAGING_API_URL"
         - name: JWT_SECRET_KEY
           valueFrom:
             secretKeyRef:

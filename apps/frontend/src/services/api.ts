@@ -3,6 +3,12 @@ import { isAuthRequest, Session } from './session';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+/** Where the browser goes to start single sign-on (a full-page navigation to the gateway).
+ *  bindingHash is the SHA-256 of a value kept in this tab (see services/ssoBinding.ts). */
+export function ssoStartUrl(email: string, next: string, bindingHash: string): string {
+  return `${API_BASE_URL}/api/v1/auth/sso/start?${new URLSearchParams({ email, next, binding: bindingHash })}`;
+}
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -318,6 +324,15 @@ export interface ApiKey {
   revoked_at: string | null;
 }
 
+export interface SsoSettings {
+  config: { issuer: string; client_id: string; enforce: boolean; has_secret: boolean; created_by: string | null;
+    updated_at: string } | null;
+  /** Register this at the identity provider. */
+  redirect_uri: string | null;
+  /** False when the deployment lacks PUBLIC_APP_URL / PUBLIC_API_URL. */
+  available: boolean;
+}
+
 export type WebhookEvent = 'record.matched' | 'exposure.detected';
 
 export interface Webhook {
@@ -539,6 +554,23 @@ export const api = {
     return (await apiClient.post('/api/v1/auth/reset-password', { token, new_password: newPassword })).data;
   },
 
+  /** Trades the one-time code from the SSO redirect for tokens. */
+  async ssoExchange(code: string, binding: string): Promise<LoginResponse> {
+    return (await apiClient.post('/api/v1/auth/sso/exchange', { code, binding })).data;
+  },
+
+  async getSso(): Promise<SsoSettings> {
+    return (await apiClient.get('/api/v1/org/sso')).data;
+  },
+
+  async saveSso(body: { issuer: string; client_id: string; client_secret?: string; enforce: boolean }): Promise<SsoSettings> {
+    return (await apiClient.put('/api/v1/org/sso', body)).data;
+  },
+
+  async deleteSso(): Promise<void> {
+    await apiClient.delete('/api/v1/org/sso');
+  },
+
   async verifyMfa(mfaToken: string, totpCode: string): Promise<LoginResponse> {
     const response = await apiClient.post('/api/v1/auth/mfa/verify', { mfa_token: mfaToken, totp_code: totpCode });
     return response.data;
@@ -713,7 +745,8 @@ export const api = {
     return (await apiClient.post('/api/v1/invitations/lookup', { token })).data;
   },
 
-  async acceptInvitation(token: string, name: string, password: string): Promise<LoginResponse> {
+  /** Tokens, or sso_required when the organization signs in with single sign-on. */
+  async acceptInvitation(token: string, name: string, password: string): Promise<LoginResponse & { sso_required?: boolean; message?: string }> {
     return (await apiClient.post('/api/v1/invitations/accept', { token, name, password })).data;
   },
 

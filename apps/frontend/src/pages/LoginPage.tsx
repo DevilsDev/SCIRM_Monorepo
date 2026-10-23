@@ -2,8 +2,21 @@ import { useState, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { ssoStartUrl } from '../services/api';
+import { newSsoBinding } from '../services/ssoBinding';
 
 const MAX_ATTEMPTS = 5;
+
+// Why single sign-on sent the person back here (the gateway's ?sso= reason).
+const SSO_MESSAGES: Record<string, string> = {
+  unavailable: 'Single sign-on is not set up for this email. Sign in with your password, or ask your administrator.',
+  no_account: 'Your identity provider signed you in, but there is no active SCIRM account for you in that organization. Ask your administrator.',
+  denied: 'The sign-in was cancelled or refused at your identity provider.',
+  expired: 'The sign-in took too long or was started in another browser. Try again.',
+  failed: 'Single sign-on failed. Try again, or ask your administrator to check the identity provider settings.',
+  provider_error: 'Your identity provider could not be reached. Try again later.',
+  account_ready: 'Your account is ready. Your organization signs in with single sign-on: enter your email and choose "Sign in with SSO".',
+};
 const LOCKOUT_SECONDS = 60;
 
 export default function LoginPage() {
@@ -22,6 +35,7 @@ export default function LoginPage() {
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const expired = Boolean((location.state as any)?.expired);
+  const ssoReason = new URLSearchParams(location.search).get('sso');
 
   // Where to redirect after login (saved by ProtectedRoute)
   const redirectTo = (location.state as any)?.from || '/dashboard';
@@ -76,6 +90,12 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">SCIRM</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Supply Chain Risk Management</p>
           </div>
+
+          {ssoReason && SSO_MESSAGES[ssoReason] && !error && (
+            <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
+              {t(`auth.sso.${ssoReason}`, SSO_MESSAGES[ssoReason])}
+            </p>
+          )}
 
           {expired && !error && (
             <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
@@ -155,6 +175,19 @@ export default function LoginPage() {
               {loading ? t('auth.signingIn', 'Signing in...') : mfaToken ? t('auth.verify', 'Verify') : t('auth.signIn', 'Sign in')}
             </button>
           </form>
+
+          {!mfaToken && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!email.includes('@')) { setError(t('auth.ssoNeedsEmail', 'Enter your email first.')); return; }
+                window.location.assign(ssoStartUrl(email.trim(), redirectTo, await newSsoBinding()));
+              }}
+              className="w-full mt-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              {t('auth.ssoSignIn', 'Sign in with SSO')}
+            </button>
+          )}
 
           <div className="flex items-center justify-between mt-6">
             <Link to="/forgot-password" className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">

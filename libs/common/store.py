@@ -119,6 +119,15 @@ _REPORT_PUBLIC = ("id", "name", "kind", "frequency", "weekday", "hour_utc", "rec
 _REPORT_EDITABLE = ("name", "frequency", "weekday", "hour_utc", "recipients", "skip_empty", "active", "next_run_at")
 
 
+_SSO_PUBLIC = ("issuer", "client_id", "enforce", "created_by", "updated_at")
+_SSO_MEMBER = ("id", "email", "name", "roles", "is_active", "sso_issuer", "sso_subject")
+
+
+def _sso_bound(org: str) -> str:
+    """What an organization's encrypted SSO client secret is bound to."""
+    return f"sso:{org}"
+
+
 def _webhook_bound(org: str, webhook_id: str) -> str:
     """What a webhook's encrypted secret is bound to: it opens only for this webhook."""
     return f"webhook:{org}:{webhook_id}"
@@ -253,6 +262,8 @@ class MemoryStore:
         self.notification_state: Dict[str, str] = {}
         self.report_schedules: Dict[str, Dict[str, Any]] = {}
         self.password_resets: Dict[str, Dict[str, Any]] = {}
+        self.sso_configs: Dict[str, Dict[str, Any]] = {}
+        self.sso_handoffs: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
         return None
@@ -668,6 +679,72 @@ class MemoryStore:
             return False
         user.update(hashed_password=hashed_password, password_changed_at=await self.db_now())
         return True
+
+    # --- single sign-on -----------------------------------------------------
+    async def get_sso_config(self, org: str, with_secret: bool = False) -> Optional[Dict[str, Any]]:
+        row = self.sso_configs.get(org)
+        if not row:
+            return None
+        out = {k: row[k] for k in _SSO_PUBLIC}
+        out["has_secret"] = True
+        if with_secret:
+            out["client_secret"] = secret_box.decrypt(row["client_secret_enc"], _sso_bound(org))[0]
+        return out
+
+    async def set_sso_config(self, org: str, issuer: str, client_id: str, client_secret: Optional[str], enforce: bool,
+                             updated_by: Optional[str]) -> Dict[str, Any]:
+        row = self.sso_configs.get(org) or {}
+        secret_enc = secret_box.encrypt(client_secret, _sso_bound(org)) if client_secret else row.get("client_secret_enc")
+        if not secret_enc:
+            raise ValueError("client secret required")
+        self.sso_configs[org] = {"issuer": issuer, "client_id": client_id, "client_secret_enc": secret_enc,
+                                 "enforce": bool(enforce), "created_by": updated_by, "updated_at": await self.db_now()}
+        return await self.get_sso_config(org)
+
+    async def delete_sso_config(self, org: str) -> bool:
+        return self.sso_configs.pop(org, None) is not None
+
+    async def sso_member(self, org: str, *, email: Optional[str] = None, issuer: Optional[str] = None,
+                         subject: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """A member of this organization by linked (issuer, subject), or by email."""
+        for u in self.users.values():
+            if u["organization_id"] != org:
+                continue
+            if subject is not None and u.get("sso_issuer") == issuer and u.get("sso_subject") == subject:
+                return {k: u.get(k) for k in _SSO_MEMBER}
+            if email is not None and u["email"] == email.lower():
+                return {k: u.get(k) for k in _SSO_MEMBER}
+        return None
+
+    async def link_sso(self, org: str, user_id: str, issuer: str, subject: str) -> bool:
+        """Record the provider's subject for this account, unless it is linked to another."""
+        user = self.users.get(str(user_id))
+        if not user or user["organization_id"] != org:
+            return False
+        if any(u is not user and u.get("sso_issuer") == issuer and u.get("sso_subject") == subject
+               for u in self.users.values()):
+            return False
+        # Within one issuer the subject never changes; a different issuer (the organization
+        # moved to another identity provider) is re-linked.
+        if user.get("sso_subject") and user.get("sso_issuer") == issuer and user["sso_subject"] != subject:
+            return False
+        user.update(sso_issuer=issuer, sso_subject=subject)
+        return True
+
+    async def create_sso_handoff(self, org: str, user_id: str, code_hash: str, binding_hash: str,
+                                 expires_at: str) -> None:
+        self.sso_handoffs[code_hash] = {"organization_id": org, "user_id": str(user_id), "binding_hash": binding_hash,
+                                        "expires_at": expires_at, "used_at": None}
+
+    async def consume_sso_handoff(self, code_hash: str, binding_hash: str) -> Optional[Dict[str, Any]]:
+        """Use the code once, only with the binding of the browser that started; a wrong
+        binding leaves it unused."""
+        h = self.sso_handoffs.get(code_hash)
+        if (not h or h["used_at"] or h["binding_hash"] != binding_hash
+                or datetime.fromisoformat(h["expires_at"]) <= datetime.now(timezone.utc)):
+            return None
+        h["used_at"] = _now()
+        return {"user_id": h["user_id"], "organization_id": h["organization_id"]}
 
     async def request_password_reset(self, email: str, token_hash: str, expires_at: str) -> Optional[Dict[str, Any]]:
         """Before sign-in: a reset token for an active account (earlier ones stop working),
@@ -1912,6 +1989,79 @@ class PostgresStore:
             "UPDATE users SET hashed_password = :h, password_changed_at = now(), updated_at = now() "
             "WHERE id = CAST(:i AS uuid) RETURNING id"), {"h": hashed_password, "i": user_id})
         return bool(rows)
+
+    # --- single sign-on -----------------------------------------------------
+    async def get_sso_config(self, org: str, with_secret: bool = False) -> Optional[Dict[str, Any]]:
+        rows = await self._all(org, "SELECT * FROM sso_configs")
+        if not rows:
+            return None
+        out = {k: v for k, v in _jsonable(rows[0]).items() if k in _SSO_PUBLIC}
+        out["has_secret"] = True
+        if with_secret:
+            out["client_secret"] = secret_box.decrypt(rows[0]["client_secret_enc"], _sso_bound(org))[0]
+        return out
+
+    async def set_sso_config(self, org: str, issuer: str, client_id: str, client_secret: Optional[str], enforce: bool,
+                             updated_by: Optional[str]) -> Dict[str, Any]:
+        params = {"org": org, "iss": issuer, "cid": client_id, "enf": bool(enforce), "by": updated_by}
+        if client_secret:
+            rows = await self._all(org, (
+                "INSERT INTO sso_configs (organization_id, issuer, client_id, client_secret_enc, enforce, created_by) "
+                "VALUES (CAST(:org AS uuid), :iss, :cid, :sec, :enf, :by) "
+                "ON CONFLICT (organization_id) DO UPDATE SET issuer = EXCLUDED.issuer, client_id = EXCLUDED.client_id, "
+                "client_secret_enc = EXCLUDED.client_secret_enc, enforce = EXCLUDED.enforce, "
+                "created_by = EXCLUDED.created_by, updated_at = now() RETURNING organization_id"),
+                {**params, "sec": secret_box.encrypt(client_secret, _sso_bound(org))})
+        else:  # keep the stored secret (an upsert would check the new row's empty secret first)
+            rows = await self._all(org, (
+                "UPDATE sso_configs SET issuer = :iss, client_id = :cid, enforce = :enf, created_by = :by, "
+                "updated_at = now() WHERE organization_id = CAST(:org AS uuid) RETURNING organization_id"), params)
+        if not rows:
+            raise ValueError("client secret required")
+        return await self.get_sso_config(org)
+
+    async def delete_sso_config(self, org: str) -> bool:
+        return bool(await self._all(org, "DELETE FROM sso_configs RETURNING organization_id"))
+
+    async def sso_member(self, org: str, *, email: Optional[str] = None, issuer: Optional[str] = None,
+                         subject: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """A member of this organization by linked (issuer, subject), or by email."""
+        cols = "id, email, name, roles::text[] AS roles, is_active, sso_issuer, sso_subject"
+        if subject is not None:
+            rows = await self._all(org, f"SELECT {cols} FROM users WHERE sso_issuer = :i AND sso_subject = :s",
+                                   {"i": issuer, "s": subject})
+        else:
+            rows = await self._all(org, f"SELECT {cols} FROM users WHERE lower(email) = lower(:e)", {"e": email or ""})
+        return self._account(rows[0]) if rows else None
+
+    async def link_sso(self, org: str, user_id: str, issuer: str, subject: str) -> bool:
+        """Record the provider's subject for this account, unless it is linked to another."""
+        from sqlalchemy.exc import IntegrityError
+        if not _is_uuid(user_id):
+            return False
+        try:
+            rows = await self._all(org, (
+                # Within one issuer the subject never changes; another issuer is re-linked.
+                "UPDATE users SET sso_issuer = :i, sso_subject = :s, updated_at = now() WHERE id = CAST(:u AS uuid) "
+                "AND (sso_subject IS NULL OR sso_issuer IS DISTINCT FROM :i OR sso_subject = :s) RETURNING id"),
+                {"i": issuer, "s": subject, "u": user_id})
+        except IntegrityError:  # that subject is already linked to another account
+            return False
+        return bool(rows)
+
+    async def create_sso_handoff(self, org: str, user_id: str, code_hash: str, binding_hash: str,
+                                 expires_at: str) -> None:
+        await self._exec(org, [(
+            "INSERT INTO sso_handoffs (code_hash, organization_id, user_id, binding_hash, expires_at) "
+            "VALUES (:h, CAST(:org AS uuid), CAST(:u AS uuid), :b, :x)",
+            {"h": code_hash, "org": org, "u": user_id, "b": binding_hash, "x": datetime.fromisoformat(expires_at)})])
+
+    async def consume_sso_handoff(self, code_hash: str, binding_hash: str) -> Optional[Dict[str, Any]]:
+        """Use the code once, only with the binding of the browser that started; a wrong
+        binding leaves it unused."""
+        rows = await self._all(None, "SELECT * FROM scirm_sso_handoff_consume(:h, :b)",
+                               {"h": code_hash, "b": binding_hash})
+        return _jsonable(rows[0]) if rows else None
 
     async def request_password_reset(self, email: str, token_hash: str, expires_at: str) -> Optional[Dict[str, Any]]:
         """Before sign-in: a reset token for an active account (earlier ones stop working),
