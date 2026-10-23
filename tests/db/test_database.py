@@ -222,11 +222,13 @@ class TestAccounts:
         with db["owner"].cursor() as cur:
             cur.execute("DROP ROLE IF EXISTS scirm_plain_owner")
             cur.execute("CREATE ROLE scirm_plain_owner NOSUPERUSER NOBYPASSRLS")
-            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys", "TABLE password_resets"):
+            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys", "TABLE password_resets",
+                        "TABLE sso_handoffs"):
                 cur.execute(f"ALTER {obj} OWNER TO scirm_plain_owner")
             for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
                        "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
-                       "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)"):
+                       "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)",
+                       "scirm_sso_handoff_consume(text)"):
                 cur.execute(f"ALTER FUNCTION {fn} OWNER TO scirm_plain_owner")
         try:
             rows = as_org(db["app"], "", "SELECT email FROM scirm_login_lookup('managed@example.com')")
@@ -239,15 +241,23 @@ class TestAccounts:
             consume = "SELECT email FROM scirm_password_reset_consume(%s, 'new-hash')"
             assert as_org(db["app"], "", consume, ("8" * 64,)) == [("managed@example.com",)]
             assert as_org(db["app"], "", consume, ("8" * 64,)) == []  # once
+            uid = as_org(db["app"], db["a"], "SELECT id::text FROM users WHERE email = %s", ("managed@example.com",))[0][0]
+            as_org(db["app"], db["a"], "INSERT INTO sso_handoffs (code_hash, organization_id, user_id, expires_at) "
+                   "VALUES (%s, %s, %s, now() + interval '1 minute')", ("7" * 64, db["a"], uid))
+            handoff = "SELECT user_id::text FROM scirm_sso_handoff_consume(%s)"
+            assert as_org(db["app"], "", handoff, ("7" * 64,)) == [(uid,)]
+            assert as_org(db["app"], "", handoff, ("7" * 64,)) == []  # once
         finally:
             with db["owner"].cursor() as cur:
                 cur.execute("SELECT current_user")
                 me = cur.fetchone()[0]
-                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys", "TABLE password_resets"):
+                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys", "TABLE password_resets",
+                        "TABLE sso_handoffs"):
                     cur.execute(f"ALTER {obj} OWNER TO {me}")
                 for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
                            "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
-                       "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)"):
+                       "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)",
+                       "scirm_sso_handoff_consume(text)"):
                     cur.execute(f"ALTER FUNCTION {fn} OWNER TO {me}")
 
     def test_an_invitation_can_be_accepted_only_once_even_concurrently(self, db):
@@ -328,7 +338,8 @@ class TestApiKeys:
 
 def test_webhook_and_report_tables_are_tenant_scoped_with_forced_rls(db):
     """Migrations 020 and 021: these tables force row-level security; another org sees nothing."""
-    tables = ("webhooks", "webhook_events", "webhook_deliveries", "notification_state", "report_schedules")
+    tables = ("webhooks", "webhook_events", "webhook_deliveries", "notification_state", "report_schedules",
+              "sso_configs")
     with db["owner"].cursor() as cur:
         cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY(%s)",
                     (list(tables),))

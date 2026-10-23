@@ -17,6 +17,8 @@ interface AuthContextType {
   acceptInvitation: (token: string, name: string, password: string) => Promise<void>;
   /** Changes the password; other sessions end, this one continues with new tokens. */
   changePassword: (current: string, next: string) => Promise<void>;
+  /** Finishes single sign-on with the one-time code from the redirect. */
+  completeSso: (code: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -29,6 +31,7 @@ const AuthContext = createContext<AuthContextType>({
   signup: async () => {},
   acceptInvitation: async () => {},
   changePassword: async () => {},
+  completeSso: async () => {},
   logout: () => {},
 });
 
@@ -99,8 +102,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     begin(await api.changePassword(current, next));
   };
 
+  const completeSso = async (code: string) => {
+    begin(await api.ssoExchange(code));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, verifyMfa, signup, acceptInvitation, changePassword, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, verifyMfa, signup, acceptInvitation, changePassword, completeSso, logout }}>
       {children}
     </AuthContext.Provider>
   );

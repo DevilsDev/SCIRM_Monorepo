@@ -20,6 +20,7 @@ nav:
       - Disaster exposure by site: site-exposure.md
       - Two-step sign-in: two-step-sign-in.md
       - Passwords: passwords.md
+      - Single sign-on: single-sign-on.md
       - Audit log: audit-log.md
       - Public API: public-api.md
       - Webhooks: webhooks.md
