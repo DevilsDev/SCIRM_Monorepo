@@ -724,18 +724,24 @@ class MemoryStore:
         if any(u is not user and u.get("sso_issuer") == issuer and u.get("sso_subject") == subject
                for u in self.users.values()):
             return False
-        if user.get("sso_subject") and (user.get("sso_issuer"), user["sso_subject"]) != (issuer, subject):
+        # Within one issuer the subject never changes; a different issuer (the organization
+        # moved to another identity provider) is re-linked.
+        if user.get("sso_subject") and user.get("sso_issuer") == issuer and user["sso_subject"] != subject:
             return False
         user.update(sso_issuer=issuer, sso_subject=subject)
         return True
 
-    async def create_sso_handoff(self, org: str, user_id: str, code_hash: str, expires_at: str) -> None:
-        self.sso_handoffs[code_hash] = {"organization_id": org, "user_id": str(user_id), "expires_at": expires_at,
-                                        "used_at": None}
+    async def create_sso_handoff(self, org: str, user_id: str, code_hash: str, binding_hash: str,
+                                 expires_at: str) -> None:
+        self.sso_handoffs[code_hash] = {"organization_id": org, "user_id": str(user_id), "binding_hash": binding_hash,
+                                        "expires_at": expires_at, "used_at": None}
 
-    async def consume_sso_handoff(self, code_hash: str) -> Optional[Dict[str, Any]]:
+    async def consume_sso_handoff(self, code_hash: str, binding_hash: str) -> Optional[Dict[str, Any]]:
+        """Use the code once, only with the binding of the browser that started; a wrong
+        binding leaves it unused."""
         h = self.sso_handoffs.get(code_hash)
-        if not h or h["used_at"] or datetime.fromisoformat(h["expires_at"]) <= datetime.now(timezone.utc):
+        if (not h or h["used_at"] or h["binding_hash"] != binding_hash
+                or datetime.fromisoformat(h["expires_at"]) <= datetime.now(timezone.utc)):
             return None
         h["used_at"] = _now()
         return {"user_id": h["user_id"], "organization_id": h["organization_id"]}
@@ -2035,21 +2041,26 @@ class PostgresStore:
             return False
         try:
             rows = await self._all(org, (
+                # Within one issuer the subject never changes; another issuer is re-linked.
                 "UPDATE users SET sso_issuer = :i, sso_subject = :s, updated_at = now() WHERE id = CAST(:u AS uuid) "
-                "AND (sso_subject IS NULL OR (sso_issuer = :i AND sso_subject = :s)) RETURNING id"),
+                "AND (sso_subject IS NULL OR sso_issuer IS DISTINCT FROM :i OR sso_subject = :s) RETURNING id"),
                 {"i": issuer, "s": subject, "u": user_id})
         except IntegrityError:  # that subject is already linked to another account
             return False
         return bool(rows)
 
-    async def create_sso_handoff(self, org: str, user_id: str, code_hash: str, expires_at: str) -> None:
+    async def create_sso_handoff(self, org: str, user_id: str, code_hash: str, binding_hash: str,
+                                 expires_at: str) -> None:
         await self._exec(org, [(
-            "INSERT INTO sso_handoffs (code_hash, organization_id, user_id, expires_at) "
-            "VALUES (:h, CAST(:org AS uuid), CAST(:u AS uuid), :x)",
-            {"h": code_hash, "org": org, "u": user_id, "x": datetime.fromisoformat(expires_at)})])
+            "INSERT INTO sso_handoffs (code_hash, organization_id, user_id, binding_hash, expires_at) "
+            "VALUES (:h, CAST(:org AS uuid), CAST(:u AS uuid), :b, :x)",
+            {"h": code_hash, "org": org, "u": user_id, "b": binding_hash, "x": datetime.fromisoformat(expires_at)})])
 
-    async def consume_sso_handoff(self, code_hash: str) -> Optional[Dict[str, Any]]:
-        rows = await self._all(None, "SELECT * FROM scirm_sso_handoff_consume(:h)", {"h": code_hash})
+    async def consume_sso_handoff(self, code_hash: str, binding_hash: str) -> Optional[Dict[str, Any]]:
+        """Use the code once, only with the binding of the browser that started; a wrong
+        binding leaves it unused."""
+        rows = await self._all(None, "SELECT * FROM scirm_sso_handoff_consume(:h, :b)",
+                               {"h": code_hash, "b": binding_hash})
         return _jsonable(rows[0]) if rows else None
 
     async def request_password_reset(self, email: str, token_hash: str, expires_at: str) -> Optional[Dict[str, Any]]:

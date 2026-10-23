@@ -14,11 +14,12 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<LoginResult>;
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
-  acceptInvitation: (token: string, name: string, password: string) => Promise<void>;
+  /** 'sso_required': the account exists, but the organization signs in with SSO (no session). */
+  acceptInvitation: (token: string, name: string, password: string) => Promise<'signed_in' | 'sso_required'>;
   /** Changes the password; other sessions end, this one continues with new tokens. */
   changePassword: (current: string, next: string) => Promise<void>;
   /** Finishes single sign-on with the one-time code from the redirect. */
-  completeSso: (code: string) => Promise<void>;
+  completeSso: (code: string, binding: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -29,7 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ status: 'signed_in' }),
   verifyMfa: async () => {},
   signup: async () => {},
-  acceptInvitation: async () => {},
+  acceptInvitation: async () => 'signed_in',
   changePassword: async () => {},
   completeSso: async () => {},
   logout: () => {},
@@ -95,15 +96,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const acceptInvitation = async (token: string, name: string, password: string) => {
-    begin(await api.acceptInvitation(token, name, password));
+    const response = await api.acceptInvitation(token, name, password);
+    if (response.sso_required) return 'sso_required' as const;
+    begin(response);
+    return 'signed_in' as const;
   };
 
   const changePassword = async (current: string, next: string) => {
     begin(await api.changePassword(current, next));
   };
 
-  const completeSso = async (code: string) => {
-    begin(await api.ssoExchange(code));
+  const completeSso = async (code: string, binding: string) => {
+    begin(await api.ssoExchange(code, binding));
   };
 
   return (

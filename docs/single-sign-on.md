@@ -21,7 +21,9 @@ sign-in; SCIRM's two-step sign-in is not asked for after single sign-on.
    keep it.
 3. Invite your members as usual. **SSO does not create accounts.** Someone without an
    active SCIRM account in your organization is refused after signing in at the provider.
-   Automatic provisioning comes with SCIM.
+   Automatic provisioning comes with SCIM. In an organization that requires single sign-on,
+   accepting an invitation creates the account but does not sign the person in with the
+   password; they continue with **Sign in with SSO**.
 
 Members click **Sign in with SSO** on the sign-in page and enter their email. SCIRM finds
 their account, sends them to their organization's identity provider, and back.
@@ -41,6 +43,10 @@ to few people.
 - **After that** the subject must match. A different person who later gets the same email
   at the provider is refused, and a member whose email changes at the provider still gets
   in.
+- **Moving to another identity provider** (a new issuer): members are linked again by
+  verified email at their next sign-in. Within one issuer the subject never changes. The
+  organization's administrators already decide which identity provider signs members in,
+  so this gives them no new power.
 
 ## Security
 
@@ -59,6 +65,11 @@ to few people.
 - **After the callback:** the browser gets a **one-time code in the URL fragment**, not
   tokens. It is valid for 60 seconds and works once; the app exchanges it at
   `/api/v1/auth/sso/exchange`.
+- **The code only works in the tab that started the sign-in.** The login page keeps a random
+  value in `sessionStorage` and sends only its SHA-256 to `/sso/start`. The exchange must
+  present the value itself, and a wrong value leaves the code unused. So a code captured
+  from someone's sign-in, or a sign-in an attacker starts in a victim's browser, cannot sign
+  that browser into the attacker's account (login CSRF).
 - **Audit log:** `auth.sso_login`, `auth.sso_login_failed` (with a reason code such as
   `bad_state`, `invalid_token`, `no_account`, `subject_mismatch`), `sso.configured` and
   `sso.removed`.
@@ -75,6 +86,13 @@ its identity provider shows that the account exists, as with any SSO.
 | `PUBLIC_APP_URL` | The web app's address: where sign-in finishes. |
 
 Without both, single sign-on is unavailable and the page says so.
+
+Turning on **Require single sign-on** does not end members' existing sessions: a session
+signed in with a password before it was turned on lasts until its refresh token expires (up
+to 30 days).
+
+For Microsoft Entra, add the optional `email` claim to the ID token (Token configuration).
+Without it, first sign-ins are refused (`no_verified_email`).
 
 ## Not built yet
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { takeSsoBinding } from '../services/ssoBinding';
 
 /** The one-time code and destination from /sso/complete#code=...&next=... */
 export function readHandoff(hash: string): { code: string; next: string } {
@@ -25,12 +26,14 @@ export default function SsoCompletePage() {
     if (started.current) return;  // the code works once; React may run effects twice in development
     started.current = true;
     const { code, next } = readHandoff(window.location.hash);
+    const binding = takeSsoBinding();
     window.history.replaceState(null, '', window.location.pathname);
-    if (!code) {
-      setError(t('auth.ssoNoCode', 'This page needs the sign-in from your identity provider.'));
+    if (!code || !binding) {
+      // No binding: the sign-in was not started from this tab's login page.
+      setError(t('auth.ssoNoCode', 'Start single sign-on from the SCIRM sign-in page in this browser tab.'));
       return;
     }
-    completeSso(code)
+    completeSso(code, binding)
       .then(() => navigate(next, { replace: true }))
       .catch((err) => setError(err?.response?.data?.detail || t('auth.ssoExchangeFailed', 'Sign-in failed. Try again.')));
   }, [completeSso, navigate, t]);

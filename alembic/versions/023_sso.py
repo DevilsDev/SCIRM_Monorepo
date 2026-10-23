@@ -8,7 +8,8 @@
   first SSO sign-in and required to match afterwards (emails can be reassigned at an
   identity provider; the subject cannot). Unique per issuer.
 - sso_handoffs: after the callback the browser gets a one-time code (in the URL fragment),
-  not tokens. Only its hash is stored; it lasts 60 seconds and works once, consumed by
+  not tokens. Only its hash is stored; it lasts 60 seconds, works once, and only together
+  with the value the starting login page kept (binding_hash), consumed by
   scirm_sso_handoff_consume (SECURITY DEFINER: the exchange happens before sign-in).
 
 Revision ID: 023
@@ -24,7 +25,7 @@ down_revision: Union[str, None] = "022"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-FUNCTIONS = ("scirm_sso_handoff_consume(text)",)
+FUNCTIONS = ("scirm_sso_handoff_consume(text, text)",)
 
 
 def upgrade() -> None:
@@ -53,6 +54,9 @@ def upgrade() -> None:
             code_hash text PRIMARY KEY CHECK (code_hash ~ '^[0-9a-f]{64}$'),
             organization_id uuid NOT NULL REFERENCES organizations(id),
             user_id uuid NOT NULL REFERENCES users(id),
+            -- SHA-256 of a random value kept by the login page that started the sign-in: the
+            -- code only works in that browser (no login CSRF with a captured code).
+            binding_hash text NOT NULL CHECK (binding_hash ~ '^[0-9a-f]{64}$'),
             expires_at timestamptz NOT NULL,
             used_at timestamptz NULL,
             created_at timestamptz NOT NULL DEFAULT now()
@@ -67,11 +71,13 @@ def upgrade() -> None:
         WITH CHECK (organization_id = scirm_current_org())
     """)
     op.execute("""
-        CREATE FUNCTION scirm_sso_handoff_consume(p_code_hash text)
+        CREATE FUNCTION scirm_sso_handoff_consume(p_code_hash text, p_binding_hash text)
         RETURNS TABLE (user_id uuid, organization_id uuid)
         LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+            -- A wrong binding leaves the code unused, so it cannot be burnt by someone else.
             UPDATE sso_handoffs SET used_at = now()
-            WHERE code_hash = p_code_hash AND used_at IS NULL AND expires_at > now()
+            WHERE code_hash = p_code_hash AND binding_hash = p_binding_hash
+              AND used_at IS NULL AND expires_at > now()
             RETURNING sso_handoffs.user_id, sso_handoffs.organization_id
         $$
     """)

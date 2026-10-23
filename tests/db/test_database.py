@@ -228,7 +228,7 @@ class TestAccounts:
             for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
                        "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
                        "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)",
-                       "scirm_sso_handoff_consume(text)"):
+                       "scirm_sso_handoff_consume(text, text)"):
                 cur.execute(f"ALTER FUNCTION {fn} OWNER TO scirm_plain_owner")
         try:
             rows = as_org(db["app"], "", "SELECT email FROM scirm_login_lookup('managed@example.com')")
@@ -242,11 +242,12 @@ class TestAccounts:
             assert as_org(db["app"], "", consume, ("8" * 64,)) == [("managed@example.com",)]
             assert as_org(db["app"], "", consume, ("8" * 64,)) == []  # once
             uid = as_org(db["app"], db["a"], "SELECT id::text FROM users WHERE email = %s", ("managed@example.com",))[0][0]
-            as_org(db["app"], db["a"], "INSERT INTO sso_handoffs (code_hash, organization_id, user_id, expires_at) "
-                   "VALUES (%s, %s, %s, now() + interval '1 minute')", ("7" * 64, db["a"], uid))
-            handoff = "SELECT user_id::text FROM scirm_sso_handoff_consume(%s)"
-            assert as_org(db["app"], "", handoff, ("7" * 64,)) == [(uid,)]
-            assert as_org(db["app"], "", handoff, ("7" * 64,)) == []  # once
+            as_org(db["app"], db["a"], "INSERT INTO sso_handoffs (code_hash, organization_id, user_id, binding_hash, "
+                   "expires_at) VALUES (%s, %s, %s, %s, now() + interval '1 minute')", ("7" * 64, db["a"], uid, "6" * 64))
+            handoff = "SELECT user_id::text FROM scirm_sso_handoff_consume(%s, %s)"
+            assert as_org(db["app"], "", handoff, ("7" * 64, "5" * 64)) == []  # another browser's binding
+            assert as_org(db["app"], "", handoff, ("7" * 64, "6" * 64)) == [(uid,)]
+            assert as_org(db["app"], "", handoff, ("7" * 64, "6" * 64)) == []  # once
         finally:
             with db["owner"].cursor() as cur:
                 cur.execute("SELECT current_user")
@@ -257,7 +258,7 @@ class TestAccounts:
                 for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
                            "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
                        "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)",
-                       "scirm_sso_handoff_consume(text)"):
+                       "scirm_sso_handoff_consume(text, text)"):
                     cur.execute(f"ALTER FUNCTION {fn} OWNER TO {me}")
 
     def test_an_invitation_can_be_accepted_only_once_even_concurrently(self, db):

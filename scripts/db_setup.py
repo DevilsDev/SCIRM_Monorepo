@@ -65,7 +65,7 @@ def ensure_app_role(owner_url: str, role: str, password: str) -> None:
     for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
                "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
                "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)",
-               "scirm_sso_handoff_consume(text)"):
+               "scirm_sso_handoff_consume(text, text)"):
         cur.execute(sql.SQL("GRANT EXECUTE ON FUNCTION " + fn + " TO {}").format(ident))
     conn.close()
 

@@ -7,6 +7,7 @@ import asyncio
 import hmac
 import json
 import os
+import re
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -961,13 +962,20 @@ async def accept_invitation(body: AcceptInvitationRequest):
         raise HTTPException(status_code=404, detail="This invitation is not valid. Ask for a new one.")
     user_info = {"id": str(accepted["user_id"]), "name": body.name.strip(), "roles": list(accepted["roles"]),
                  "org_id": str(accepted["organization_id"]), "stored": True}
-    await _record_login(user_info)  # accepting signs them in
+    # In an organization that requires single sign-on, members get no password session here.
+    sso_required = await _sso_enforced_for(user_info["org_id"], user_info["roles"])
+    if not sso_required:
+        await _record_login(user_info)  # accepting signs them in
     try:
         await audit_store.record_audit(user_info["org_id"], {
             "user_id": user_info["id"], "actor_type": "user", "actor": accepted["email"],
             "action": "invitation.accepted", "resource_type": "auth", "status_code": 200})
     except Exception as exc:
         logger.error("Audit write failed", error=type(exc).__name__, action="invitation.accepted")
+    if sso_required:
+        return {"sso_required": True, "email": accepted["email"],
+                "message": "Your account is ready. Your organization signs in with single sign-on: use "
+                           "'Sign in with SSO' on the sign-in page."}
     return _issue_tokens(accepted["email"], user_info)
 
 
@@ -1862,11 +1870,16 @@ async def _audit_sso_failure(org: Optional[str], actor: Optional[str], reason: s
 
 
 @app.get("/api/v1/auth/sso/start")
-async def sso_start(email: str, next: Optional[str] = None):
-    """Begin SSO for this email's account: off to its organization's identity provider."""
+async def sso_start(email: str, binding: str = "", next: Optional[str] = None):
+    """Begin SSO for this email's account: off to its organization's identity provider.
+    `binding` is the SHA-256 (hex) of a random value the login page keeps in the browser; the
+    one-time code at the end only works with that value, so a sign-in started or captured
+    elsewhere cannot be completed in someone else's browser (login CSRF)."""
     from fastapi.responses import RedirectResponse
     if not PUBLIC_APP_URL or not PUBLIC_API_URL:
         raise HTTPException(status_code=503, detail="Single sign-on is not set up on this deployment.")
+    if not re.fullmatch(r"[0-9a-f]{64}", binding or ""):
+        raise HTTPException(status_code=400, detail="Start single sign-on from the SCIRM sign-in page.")
     account = await audit_store.find_login_user((email or "").strip().lower())
     if not account or not account["is_active"]:
         return _to_login("unavailable")  # the same answer as an organization without SSO
@@ -1882,7 +1895,8 @@ async def sso_start(email: str, next: Optional[str] = None):
     verifier, challenge = oidc.pkce_pair()
     state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
     cookie = create_access_token(data={"sub": "sso", "type": SSO_STATE_TYPE, "org": org, "state": state,
-                                       "nonce": nonce, "verifier": verifier, "next": _safe_next(next)},
+                                       "nonce": nonce, "verifier": verifier, "bind": binding,
+                                       "next": _safe_next(next)},
                                  expires_delta=timedelta(minutes=10))
     response = RedirectResponse(oidc.authorization_url(doc, config["client_id"], _sso_redirect_uri(), state, nonce,
                                                        challenge, login_hint=account["email"]), status_code=302)
@@ -1944,7 +1958,8 @@ async def sso_callback(request: Request, code: Optional[str] = None, state: Opti
     import hashlib
     handoff = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(seconds=SSO_HANDOFF_SECONDS)).isoformat()
-    await audit_store.create_sso_handoff(org, str(member["id"]), hashlib.sha256(handoff.encode()).hexdigest(), expires)
+    await audit_store.create_sso_handoff(org, str(member["id"]), hashlib.sha256(handoff.encode()).hexdigest(),
+                                         str(payload["bind"]), expires)
     await _record_login({"stored": True, "org_id": org, "id": str(member["id"])})
     await _audit_event(org, str(member["id"]), member["email"], "auth.sso_login")
     response = RedirectResponse(f"{PUBLIC_APP_URL}/sso/complete#code={handoff}&next={quote(payload['next'], safe='/')}",
@@ -1955,6 +1970,8 @@ async def sso_callback(request: Request, code: Optional[str] = None, state: Opti
 
 class SsoExchangeRequest(BaseModel):
     code: str = Field(..., min_length=20, max_length=200)
+    # The random value whose hash started the sign-in (kept by the login page in this browser).
+    binding: str = Field(..., min_length=20, max_length=200)
 
 
 @app.post("/api/v1/auth/sso/exchange")
@@ -1962,7 +1979,8 @@ async def sso_exchange(body: SsoExchangeRequest):
     """The app trades the one-time code (60 s, single use) for tokens. The identity provider
     did the authentication, including its own two-step sign-in."""
     import hashlib
-    consumed = await audit_store.consume_sso_handoff(hashlib.sha256(body.code.encode()).hexdigest())
+    consumed = await audit_store.consume_sso_handoff(hashlib.sha256(body.code.encode()).hexdigest(),
+                                                     hashlib.sha256(body.binding.encode()).hexdigest())
     if not consumed:
         raise HTTPException(status_code=400, detail="This sign-in link has expired. Sign in again.")
     found = await _find_user_by_id(str(consumed["user_id"]))

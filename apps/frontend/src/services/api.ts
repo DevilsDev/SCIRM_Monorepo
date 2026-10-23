@@ -3,9 +3,10 @@ import { isAuthRequest, Session } from './session';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-/** Where the browser goes to start single sign-on (a full-page navigation to the gateway). */
-export function ssoStartUrl(email: string, next: string): string {
-  return `${API_BASE_URL}/api/v1/auth/sso/start?${new URLSearchParams({ email, next })}`;
+/** Where the browser goes to start single sign-on (a full-page navigation to the gateway).
+ *  bindingHash is the SHA-256 of a value kept in this tab (see services/ssoBinding.ts). */
+export function ssoStartUrl(email: string, next: string, bindingHash: string): string {
+  return `${API_BASE_URL}/api/v1/auth/sso/start?${new URLSearchParams({ email, next, binding: bindingHash })}`;
 }
 
 const apiClient = axios.create({
@@ -554,8 +555,8 @@ export const api = {
   },
 
   /** Trades the one-time code from the SSO redirect for tokens. */
-  async ssoExchange(code: string): Promise<LoginResponse> {
-    return (await apiClient.post('/api/v1/auth/sso/exchange', { code })).data;
+  async ssoExchange(code: string, binding: string): Promise<LoginResponse> {
+    return (await apiClient.post('/api/v1/auth/sso/exchange', { code, binding })).data;
   },
 
   async getSso(): Promise<SsoSettings> {
@@ -744,7 +745,8 @@ export const api = {
     return (await apiClient.post('/api/v1/invitations/lookup', { token })).data;
   },
 
-  async acceptInvitation(token: string, name: string, password: string): Promise<LoginResponse> {
+  /** Tokens, or sso_required when the organization signs in with single sign-on. */
+  async acceptInvitation(token: string, name: string, password: string): Promise<LoginResponse & { sso_required?: boolean; message?: string }> {
     return (await apiClient.post('/api/v1/invitations/accept', { token, name, password })).data;
   },
 

@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { ssoStartUrl } from '../services/api';
+import { newSsoBinding } from '../services/ssoBinding';
 
 const MAX_ATTEMPTS = 5;
 
@@ -14,6 +15,7 @@ const SSO_MESSAGES: Record<string, string> = {
   expired: 'The sign-in took too long or was started in another browser. Try again.',
   failed: 'Single sign-on failed. Try again, or ask your administrator to check the identity provider settings.',
   provider_error: 'Your identity provider could not be reached. Try again later.',
+  account_ready: 'Your account is ready. Your organization signs in with single sign-on: enter your email and choose "Sign in with SSO".',
 };
 const LOCKOUT_SECONDS = 60;
 
@@ -177,9 +179,9 @@ export default function LoginPage() {
           {!mfaToken && (
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (!email.includes('@')) { setError(t('auth.ssoNeedsEmail', 'Enter your email first.')); return; }
-                window.location.assign(ssoStartUrl(email.trim(), redirectTo));
+                window.location.assign(ssoStartUrl(email.trim(), redirectTo, await newSsoBinding()));
               }}
               className="w-full mt-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
             >

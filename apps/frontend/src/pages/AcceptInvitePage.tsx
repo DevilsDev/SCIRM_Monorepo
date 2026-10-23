@@ -39,8 +39,8 @@ export default function AcceptInvitePage() {
     setSubmitting(true);
     try {
       if (user) logout(); // joining as the invited person, not whoever was signed in on this browser
-      await acceptInvitation(tokenRef.current!, name.trim(), password);
-      navigate('/dashboard', { replace: true });
+      const result = await acceptInvitation(tokenRef.current!, name.trim(), password);
+      navigate(result === 'sso_required' ? '/login?sso=account_ready' : '/dashboard', { replace: true });
     } catch (err: any) {
       setError(inviteErrorMessage(err?.response?.status));
     } finally {

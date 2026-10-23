@@ -102,15 +102,24 @@ def member(client, sarah):
     return email
 
 
-def start(client, email, next_path="/suppliers"):
-    response = client.get("/api/v1/auth/sso/start", params={"email": email, "next": next_path}, follow_redirects=False)
+def binding_pair():
+    """(value the login page keeps in the browser, its SHA-256 sent to /sso/start)"""
+    value = "bind-" + uuid.uuid4().hex + uuid.uuid4().hex
+    return value, hashlib.sha256(value.encode()).hexdigest()
+
+
+def start(client, email, next_path="/suppliers", binding_hash=None):
+    binding_hash = binding_hash or binding_pair()[1]
+    response = client.get("/api/v1/auth/sso/start", params={"email": email, "next": next_path, "binding": binding_hash},
+                          follow_redirects=False)
     assert response.status_code == 302, response.text
     return response
 
 
-def sign_in(client, idp, email, *, sub=None, claims_extra=None, tamper=None, state_override=None):
+def sign_in(client, idp, email, *, sub=None, claims_extra=None, tamper=None, state_override=None, binding=None):
     """Start, 'log in' at the fake provider, and return the callback response."""
-    location = urlsplit(start(client, email).headers["location"])
+    value, digest = binding or binding_pair()
+    location = urlsplit(start(client, email, binding_hash=digest).headers["location"])
     q = {k: v[0] for k, v in parse_qs(location.query).items()}
     claims = {**idp.claims(sub or f"idp-{email}", email, q["nonce"]), **(claims_extra or {})}
     id_token = tamper(claims) if tamper else idp.sign(claims)
@@ -127,16 +136,45 @@ def handoff(callback):
 
 class TestFlow:
     def test_full_sign_in(self, client, idp, configured, member):
-        callback, q = sign_in(client, idp, member)
+        binding = binding_pair()
+        callback, q = sign_in(client, idp, member, binding=binding)
         assert q["code_challenge_method"] == "S256" and q["response_mode"] == "query" and q["login_hint"] == member
         assert q["redirect_uri"] == "http://localhost:8000/api/v1/auth/sso/callback"
         code = handoff(callback)
         assert "next=/suppliers" in callback.headers["location"]
-        tokens = client.post("/api/v1/auth/sso/exchange", json={"code": code})
+        tokens = client.post("/api/v1/auth/sso/exchange", json={"code": code, "binding": binding[0]})
         assert tokens.status_code == 200, tokens.text
         me = jwt.decode(tokens.json()["access_token"], options={"verify_signature": False})
         assert me["email"] == member
-        assert client.post("/api/v1/auth/sso/exchange", json={"code": code}).status_code == 400  # once
+        assert client.post("/api/v1/auth/sso/exchange", json={"code": code, "binding": binding[0]}).status_code == 400
+
+    def test_the_code_only_works_in_the_browser_that_started(self, client, idp, configured, member):
+        """Login CSRF: a captured code, or one from another start, is useless elsewhere."""
+        mine, theirs = binding_pair(), binding_pair()
+        code = handoff(sign_in(client, idp, member, binding=mine)[0])
+        for wrong in (theirs[0], "x" * 40):
+            assert client.post("/api/v1/auth/sso/exchange", json={"code": code, "binding": wrong}).status_code == 400
+        assert client.post("/api/v1/auth/sso/exchange", json={"code": code}).status_code == 422
+        # The failed attempts did not use it up.
+        assert client.post("/api/v1/auth/sso/exchange", json={"code": code, "binding": mine[0]}).status_code == 200
+
+    def test_start_needs_the_login_pages_binding(self, client, idp, configured, member):
+        for params in ({"email": member}, {"email": member, "binding": "not-a-hash"}):
+            assert client.get("/api/v1/auth/sso/start", params=params, follow_redirects=False).status_code == 400
+
+    def test_moving_to_another_identity_provider_relinks(self, client, sarah, idp, configured, member):
+        handoff(sign_in(client, idp, member, sub="old-provider-subject")[0])
+        client.cookies.clear()
+        global ISSUER
+        old_issuer, ISSUER = ISSUER, "https://idp.example.com/realms/new"
+        idp.issuer_in_discovery = ISSUER
+        try:
+            assert client.put("/api/v1/org/sso", json={"issuer": ISSUER, "client_id": CLIENT_ID},
+                              headers=bearer(sarah["access_token"])).status_code == 200
+            callback, _ = sign_in(client, idp, member, sub="new-provider-subject")
+            assert "/sso/complete#code=" in callback.headers["location"]
+        finally:
+            ISSUER = old_issuer
         assert idp.token_requests[-1]["grant_type"] == ["authorization_code"]
 
     def test_the_account_is_linked_to_the_subject(self, client, idp, configured, member):
@@ -151,7 +189,8 @@ class TestFlow:
 
     def test_unknown_accounts_and_other_organizations_get_the_same_answer(self, client, idp, configured, lisa):
         for email in (f"nobody-{uuid.uuid4().hex[:6]}@example.com", "lisa.park@medtech.com"):
-            response = client.get("/api/v1/auth/sso/start", params={"email": email}, follow_redirects=False)
+            response = client.get("/api/v1/auth/sso/start", params={"email": email, "binding": binding_pair()[1]},
+                                  follow_redirects=False)
             assert response.status_code == 302 and response.headers["location"].endswith("/login?sso=unavailable")
 
 
@@ -197,9 +236,11 @@ class TestRefusals:
         store = apps["gateway"].audit_store
         account = asyncio.run(store.find_login_user(member))
         past = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        value, digest = binding_pair()
         asyncio.run(store.create_sso_handoff(str(account["organization_id"]), str(account["id"]),
-                                             hashlib.sha256(b"old-handoff-code-123456").hexdigest(), past))
-        assert client.post("/api/v1/auth/sso/exchange", json={"code": "old-handoff-code-123456"}).status_code == 400
+                                             hashlib.sha256(b"old-handoff-code-123456").hexdigest(), digest, past))
+        assert client.post("/api/v1/auth/sso/exchange",
+                           json={"code": "old-handoff-code-123456", "binding": value}).status_code == 400
 
 
 class TestConfiguration:
@@ -241,6 +282,13 @@ class TestEnforcement:
             assert refused.status_code == 403 and "single sign-on" in refused.json()["detail"]
             assert login("sarah.chen@pharmacorp.com").status_code == 200  # demo admin
             assert login(member, "wrong-password").status_code == 401  # nothing revealed without the password
+            # A new member accepting an invitation gets an account, but no password session.
+            email = f"sso-new-{uuid.uuid4().hex[:6]}@example.com"
+            invite = client.post("/api/v1/org/invitations", json={"email": email, "roles": ["viewer"]},
+                                 headers=bearer(sarah["access_token"])).json()["invite_url"].split("#", 1)[1]
+            accepted = client.post("/api/v1/invitations/accept",
+                                   json={"token": invite, "name": "N", "password": "a-good-password"}).json()
+            assert accepted.get("sso_required") is True and "access_token" not in accepted
         finally:
             client.delete("/api/v1/org/sso", headers=bearer(sarah["access_token"]))
         assert login(member, "a-good-password").status_code == 200
