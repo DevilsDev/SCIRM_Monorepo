@@ -525,6 +525,20 @@ export const api = {
     return response.data;
   },
 
+  /** Returns new tokens: other sessions are signed out by the change. */
+  async changePassword(currentPassword: string, newPassword: string): Promise<LoginResponse> {
+    return (await apiClient.post('/api/v1/auth/change-password',
+      { current_password: currentPassword, new_password: newPassword })).data;
+  },
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    return (await apiClient.post('/api/v1/auth/forgot-password', { email })).data;
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    return (await apiClient.post('/api/v1/auth/reset-password', { token, new_password: newPassword })).data;
+  },
+
   async verifyMfa(mfaToken: string, totpCode: string): Promise<LoginResponse> {
     const response = await apiClient.post('/api/v1/auth/mfa/verify', { mfa_token: mfaToken, totp_code: totpCode });
     return response.data;

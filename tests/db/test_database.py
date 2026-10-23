@@ -222,10 +222,11 @@ class TestAccounts:
         with db["owner"].cursor() as cur:
             cur.execute("DROP ROLE IF EXISTS scirm_plain_owner")
             cur.execute("CREATE ROLE scirm_plain_owner NOSUPERUSER NOBYPASSRLS")
-            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys"):
+            for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys", "TABLE password_resets"):
                 cur.execute(f"ALTER {obj} OWNER TO scirm_plain_owner")
             for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
-                       "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)"):
+                       "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
+                       "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)"):
                 cur.execute(f"ALTER FUNCTION {fn} OWNER TO scirm_plain_owner")
         try:
             rows = as_org(db["app"], "", "SELECT email FROM scirm_login_lookup('managed@example.com')")
@@ -233,14 +234,20 @@ class TestAccounts:
             as_org(db["app"], db["a"], "INSERT INTO api_keys (organization_id, name, prefix, key_hash) "
                    "VALUES (%s, 'm', 'scirm_ABCDEFGH', %s)", (db["a"], "9" * 64))
             assert as_org(db["app"], "", "SELECT name FROM scirm_api_key_lookup(%s)", ("9" * 64,)) == [("m",)]
+            reset = "SELECT email FROM scirm_password_reset_request('managed@example.com', %s, now() + interval '5 minutes')"
+            assert as_org(db["app"], "", reset, ("8" * 64,)) == [("managed@example.com",)]
+            consume = "SELECT email FROM scirm_password_reset_consume(%s, 'new-hash')"
+            assert as_org(db["app"], "", consume, ("8" * 64,)) == [("managed@example.com",)]
+            assert as_org(db["app"], "", consume, ("8" * 64,)) == []  # once
         finally:
             with db["owner"].cursor() as cur:
                 cur.execute("SELECT current_user")
                 me = cur.fetchone()[0]
-                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys"):
+                for obj in ("TABLE users", "TABLE invitations", "TABLE organizations", "TABLE api_keys", "TABLE password_resets"):
                     cur.execute(f"ALTER {obj} OWNER TO {me}")
                 for fn in ("scirm_login_lookup(text)", "scirm_user_by_id(uuid)", "scirm_invitation_lookup(text)",
-                           "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)"):
+                           "scirm_accept_invitation(text, text, text)", "scirm_api_key_lookup(text)",
+                       "scirm_password_reset_request(text, text, timestamptz)", "scirm_password_reset_consume(text, text)"):
                     cur.execute(f"ALTER FUNCTION {fn} OWNER TO {me}")
 
     def test_an_invitation_can_be_accepted_only_once_even_concurrently(self, db):

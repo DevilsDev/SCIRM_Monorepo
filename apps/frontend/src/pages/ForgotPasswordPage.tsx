@@ -1,16 +1,26 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { api } from '../services/api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const { t } = useTranslation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, call API to send reset email
-    setSent(true);
+    setError('');
+    setBusy(true);
+    try {
+      setSent((await api.forgotPassword(email.trim())).message);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || t('auth.resetFailed', 'The request could not be sent. Try again.'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -27,7 +37,7 @@ export default function ForgotPasswordPage() {
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
               </div>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{t('auth.resetSent', "If an account exists for this email, you'll receive a password reset email shortly.")}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">{sent}</p>
               <Link to="/login" className="inline-block mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium">{t('auth.backToSignIn', 'Back to Sign In')}</Link>
             </div>
           ) : (
@@ -41,7 +51,8 @@ export default function ForgotPasswordPage() {
                   placeholder={t('auth.emailPlaceholder', 'you@company.com')}
                 />
               </div>
-              <button type="submit" className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <button type="submit" disabled={busy} className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
                 {t('auth.sendResetLink', 'Send Reset Link')}
               </button>
               <p className="text-sm text-gray-500 dark:text-gray-400 text-center">

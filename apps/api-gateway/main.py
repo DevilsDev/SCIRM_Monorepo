@@ -331,7 +331,8 @@ _DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(16))
 def _account_info(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": str(row["id"]), "name": row["name"], "roles": list(row["roles"] or []),
             "org_id": str(row["organization_id"]), "mfa_secret": row.get("mfa_secret"),
-            "mfa_enabled": bool(row.get("mfa_enabled")), "stored": True}
+            "mfa_enabled": bool(row.get("mfa_enabled")), "password_changed_at": row.get("password_changed_at"),
+            "stored": True}
 
 
 def _mfa_on(user_info: Dict[str, Any]) -> bool:
@@ -524,6 +525,17 @@ async def disable_mfa(body: MFACodeRequest, token: str = Depends(security)):
     return {"enabled": False}
 
 
+def _issued_before_password_change(payload: Dict[str, Any], info: Dict[str, Any]) -> bool:
+    """A token issued before the account's last password change (change or reset)."""
+    changed = info.get("password_changed_at")
+    if not changed or "iat" not in payload:
+        return False
+    changed_at = datetime.fromisoformat(str(changed))
+    if changed_at.tzinfo is None:
+        changed_at = changed_at.replace(tzinfo=timezone.utc)
+    return int(payload["iat"]) < int(changed_at.timestamp())
+
+
 @app.post("/api/v1/auth/refresh")
 async def refresh_token(body: Dict[str, Any]):
     """Exchange a refresh token for a new access token."""
@@ -535,6 +547,8 @@ async def refresh_token(body: Dict[str, Any]):
     found = await _find_user_by_id(payload["sub"])
     if not found:  # unknown, or deactivated since the refresh token was issued
         raise HTTPException(status_code=401, detail="User not found")
+    if _issued_before_password_change(payload, found[1]):
+        raise HTTPException(status_code=401, detail="The password was changed: sign in again")
 
     tokens = _issue_tokens(*found)
     return {"access_token": tokens["access_token"], "token_type": "bearer"}
@@ -1792,35 +1806,85 @@ async def export_full_report(token: str = Depends(security)):
 
 # --- Password Reset ---
 
+PASSWORD_RESET_MINUTES = int(os.getenv("PASSWORD_RESET_MINUTES", "30"))
+_RESET_SENT = "If an account exists for this email, a reset link has been sent. It works once, for 30 minutes."
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=20, max_length=200)
+    new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+async def _send_reset_email(account: Dict[str, Any], token_value: str) -> None:
+    link = f"{PUBLIC_APP_URL}/reset-password#{token_value}" if PUBLIC_APP_URL else f"/reset-password#{token_value}"
+    text = (f"Hello {account.get('name') or ''},\n\nSomeone (hopefully you) asked to reset the SCIRM password for "
+            f"{account['email']}. Open this link within {PASSWORD_RESET_MINUTES} minutes to choose a new one:\n\n"
+            f"{link}\n\nIf you did not ask for this, ignore this email; your password stays the same.\n")
+    html_body = (f"<p>Someone (hopefully you) asked to reset the SCIRM password for {account['email']}.</p>"
+                 f"<p><a href=\"{link}\">Choose a new password</a> (works once, for {PASSWORD_RESET_MINUTES} minutes).</p>"
+                 "<p>If you did not ask for this, ignore this email; your password stays the same.</p>")
+    try:
+        await reports.send_email([account["email"]], "Reset your SCIRM password", text, html_body)
+    except Exception as exc:
+        logger.error("Password reset email failed", error=type(exc).__name__)
+
+
 @app.post("/api/v1/auth/forgot-password")
-async def forgot_password(body: Dict[str, Any]):
-    """Request a password reset email."""
-    email = body.get("email", "")
-    # In production: generate token, send email via SMTP
-    # For dev: just acknowledge
-    logger.info("Password reset requested", email=email)
-    return {"message": "If an account exists for this email, a reset link has been sent."}
+async def forgot_password(body: ForgotPasswordRequest):
+    """Email a single-use reset link. The answer is the same whether or not the account
+    exists, and the email is sent in the background so timing does not tell either."""
+    if reports.smtp_config() is None:
+        raise HTTPException(status_code=503, detail="Password reset by email is not set up on this deployment. "
+                                                    "Ask an administrator of your organization.")
+    import hashlib
+    token_value = secrets.token_urlsafe(32)
+    expires = (datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_MINUTES)).isoformat()
+    account = await audit_store.request_password_reset(body.email.strip().lower(),
+                                                       hashlib.sha256(token_value.encode()).hexdigest(), expires)
+    if account:
+        await _audit_event(str(account["organization_id"]), str(account["user_id"]), account["email"],
+                           "auth.password_reset_requested")
+        asyncio.create_task(_send_reset_email(account, token_value))
+    return {"message": _RESET_SENT}
+
 
 @app.post("/api/v1/auth/reset-password")
-async def reset_password(body: Dict[str, Any]):
-    """Reset password with a token."""
-    token_val = body.get("token", "")
-    new_password = body.get("new_password", "")
-    if len(new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    # In production: validate token, update password in DB
-    return {"message": "Password has been reset successfully."}
+async def reset_password(body: ResetPasswordRequest):
+    """Set a new password with a reset link's token. Other sessions are signed out."""
+    import hashlib
+    _password_ok(body.new_password)
+    done = await audit_store.consume_password_reset(hashlib.sha256(body.token.encode()).hexdigest(),
+                                                    get_password_hash(body.new_password))
+    if not done:
+        raise HTTPException(status_code=400, detail="This reset link is not valid any more. Ask for a new one.")
+    await _audit_event(str(done["organization_id"]), str(done["user_id"]), done["email"], "auth.password_reset")
+    return {"message": "Your password has been reset. Sign in with the new one."}
+
 
 @app.post("/api/v1/auth/change-password")
-async def change_password(body: Dict[str, Any], token: str = Depends(security)):
-    """Change password for authenticated user."""
+async def change_password(body: ChangePasswordRequest, token: str = Depends(security)):
+    """Change the caller's password. Other sessions are signed out; this one gets new tokens."""
     user = await verify_token(token.credentials)
-    current = body.get("current_password", "")
-    new_pass = body.get("new_password", "")
-    if len(new_pass) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    # In production: verify current password, update in DB
-    return {"message": "Password changed successfully."}
+    if DEV_USERS.get(user.email.lower()):
+        raise HTTPException(status_code=400, detail="Demo accounts use DEV_PASSWORD and cannot change it.")
+    _password_ok(body.new_password)
+    if body.new_password == body.current_password:
+        raise HTTPException(status_code=400, detail="Choose a password different from the current one.")
+    if not await _check_password(user.email, body.current_password):
+        raise HTTPException(status_code=400, detail="The current password is not correct.")
+    if not await audit_store.set_password(user.organization_id, user.id, get_password_hash(body.new_password)):
+        raise HTTPException(status_code=404, detail="Account not found")
+    found = await _find_user_by_id(user.id)
+    return {"message": "Password changed. Other sessions are signed out.", **_issue_tokens(*found)}
 
 # --- Components ---
 

@@ -15,6 +15,8 @@ interface AuthContextType {
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   acceptInvitation: (token: string, name: string, password: string) => Promise<void>;
+  /** Changes the password; other sessions end, this one continues with new tokens. */
+  changePassword: (current: string, next: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   verifyMfa: async () => {},
   signup: async () => {},
   acceptInvitation: async () => {},
+  changePassword: async () => {},
   logout: () => {},
 });
 
@@ -92,8 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     begin(await api.acceptInvitation(token, name, password));
   };
 
+  const changePassword = async (current: string, next: string) => {
+    begin(await api.changePassword(current, next));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, verifyMfa, signup, acceptInvitation, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, login, verifyMfa, signup, acceptInvitation, changePassword, logout }}>
       {children}
     </AuthContext.Provider>
   );
