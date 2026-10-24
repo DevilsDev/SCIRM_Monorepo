@@ -432,8 +432,13 @@ def test_war_room_tables_are_tenant_scoped_and_the_timeline_is_append_only(db):
     assert isinstance(as_org(db["app"], db["a"], link, (db["a"], incident, supplier)), psycopg2.errors.InsufficientPrivilege)
     entry = "INSERT INTO incident_timeline (organization_id, incident_id, kind, text) VALUES (%s, %s, 'note', 'n')"
     assert as_org(db["app"], db["a"], entry, (db["a"], incident)) == 1
-    for statement in ("UPDATE incident_timeline SET text = 'rewritten'", "DELETE FROM incident_timeline"):
-        assert isinstance(as_org(db["app"], db["a"], statement), psycopg2.errors.InsufficientPrivilege)
+    # Deleting the incident would cascade to its timeline (found at the Phase 2 gate), so that
+    # is refused too, as is truncating either table.
+    for statement in ("UPDATE incident_timeline SET text = 'rewritten'", "DELETE FROM incident_timeline",
+                      f"DELETE FROM incidents WHERE id = '{incident}'", "TRUNCATE incident_timeline",
+                      "TRUNCATE incidents CASCADE"):
+        assert isinstance(as_org(db["app"], db["a"], statement), psycopg2.errors.InsufficientPrivilege), statement
+    assert as_org(db["app"], db["a"], "SELECT count(*) FROM incident_timeline WHERE incident_id = %s", (incident,)) == [(1,)]
 
 
 def test_migrations_downgrade_and_reapply(db):

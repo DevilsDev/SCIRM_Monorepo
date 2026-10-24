@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from libs.intel.sources import REGULATORY_SOURCES
-from libs.intel.watchlist import like_patterns
+from libs.intel.watchlist import like_patterns, pattern_words
 
 WATCH_PUBLIC = ("id", "kind", "term", "note", "created_by", "created_at")
 
@@ -27,6 +27,17 @@ def _naive(value: Optional[str]) -> Optional[datetime]:
         return None
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed.astimezone(timezone.utc).replace(tzinfo=None) if parsed.tzinfo else parsed
+
+
+def _in_order(text: str, words: List[str]) -> bool:
+    """Like ILIKE '%w1%w2%': each word found after the previous one."""
+    at = 0
+    for word in words:
+        at = text.find(word, at)
+        if at < 0:
+            return False
+        at += len(word)
+    return True
 
 
 class MemoryWatchlist:
@@ -60,8 +71,8 @@ class MemoryWatchlist:
                                     limit: int = 2000) -> List[Dict[str, Any]]:
         """Listed regulatory records that may name a term (a broad prefilter: the caller
         checks with libs.intel.watchlist.matching_terms). Newest activity first."""
-        words = [p.strip("%") for p in like_patterns(terms)]
-        if not words:
+        patterns = [pattern_words(p) for p in like_patterns(terms)]
+        if not patterns:
             return []
         lo, hi, start = _naive(first_seen_after), _naive(first_seen_until), since
         found = []
@@ -75,7 +86,7 @@ class MemoryWatchlist:
             if (lo and not (seen and seen > lo)) or (hi and not (seen and seen <= hi)):
                 continue
             blob = f"{s.get('title')} {s.get('summary')} {s.get('raw')}".lower()
-            if any(w in blob for w in words):
+            if any(_in_order(blob, words) for words in patterns):
                 found.append(s)
         found.sort(key=lambda s: str(s.get("updated_at") or s.get("published_at")), reverse=True)
         return found[:limit]

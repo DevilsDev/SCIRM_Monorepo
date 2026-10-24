@@ -47,6 +47,14 @@ def matching_terms(signal: Dict[str, Any], terms: Iterable[str]) -> List[str]:
 
 
 def like_patterns(terms: Iterable[str]) -> List[str]:
-    """Broad SQL ILIKE prefilters (the first word of each term); matching_terms decides."""
-    words = {normalize(t).split(" ")[0] for t in terms if normalize(t)}
-    return [f"%{w}%" for w in sorted(words)]
+    """SQL ILIKE prefilters, one per term: all its words in order ("%sodium%chloride%").
+    Every whole-word match also matches its pattern, so nothing is lost; matching_terms
+    decides. (Only the first word was used before, so a common first word such as
+    "sodium" filled the candidate limit and older matches for other terms dropped out.)"""
+    patterns = {"%" + "%".join(normalize(t).split(" ")) + "%" for t in terms if normalize(t)}
+    return sorted(patterns)
+
+
+def pattern_words(pattern: str) -> List[str]:
+    """The words of a like_patterns pattern, in order."""
+    return [w for w in pattern.split("%") if w]

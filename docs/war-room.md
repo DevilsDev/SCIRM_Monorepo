@@ -27,7 +27,9 @@ administrators and analysts open and work them.
   together; suppliers without spend data are counted separately.
 - **Tasks** with an assignee and a due date, ticked off when done.
 - **Timeline:** notes, plus an automatic entry for every change (status, owner, severity,
-  suppliers, tasks). It is append-only: the database refuses to change or delete entries.
+  suppliers, tasks). It is append-only: the database refuses to change or delete entries,
+  and incidents themselves cannot be deleted (which would take their timeline with them);
+  an incident that is over is resolved, and can be reopened.
 
 The page refreshes every 30 seconds, so several people can work on an incident at once.
 

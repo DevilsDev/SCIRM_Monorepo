@@ -871,7 +871,8 @@ export const api = {
   },
 
   async regulatoryWatch(params: { days?: number; source?: string } = {}): Promise<{ terms: string[]; since: string;
-    matches: RegulatoryMatch[]; sources: Record<string, string> }> {
+    matches: RegulatoryMatch[]; sources: Record<string, string>;
+    /** True when older matches were left out: narrow the period or the source. */ truncated: boolean }> {
     const query = Object.fromEntries(Object.entries(params).filter(([, v]) => v));
     return (await apiClient.get('/api/v1/regulatory-watch', { params: query })).data;
   },

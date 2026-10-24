@@ -1131,6 +1131,12 @@ async def supplier_subtier(supplier_id: str, token: str = Depends(security)):
 # organization's watchlist (libs/intel/watchlist.py).
 # ---------------------------------------------------------------------------
 
+# Records scanned and matches returned per request. When either limit is reached the answer
+# says so (truncated), rather than silently leaving out older matches.
+REGULATORY_SCAN_LIMIT = 5000
+REGULATORY_MATCH_LIMIT = 500
+
+
 class WatchlistItemRequest(BaseModel):
     kind: str = Field("substance", pattern="^(substance|product)$")
     term: str = Field(..., min_length=3, max_length=100)
@@ -1186,15 +1192,18 @@ async def regulatory_watch(days: int = 180, source: Optional[str] = None, token:
     terms = [item["term"] for item in await audit_store.list_watchlist(user.organization_id)]
     since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
     matches = []
-    for signal in await audit_store.regulatory_candidates(terms, since=since, limit=5000):
+    candidates = await audit_store.regulatory_candidates(terms, since=since, limit=REGULATORY_SCAN_LIMIT)
+    truncated = len(candidates) >= REGULATORY_SCAN_LIMIT
+    for signal in candidates:
         named = watchlist.matching_terms(signal, terms)
         if named and (not source or signal.get("source") == source):
+            if len(matches) >= REGULATORY_MATCH_LIMIT:
+                truncated = True
+                break
             matches.append({"terms": named, "record": {k: signal.get(k) for k in (
                 "id", "source", "external_id", "signal_type", "title", "summary", "severity", "url",
                 "published_at", "updated_at")}, "source_label": sources_registry.SOURCE_LABELS.get(signal.get("source"))})
-        if len(matches) >= 500:
-            break
-    return {"terms": terms, "since": since, "matches": matches,
+    return {"terms": terms, "since": since, "matches": matches, "truncated": truncated,
             "sources": {s: sources_registry.SOURCE_LABELS[s] for s in sources_registry.REGULATORY_SOURCES}}
 
 

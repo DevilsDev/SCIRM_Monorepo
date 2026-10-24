@@ -50,7 +50,9 @@ flag.
 - `GET /api/v1/watchlist`, `POST /api/v1/watchlist` (`kind`: `substance` or `product`,
   `term`, `note`), `DELETE /api/v1/watchlist/{id}`
 - `GET /api/v1/regulatory-watch?days=180&source=ema_dhpc`: records with activity in the
-  period that name a watched term, newest first (up to 500)
+  period that name a watched term, newest first (up to 500). `truncated: true` means older
+  matches were left out (more than 500 matches, or more than 5,000 candidate records):
+  choose a shorter period or one source; the screen says so too
 
 Adding and removing terms is recorded in the [audit log](audit-log.md)
 (`watchlist.added`, `watchlist.removed`).
