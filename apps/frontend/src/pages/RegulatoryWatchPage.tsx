@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { api, RegulatoryMatch, WatchlistItem } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
+import OpenInWarRoomButton from '../components/OpenInWarRoomButton';
 
 const input = 'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white';
 
@@ -143,7 +144,10 @@ export default function RegulatoryWatchPage() {
                   {highlightParts(m.record.title, m.terms).map((p, i) => p.hit ? <mark key={i} className="bg-yellow-100 dark:bg-yellow-800/60 dark:text-white rounded px-0.5">{p.text}</mark> : <span key={i}>{p.text}</span>)}
                 </h3>
                 {m.record.summary && <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{m.record.summary}</p>}
-                {m.record.url && <a href={m.record.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-blue-600 hover:underline">{t('rw.sourceRecord', 'Source record')}</a>}
+                <div className="mt-1 flex items-center gap-3">
+                  {m.record.url && <a href={m.record.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">{t('rw.sourceRecord', 'Source record')}</a>}
+                  <OpenInWarRoomButton signalId={m.record.id} />
+                </div>
               </article>
             ))}
           </div>

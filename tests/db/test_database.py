@@ -412,6 +412,30 @@ def test_watchlist_is_tenant_scoped_and_watchlist_events_are_allowed(db):
     assert isinstance(as_org(db["app"], db["a"], event, (db["a"], "made.up", "wl-2")), psycopg2.errors.CheckViolation)
 
 
+def test_war_room_tables_are_tenant_scoped_and_the_timeline_is_append_only(db):
+    """Migration 027: forced RLS on every war-room table, child rows only under the
+    organization's own incident and supplier, and no rewriting the timeline."""
+    tables = ("incidents", "incident_suppliers", "incident_tasks", "incident_timeline")
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY(%s)",
+                    (list(tables),))
+        assert {r[0]: (r[1], r[2]) for r in cur.fetchall()} == {t: (True, True) for t in tables}
+    [(incident,)] = as_org(db["app"], db["a"], "INSERT INTO incidents (organization_id, title) VALUES (%s, 'Strike') "
+                                               "RETURNING id::text", (db["a"],))
+    [(supplier,)] = as_org(db["app"], db["b"], (
+        "INSERT INTO suppliers (organization_id, supplier_code, name) VALUES (%s, %s, 'B GmbH') RETURNING id::text"),
+        (db["b"], f"WR-{uuid.uuid4().hex[:6]}"))
+    # Org B can neither add to org A's incident nor link its supplier to it.
+    task = "INSERT INTO incident_tasks (organization_id, incident_id, title) VALUES (%s, %s, 't')"
+    assert isinstance(as_org(db["app"], db["b"], task, (db["b"], incident)), psycopg2.errors.InsufficientPrivilege)
+    link = "INSERT INTO incident_suppliers (organization_id, incident_id, supplier_id) VALUES (%s, %s, %s)"
+    assert isinstance(as_org(db["app"], db["a"], link, (db["a"], incident, supplier)), psycopg2.errors.InsufficientPrivilege)
+    entry = "INSERT INTO incident_timeline (organization_id, incident_id, kind, text) VALUES (%s, %s, 'note', 'n')"
+    assert as_org(db["app"], db["a"], entry, (db["a"], incident)) == 1
+    for statement in ("UPDATE incident_timeline SET text = 'rewritten'", "DELETE FROM incident_timeline"):
+        assert isinstance(as_org(db["app"], db["a"], statement), psycopg2.errors.InsufficientPrivilege)
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

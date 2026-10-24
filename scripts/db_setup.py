@@ -58,6 +58,10 @@ def ensure_app_role(owner_url: str, role: str, password: str) -> None:
     cur.execute(sql.SQL("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {}").format(ident))
     # The audit log is append-only for the application (a trigger also enforces this).
     cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM {}").format(ident))
+    # So is a war-room incident's timeline (migration 027).
+    cur.execute("SELECT to_regclass('public.incident_timeline') IS NOT NULL")
+    if cur.fetchone()[0]:
+        cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON incident_timeline FROM {}").format(ident))
     # Migrations are not for the application role.
     cur.execute(sql.SQL("REVOKE ALL ON alembic_version FROM {}").format(ident))
     # The only lookups allowed before a tenant is known (login, refresh, invitations: migration

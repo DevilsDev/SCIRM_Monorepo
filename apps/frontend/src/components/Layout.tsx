@@ -17,6 +17,7 @@ import {
   MoonIcon,
   ClipboardDocumentCheckIcon,
   EyeIcon,
+  FireIcon,
   ClipboardDocumentListIcon,
   PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
@@ -63,6 +64,7 @@ const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem
       { to: '/events', tKey: 'nav.events', fallback: 'Risk Events', icon: BoltIcon },
       { to: '/intelligence', tKey: 'nav.intelFeed', fallback: 'Intel Feed', icon: NewspaperIcon },
       { to: '/regulatory-watch', tKey: 'nav.regulatoryWatch', fallback: 'Regulatory watch', icon: EyeIcon },
+      { to: '/war-room', tKey: 'nav.warRoom', fallback: 'War room', icon: FireIcon },
     ],
   },
   {

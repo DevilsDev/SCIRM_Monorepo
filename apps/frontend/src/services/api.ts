@@ -472,6 +472,41 @@ export interface RegulatoryMatch {
     severity: string; url: string | null; published_at: string; updated_at: string | null };
 }
 
+export type IncidentStatus = 'open' | 'monitoring' | 'resolved';
+export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface Incident {
+  id: string;
+  title: string;
+  summary: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  owner_email: string | null;
+  signal_id: string | null;
+  /** The public record it was opened from, as it was then. */
+  signal: { source: string; source_label: string | null; title: string; url: string | null; severity: string;
+    published_at: string } | null;
+  resolution: string | null;
+  opened_by: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  supplier_count?: number;
+  open_tasks?: number;
+}
+
+export interface IncidentDetail {
+  incident: Incident;
+  suppliers: Array<{ id: string; name: string; country_code: string | null; sap_supplier_number?: string | null;
+    risk_tier?: string; spend_12m?: Record<string, string> | null; spend_main_currency?: string | null;
+    spend_period?: string | null; reason: string; added_at: string }>;
+  /** 12-month spend per currency (never added across currencies). */
+  exposure: { by_currency: Record<string, string>; without_spend: number };
+  tasks: Array<{ id: string; title: string; assignee_email: string | null; due_date: string | null;
+    status: 'open' | 'done'; created_by: string | null; done_by: string | null; done_at: string | null }>;
+  timeline: Array<{ id: string; kind: string; text: string; actor: string | null; created_at: string }>;
+}
+
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
@@ -839,6 +874,45 @@ export const api = {
     matches: RegulatoryMatch[]; sources: Record<string, string> }> {
     const query = Object.fromEntries(Object.entries(params).filter(([, v]) => v));
     return (await apiClient.get('/api/v1/regulatory-watch', { params: query })).data;
+  },
+
+  // War room
+  async listIncidents(status: IncidentStatus | '' = ''): Promise<{ incidents: Incident[]; members: string[] }> {
+    return (await apiClient.get('/api/v1/incidents', { params: status ? { status } : {} })).data;
+  },
+
+  async openIncident(body: { title?: string; summary?: string; severity?: IncidentSeverity; signal_id?: string;
+    supplier_ids?: string[]; owner_email?: string | null }): Promise<IncidentDetail> {
+    return (await apiClient.post('/api/v1/incidents', body)).data;
+  },
+
+  async getIncident(id: string): Promise<IncidentDetail> {
+    return (await apiClient.get(`/api/v1/incidents/${encodeURIComponent(id)}`)).data;
+  },
+
+  async updateIncident(id: string, changes: Partial<Pick<Incident, 'title' | 'summary' | 'severity' | 'status' |
+    'owner_email' | 'resolution'>>): Promise<IncidentDetail> {
+    return (await apiClient.patch(`/api/v1/incidents/${encodeURIComponent(id)}`, changes)).data;
+  },
+
+  async addIncidentNote(id: string, text: string): Promise<IncidentDetail> {
+    return (await apiClient.post(`/api/v1/incidents/${encodeURIComponent(id)}/notes`, { text })).data;
+  },
+
+  async addIncidentSupplier(id: string, supplierId: string, reason = ''): Promise<IncidentDetail> {
+    return (await apiClient.post(`/api/v1/incidents/${encodeURIComponent(id)}/suppliers`, { supplier_id: supplierId, reason })).data;
+  },
+
+  async removeIncidentSupplier(id: string, supplierId: string): Promise<IncidentDetail> {
+    return (await apiClient.delete(`/api/v1/incidents/${encodeURIComponent(id)}/suppliers/${encodeURIComponent(supplierId)}`)).data;
+  },
+
+  async addIncidentTask(id: string, body: { title: string; assignee_email?: string | null; due_date?: string | null }): Promise<IncidentDetail> {
+    return (await apiClient.post(`/api/v1/incidents/${encodeURIComponent(id)}/tasks`, body)).data;
+  },
+
+  async setIncidentTask(id: string, taskId: string, status: 'open' | 'done'): Promise<IncidentDetail> {
+    return (await apiClient.patch(`/api/v1/incidents/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`, { status })).data;
   },
 
   async supplierSubtier(supplierId: string): Promise<SubtierLink[]> {
