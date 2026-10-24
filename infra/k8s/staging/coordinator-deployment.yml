@@ -20,9 +20,10 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: scirm-service-account
       containers:
       - name: coordinator
-        image: scirm/coordinator:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/coordinator:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -36,12 +37,71 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: redis-url
+        - name: STORE_BACKEND
+          value: "postgres"
         - name: WEAVIATE_URL
           value: "http://weaviate:8080"
         - name: LOG_LEVEL
           value: "INFO"
         - name: ENVIRONMENT
           value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        # Decrypts tenants' SAP connection passwords (same key as the gateway's MFA seeds).
+        - name: MFA_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: mfa-encryption-key
+        # Scheduled report emails (optional: without smtp-host nothing is sent and the UI says so).
+        - name: SMTP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-host
+              optional: true
+        - name: SMTP_PORT
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-port
+              optional: true
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-username
+              optional: true
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-password
+              optional: true
+        - name: SMTP_FROM
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-from
+              optional: true
+        # Links back to SCIRM in report emails.
+        - name: PUBLIC_APP_URL
+          value: "REPLACE_WITH_STAGING_APP_URL"
+        - name: PLANNER_SERVICE_URL
+          value: "http://planner:8000"
+        - name: RESEARCHER_SERVICE_URL
+          value: "http://researcher:8000"
+        - name: EXECUTOR_SERVICE_URL
+          value: "http://executor:8000"
+        - name: REVIEWER_SERVICE_URL
+          value: "http://reviewer:8000"
+        - name: DISCOVERY_SERVICE_URL
+          value: "http://discovery:8000"
+        - name: INGESTION_SERVICE_URL
+          value: "http://ingestion:8000"
         resources:
           requests:
             memory: "256Mi"

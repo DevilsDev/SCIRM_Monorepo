@@ -111,7 +111,7 @@ Implement a hybrid RAG (Retrieval-Augmented Generation) system with:
 ## Related ADRs
 
 - [ADR-001: Multi-Agent Swarm Architecture](./ADR-001-multi-agent-swarm-architecture.md)
-- [ADR-004: Data Governance Framework](./ADR-004-data-governance-framework.md)
+- Data Governance Framework (planned ADR, not written yet)
 
 ---
 

@@ -451,4 +451,4 @@ git push -u origin release/v$VERSION
 
 ---
 
-**Next**: See [Contributing Guide](contributing.md) for detailed development workflow and [Release Process](releases.md) for deployment procedures.
+**Next**: the contributing guide and release process are not written yet; see the [deployment runbook](../operations/runbooks/deployment-runbook.md) for deployments.

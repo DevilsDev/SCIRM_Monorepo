@@ -1,0 +1,158 @@
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { api, FeedbackVerdict, SignalMatch, SupplierSignals as SupplierSignalsData } from '../services/api';
+import FeedbackButtons, { FeedbackOption } from './FeedbackButtons';
+import SeverityBadge from './SeverityBadge';
+
+// How a record was linked to the supplier, in words a buyer can check.
+function matchReason(m: SignalMatch, t: (key: string, fallback: string, opts?: any) => string) {
+  switch (m.match_type) {
+    case 'name_exact':
+      return t('signals.matchExact', 'Names "{{name}}"', { name: m.matched_on });
+    case 'name_contains':
+    case 'name_similar':
+      return t('signals.matchSimilar', 'Names "{{name}}" (similar name, please verify)', { name: m.matched_on });
+    case 'parent_company':
+      return t('signals.matchParent', 'Names "{{name}}", which lists this supplier as its parent company', { name: m.matched_on });
+    case 'country_exposure':
+      return t('signals.matchCountry', 'Affects {{country}}, where this supplier is located', { country: m.matched_on });
+    case 'site_proximity':
+      return m.site
+        ? t('signals.matchSite', 'About {{distance}} km from {{site}} (within the {{radius}} km alert radius around the reported location; approximate)',
+          { distance: m.site.distance_km, site: m.site.site, radius: m.site.radius_km })
+        : m.match_type;
+    default:
+      return m.match_type;
+  }
+}
+
+function SignalRow({ m, supplierId, rating }: { m: SignalMatch; supplierId: string; rating?: FeedbackVerdict }) {
+  const { t } = useTranslation();
+  const s = m.signal;
+  const options: FeedbackOption[] = [
+    { verdict: 'useful' as const, label: t('feedback.useful', 'Useful') },
+    { verdict: 'not_useful' as const, label: t('feedback.notRelevant', 'Not relevant') },
+  ];
+  // Country exposure is about a place, not a name, so "wrong supplier" does not apply.
+  if (m.kind === 'incident') options.push({ verdict: 'wrong_supplier' as const, label: t('feedback.wrongSupplier', 'Wrong supplier') });
+  return (
+    <li className="py-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <SeverityBadge severity={s.severity} />
+        <span className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{s.source_label}</span>
+        <span className="text-[10px] text-gray-400">
+          {t('signals.published', 'Published {{date}}', { date: s.published_at })}
+          {s.updated_at && s.updated_at !== s.published_at && ` · ${t('signals.lastUpdated', 'updated {{date}}', { date: s.updated_at })}`}
+        </span>
+      </div>
+      <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{s.title}</p>
+      <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{s.content}</p>
+      {m.records && m.records.length > 1 && (
+        <details className="mt-1">
+          <summary className="text-[11px] text-gray-500 cursor-pointer">
+            {t('signals.eventRecords', 'One recall event covering {{count}} products', { count: m.records.length })}
+          </summary>
+          <ul className="mt-1 pl-4 list-disc text-[11px] text-gray-500 dark:text-gray-400 space-y-0.5">
+            {m.records.map((r) => (
+              <li key={r.id}>
+                <span className="font-mono">{r.external_id}</span> {r.product}
+                {r.url && <> · <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{t('signals.source', 'source')}</a></>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div className="flex items-center gap-3 mt-1">
+        <span className="text-[10px] text-gray-500 dark:text-gray-400">{matchReason(m, t as any)}</span>
+        {s.url && (
+          <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline">
+            {t('signals.viewSource', 'View source record')}
+          </a>
+        )}
+      </div>
+      <div className="mt-1">
+        <FeedbackButtons
+          target={{ target_type: 'signal_match', target_id: s.id, supplier_id: supplierId,
+            context: { match_type: m.match_type, confidence: m.confidence, source: s.source } }}
+          options={options}
+          initial={rating ?? null}
+          prompt={t('feedback.matchPrompt', 'Is this record useful for this supplier?')}
+        />
+      </div>
+    </li>
+  );
+}
+
+export default function SupplierSignals({ supplierId }: { supplierId: string }) {
+  const { t } = useTranslation();
+  const [data, setData] = useState<SupplierSignalsData | null>(null);
+  const [ratings, setRatings] = useState<Record<string, FeedbackVerdict>>({});
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    // Ratings are optional: without them the rows simply start unrated.
+    Promise.all([api.getSupplierSignals(supplierId),
+      api.getMySupplierFeedback(supplierId).then((r) => r.ratings).catch(() => ({}))])
+      .then(([signals, mine]) => { setData(signals); setRatings(mine); })
+      .catch((err) => setError(err?.response?.status === 503
+        ? t('signals.unavailable', 'Public signals are temporarily unavailable.')
+        : t('signals.failed', 'Could not load public signals.')))
+      .finally(() => setLoading(false));
+  }, [supplierId, t]);
+
+  if (loading) return <p className="text-sm text-gray-400 py-4">{t('signals.loading', 'Checking public records...')}</p>;
+  if (error) return <p className="text-sm text-red-500 py-4">{error}</p>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4">
+      <section>
+        <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+          {t('signals.incidentEvents', 'Events naming this supplier')} ({data.incidents.length < data.incident_total
+            ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.incidents.length, total: data.incident_total })
+            : data.incident_total}{data.incident_records && data.incident_records > data.incident_total
+            ? `; ${t('signals.recordCount', '{{count}} FDA records', { count: data.incident_records })}` : ''})
+        </h3>
+        {data.incidents.length === 0 ? (
+          <p className="text-xs text-gray-400 mt-2">
+            {t('signals.noIncidents', 'No FDA recall or shortage records name this supplier. Add the names it trades under as aliases to widen the search.')}
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {data.incidents.map((m) => <SignalRow key={m.signal.id} m={m} supplierId={supplierId} rating={ratings[m.signal.id]} />)}
+          </ul>
+        )}
+      </section>
+      {data.exposures.length > 0 && (
+        <section>
+          <h3 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+            {data.site_level
+              // Droughts have no meaningful point, so they stay country-level even when sites are known.
+              ? (data.exposures.some((m) => m.match_type === 'country_exposure')
+                ? t('signals.exposuresSitesAndRegions', 'Possible exposure: disasters near its sites or region-wide in its countries')
+                : t('signals.exposuresSites', 'Possible exposure: disasters near its sites'))
+              : t('signals.exposures', 'Possible exposure: disasters in its country')} ({data.exposures.length < data.exposure_total
+              ? t('signals.someOf', '{{shown}} most recent of {{total}}', { shown: data.exposures.length, total: data.exposure_total })
+              : data.exposure_total})
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-1">
+            {data.site_level
+              ? t('signals.exposureSiteNote', "Matched by distance from each alert's reported location, or by country for region-wide alerts such as droughts; they do not mean a site is affected.")
+              : t('signals.exposureNote', 'These alerts cover the whole country; they do not mean this supplier is affected. Add its sites to narrow this down.')}
+          </p>
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {data.exposures.map((m) => <SignalRow key={m.signal.id} m={m} supplierId={supplierId} rating={ratings[m.signal.id]} />)}
+          </ul>
+        </section>
+      )}
+      {data.site_level && !!data.exposures_elsewhere && (
+        <p className="text-[10px] text-gray-400">
+          {t('signals.elsewhere', '{{count}} other disaster alert(s) in its countries were not near any of its sites.', { count: data.exposures_elsewhere })}
+        </p>
+      )}
+    </div>
+  );
+}

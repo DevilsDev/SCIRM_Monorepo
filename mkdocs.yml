@@ -1,0 +1,45 @@
+site_name: SCIRM documentation
+site_description: Supply chain risk monitoring from public records, with cited answers.
+repo_url: https://github.com/DevilsDev/SCIRM_Monorepo
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+
+# ADR-003: internal dashboards are never published.
+exclude_docs: |
+  dashboards/
+
+nav:
+  - Home: index.md
+  - Guides:
+      - Importing suppliers from SAP: sap-import.md
+      - Connecting to SAP S/4HANA: sap-connection.md
+      - Bedrock (EU) setup: bedrock-setup.md
+      - Disaster exposure by site: site-exposure.md
+      - Two-step sign-in: two-step-sign-in.md
+      - Passwords: passwords.md
+      - Single sign-on: single-sign-on.md
+      - User provisioning (SCIM): scim.md
+      - Audit log: audit-log.md
+      - Public API: public-api.md
+      - Webhooks: webhooks.md
+      - Scheduled reports: scheduled-reports.md
+      - Supplier assessments: supplier-assessments.md
+      - Regulatory watch: regulatory-watch.md
+  - Development:
+      - Branching: development/branching.md
+  - Operations:
+      - Deployment runbook: operations/runbooks/deployment-runbook.md
+  - Architecture decisions:
+      - ADR-001 Multi-agent architecture: architecture/adr/ADR-001-multi-agent-swarm-architecture.md
+      - ADR-002 RAG implementation: architecture/adr/ADR-002-rag-implementation-strategy.md
+      - ADR-003 Secure Pages publishing: architecture/adr/ADR-003-secure-github-pages-publishing.md
+      - ADR template: architecture/adr/ADR-TEMPLATE.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

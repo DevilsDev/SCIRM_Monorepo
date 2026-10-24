@@ -1,0 +1,22 @@
+# Runtime dependencies for the API gateway and agent services (container images).
+# Pinned; the heavy ML stack in requirements.txt is not needed by any service.
+fastapi==0.146.0
+starlette==1.9.0
+uvicorn==0.34.0
+httpx==0.28.1
+pydantic==2.14.1
+PyJWT==2.15.1
+bcrypt==5.0.0
+structlog==26.1.0
+prometheus_client==0.26.0
+openai==1.59.7
+anthropic==0.42.0
+# PostgreSQL store (libs/common/store.py) and migrations (scripts/db_setup.py).
+sqlalchemy==2.1.5
+asyncpg==0.32.0
+greenlet==3.5.6
+alembic==1.20.0
+psycopg2-binary==2.9.13
+# Amazon Bedrock (Claude, Cohere Embed) in the EU: libs/common/llm.py, libs/evidence/embeddings.py.
+boto3==1.43.115
+cryptography==50.0.2
