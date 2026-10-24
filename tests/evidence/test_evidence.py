@@ -213,6 +213,16 @@ def test_records_that_read_the_same_become_one_sentence():
     assert claims[0]["text"].endswith("[S1][S2]")
 
 
+def test_a_recall_without_a_class_reads_correctly_and_passes_the_checker():
+    """Found at the Phase 2 gate: "a unclassified recall"."""
+    record = {"signal_type": "recall", "published_at": "2026-10-24", "title": "Recall: EXAMPLE API",
+              "entity_names": ["Example Inc."], "raw": {}}
+    text = answer.describe(record)
+    assert "published an unclassified recall by Example Inc." in text
+    assert verify.check_claim(f"{text} [S1]", ["S1"], {"S1": record}) == []
+    assert "published a Class II recall" in answer.describe({**record, "raw": {"classification": "Class II"}})
+
+
 def test_each_event_is_ranked_before_a_second_record_of_an_event():
     """A recall event filed as a dozen records must not crowd out the supplier's other events."""
     from libs.evidence.retrieval import _one_per_event_first

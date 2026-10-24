@@ -13,10 +13,13 @@ days, 90 days, 1 year or never).
   created it, so it keeps working if they leave. Their email is shown as its creator.
 - **Revoking takes effect at once.** The next request with the key fails.
 
-Each key is listed by its prefix (`scirm_` and 8 characters) with its last use. Creating,
-revoking and every refused request are recorded in the [audit log](audit-log.md) under
-*Access and team*, with the key's prefix, never the key. Successful reads are not
-recorded, like other reads.
+Each key is listed by its prefix (`scirm_` and 8 characters) with its last use. Creating
+and revoking keys, and every refused request made with one of your keys (a route it may
+not call, or the key after it expired or was revoked), are recorded in the
+[audit log](audit-log.md) under *Access and team*, with the key's prefix, never the key.
+A request with a key that matches no key at all (mistyped or made up) cannot be tied to
+an organization, so it is refused (`401`) without appearing in anyone's audit log.
+Successful reads are not recorded, like other reads.
 
 ## Calling the API
 

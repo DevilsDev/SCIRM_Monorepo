@@ -9,7 +9,9 @@ const MAX_ATTEMPTS = 5;
 
 // Why single sign-on sent the person back here (the gateway's ?sso= reason).
 const SSO_MESSAGES: Record<string, string> = {
-  unavailable: 'Single sign-on is not set up for this email. Sign in with your password, or ask your administrator.',
+  // Deliberately one answer for an unknown email, a deactivated account and an organization
+  // without SSO, so the message does not reveal which accounts exist.
+  unavailable: 'Single sign-on is not available for this email. Check the address, sign in with your password if you have one, or ask your administrator.',
   no_account: 'Your identity provider signed you in, but there is no active SCIRM account for you in that organization. Ask your administrator.',
   denied: 'The sign-in was cancelled or refused at your identity provider.',
   expired: 'The sign-in took too long or was started in another browser. Try again.',

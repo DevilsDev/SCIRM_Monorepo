@@ -71,8 +71,10 @@ to few people.
   from someone's sign-in, or a sign-in an attacker starts in a victim's browser, cannot sign
   that browser into the attacker's account (login CSRF).
 - **Audit log:** `auth.sso_login`, `auth.sso_login_failed` (with a reason code such as
-  `bad_state`, `invalid_token`, `no_account`, `subject_mismatch`), `sso.configured` and
-  `sso.removed`.
+  `bad_state`, `invalid_token`, `no_account`, `subject_mismatch`), `sso.configured` (first
+  setup), `sso.updated` (with the changed fields and the `enforce` value; the client secret
+  is never recorded), `sso.enforcement_on` / `sso.enforcement_off` (requiring single
+  sign-on, or allowing passwords again) and `sso.removed`.
 
 Asking to sign in with an email that has no account, or whose organization has no single
 sign-on, gives the same answer. For an organization with single sign-on, the redirect to

@@ -54,5 +54,8 @@ Without roles, a new account is a `viewer`.
   in any organization, returns `409` (`uniqueness`).
 - **Errors** use the SCIM error format (`urn:ietf:params:scim:api:messages:2.0:Error`, with
   `status`, `scimType` and `detail`). Responses are `application/scim+json`.
-- **Audit:** every change is recorded in the [audit log](audit-log.md) under *Access and
-  team*, with the token as the actor (`api-key:<name> (<prefix>)`).
+- **Audit:** every request is recorded in the [audit log](audit-log.md) under *Access and
+  team*, with the token as the actor (`api-key:<name> (<prefix>)`). Each change also gets
+  its own entry naming the account (`userName`, roles, active): `scim.user_created`,
+  `scim.user_updated`, `scim.user_deactivated` or `scim.user_reactivated`, with every
+  changed field as `[before, after]`. A request that changes nothing adds no such entry.

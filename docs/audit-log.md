@@ -20,8 +20,8 @@ own entries.
 | Filter | Matches |
 |---|---|
 | Sign-ins | `auth.*`: sign-ins and failed sign-ins |
-| Access and team | two-step sign-in, invitations, roles and deactivation (`mfa.*`, `invitation.*`, `/org/*`, `/auth/*`) |
-| Integrations and imports | the SAP connection and every supplier or spend import |
+| Access and team | two-step sign-in, invitations, roles and deactivation, API keys, single sign-on and SCIM provisioning (`mfa.*`, `invitation.*`, `api_key.*`, `sso.*`, `scim.*`, `/auth/*`, and the team, API key and SSO settings) |
+| Integrations and imports | the SAP connection, every supplier or spend import, webhooks and scheduled reports (`webhook.*`, `report.*`, including *Send now*) |
 | Data changes | everything else |
 | Person | part of the email |
 | From / To | calendar days in your time zone |

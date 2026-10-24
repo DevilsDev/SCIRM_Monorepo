@@ -12,6 +12,20 @@ from fastapi import FastAPI, Request, Response, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 
+def public_url(name: str, default: str = "") -> str:
+    """A configured public base URL (PUBLIC_APP_URL, PUBLIC_API_URL) without its trailing
+    slash. A value that is not an http(s) URL, such as an unreplaced "REPLACE_WITH_..."
+    placeholder, is treated as unset and logged: features then report they are not set up
+    instead of building broken sign-in redirects and email links."""
+    import re
+    import structlog
+    value = os.getenv(name, default).strip().rstrip("/")
+    if value and not re.fullmatch(r"https?://[A-Za-z0-9.\-]+(:\d+)?(/\S*)?", value):
+        structlog.get_logger().error("Ignoring invalid public URL setting", setting=name, value=value[:60])
+        return ""
+    return value
+
+
 def get_allowed_origins() -> List[str]:
     """
     Get CORS allowed origins from environment.

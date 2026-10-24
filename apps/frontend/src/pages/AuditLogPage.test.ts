@@ -11,6 +11,9 @@ describe('describeAction', () => {
     expect(describeAction('auth.login_failed')).toBe('Failed sign-in');
     expect(describeAction('POST /api/v1/org/invitations')).toBe('Invited a teammate');
     expect(describeAction('PATCH /api/v1/org/members/{member_id}')).toBe("Changed a teammate's role or access");
+    expect(describeAction('sso.enforcement_off')).toBe('Stopped requiring single sign-on (members can use passwords)');
+    expect(describeAction('scim.user_deactivated')).toBe('Deactivated an account (SCIM)');
+    expect(describeAction('PATCH /scim/v2/Users/{user_id}')).toBe('SCIM request: change an account');
   });
 
   it('falls back to the verb and resource, then to the raw action', () => {

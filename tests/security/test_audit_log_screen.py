@@ -44,6 +44,27 @@ def test_categories():
     assert audit_category("suppliers.import.sap") == "integrations"
     assert audit_category("PUT /api/v1/integrations/sap") == "integrations"
     assert audit_category("POST /api/v1/suppliers") == "changes"
+    # Webhooks and reports, named or by route, are integrations (send-now was under access).
+    for action in ("report.scheduled", "POST /api/v1/org/reports/{schedule_id}/send-now", "webhook.created",
+                   "PATCH /api/v1/org/webhooks/{webhook_id}"):
+        assert audit_category(action) == "integrations", action
+    for action in ("sso.enforcement_off", "scim.user_deactivated", "PATCH /scim/v2/Users/{user_id}",
+                   "PUT /api/v1/org/sso", "DELETE /api/v1/org/api-keys/{key_id}"):
+        assert audit_category(action) == "access", action
+
+
+def test_categories_do_not_overlap():
+    """PostgreSQL filters each category by its own patterns, so an action matching two
+    categories would be listed under both."""
+    from libs.common.store import AUDIT_CATEGORIES, _like
+    actions = ["auth.login", "mfa.enabled", "sso.updated", "scim.user_created", "api_key.refused", "report.deleted",
+               "webhook.created", "integrations.sap.save", "suppliers.import.sap"]
+    actions += [f"POST /api/v1/org/{r}" for r in ("invitations", "members/{member_id}/mfa/reset", "api-keys",
+                                                  "webhooks", "reports/{schedule_id}/send-now")]
+    actions += ["PUT /api/v1/org/sso", "POST /scim/v2/Users", "POST /api/v1/auth/forgot-password"]
+    for action in actions:
+        hits = [name for name, patterns in AUDIT_CATEGORIES.items() if any(_like(p, action) for p in patterns)]
+        assert len(hits) == 1, (action, hits)
 
 
 class TestFilters:
