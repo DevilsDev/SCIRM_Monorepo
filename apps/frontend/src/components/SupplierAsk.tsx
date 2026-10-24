@@ -8,6 +8,7 @@ const METHOD_LABELS: Record<string, string> = {
   extractive: 'Composed from the records themselves (no AI model configured)',
   llm: 'Written by the AI model from the records, then checked against them',
   extractive_after_llm_rejected: "The AI model's answer failed the citation check; showing the records' own wording",
+  extractive_after_llm_failed: "The AI model could not be reached; showing the records' own wording",
 };
 
 // Renders "... text [S1][S2]" with the citation markers as links to the record list.

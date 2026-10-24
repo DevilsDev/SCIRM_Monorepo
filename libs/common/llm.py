@@ -68,9 +68,10 @@ _usage: ContextVar[Optional[Dict[str, int]]] = ContextVar("llm_usage", default=N
 
 
 @contextmanager
-def track_usage() -> Iterator[Dict[str, int]]:
-    """Count successful and failed LLM calls made inside this block."""
-    stats = {"calls": 0, "failures": 0}
+def track_usage() -> Iterator[Dict[str, Any]]:
+    """Count successful and failed LLM calls made inside this block, and the provider and
+    model of the last successful one."""
+    stats: Dict[str, Any] = {"calls": 0, "failures": 0}
     token = _usage.set(stats)
     try:
         yield stats
@@ -78,10 +79,12 @@ def track_usage() -> Iterator[Dict[str, int]]:
         _usage.reset(token)
 
 
-def _record(key: str) -> None:
+def _record(key: str, provider: Optional[str] = None, model: Optional[str] = None) -> None:
     stats = _usage.get()
     if stats is not None:
         stats[key] += 1
+        if provider:  # which model answered, for the AI run log
+            stats["provider"], stats["model"] = provider, model
 
 
 # One client per provider: SDK clients hold connection pools and must be reused.
@@ -226,7 +229,7 @@ async def generate(
             try:
                 logger.info("LLM call", provider=prov, model=resolved_model, attempt=attempt)
                 result = await _CALLS[prov](prompt, system, resolved_model)
-                _record("calls")
+                _record("calls", prov, resolved_model)
                 return result
             except Exception as exc:
                 last_error = exc

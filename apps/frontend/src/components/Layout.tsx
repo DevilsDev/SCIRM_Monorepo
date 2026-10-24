@@ -18,6 +18,7 @@ import {
   ClipboardDocumentCheckIcon,
   EyeIcon,
   FireIcon,
+  SparklesIcon,
   ClipboardDocumentListIcon,
   PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
@@ -83,6 +84,7 @@ const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem
     items: [
       { to: '/integrations', tKey: 'nav.integrations', fallback: 'Integrations', icon: PuzzlePieceIcon, roles: ['admin'] },
       { to: '/audit', tKey: 'nav.audit', fallback: 'Audit log', icon: ClipboardDocumentListIcon, roles: ['admin', 'auditor'] },
+      { to: '/ai-control', tKey: 'nav.aiControl', fallback: 'AI control centre', icon: SparklesIcon, roles: ['admin', 'analyst', 'auditor'] },
     ],
   },
 ];

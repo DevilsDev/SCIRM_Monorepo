@@ -105,7 +105,7 @@ class TestBedrockConverse:
         bedrock.text = '{"answer": "x"}'
         with llm.track_usage() as usage:
             out = asyncio.run(llm.generate("question", system="rules"))
-        assert out == '{"answer": "x"}' and usage == {"calls": 1, "failures": 0}
+        assert out == '{"answer": "x"}' and usage == {"calls": 1, "failures": 0, "provider": "bedrock", "model": "eu.anthropic.claude-sonnet-5-5"}
         _, kwargs = bedrock.calls[0]
         assert kwargs["modelId"] == "eu.anthropic.claude-sonnet-5-5"
         assert kwargs["system"] == [{"text": "rules"}]

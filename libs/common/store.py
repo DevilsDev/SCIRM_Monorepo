@@ -23,6 +23,7 @@ from libs.common import secret_box
 from libs.common.store_assessments import MemoryAssessments, PostgresAssessments
 from libs.common.store_watchlist import MemoryWatchlist, PostgresWatchlist
 from libs.common.store_warroom import MemoryWarRoom, PostgresWarRoom
+from libs.common.store_ai import MemoryAI, PostgresAI
 
 SEVERITIES = ("low", "medium", "high", "critical")
 
@@ -241,7 +242,7 @@ DEMO_ORGS = [
 # In-memory backend
 # ===========================================================================
 
-class MemoryStore(MemoryAssessments, MemoryWatchlist, MemoryWarRoom):
+class MemoryStore(MemoryAssessments, MemoryWatchlist, MemoryWarRoom, MemoryAI):
     def __init__(self, seed_demo: bool = True):
         self.tasks: Dict[str, Dict[str, Any]] = {}
         self.manual_risks: Dict[str, Dict[str, Any]] = {}
@@ -1196,7 +1197,8 @@ def _jsonable(row: Dict[str, Any]) -> Dict[str, Any]:
 # PostgreSQL filter matches each one's patterns on their own.
 AUDIT_CATEGORIES: Dict[str, Tuple[str, ...]] = {
     "sign_in": ("auth.%",),
-    "access": ("mfa.%", "invitation.%", "api_key.%", "sso.%", "scim.%", "% /api/v1/org/invitations%",
+    "access": ("mfa.%", "invitation.%", "api_key.%", "sso.%", "scim.%", "action.%", "% /api/v1/ai/%",
+               "% /api/v1/org/invitations%",
                "% /api/v1/org/members%", "% /api/v1/org/api-keys%", "% /api/v1/org/sso%", "% /api/v1/auth/%",
                "% /api/v1/invitations/%", "% /scim/v2/%"),
     "integrations": ("integrations.%", "suppliers.import.%", "webhook.%", "report.%", "% /api/v1/integrations/%",
@@ -1287,7 +1289,7 @@ def _audit_matches(entry: Dict[str, Any], filters: Dict[str, Any]) -> bool:
     return True
 
 
-class PostgresStore(PostgresAssessments, PostgresWatchlist, PostgresWarRoom):
+class PostgresStore(PostgresAssessments, PostgresWatchlist, PostgresWarRoom, PostgresAI):
     def __init__(self, database_url: str):
         from sqlalchemy.ext.asyncio import create_async_engine
         if database_url.startswith("postgresql://"):
