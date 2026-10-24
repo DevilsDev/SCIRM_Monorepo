@@ -441,6 +441,24 @@ def test_war_room_tables_are_tenant_scoped_and_the_timeline_is_append_only(db):
     assert as_org(db["app"], db["a"], "SELECT count(*) FROM incident_timeline WHERE incident_id = %s", (incident,)) == [(1,)]
 
 
+def test_ai_tables_are_tenant_scoped_and_the_run_log_is_append_only(db):
+    """Migration 028: forced RLS on the AI run log, the action policy and the proposals; the
+    run log cannot be rewritten or deleted by the application."""
+    tables = ("ai_runs", "action_policies", "action_proposals")
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY(%s)",
+                    (list(tables),))
+        assert {r[0]: (r[1], r[2]) for r in cur.fetchall()} == {t: (True, True) for t in tables}
+    run = "INSERT INTO ai_runs (organization_id, kind, status) VALUES (%s, 'ask', 'answered')"
+    assert as_org(db["app"], db["a"], run, (db["a"],)) == 1
+    assert isinstance(as_org(db["app"], db["b"], run, (db["a"],)), psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM ai_runs") == [(0,)]
+    for statement in ("UPDATE ai_runs SET status = 'rewritten'", "DELETE FROM ai_runs", "TRUNCATE ai_runs"):
+        assert isinstance(as_org(db["app"], db["a"], statement), psycopg2.errors.InsufficientPrivilege), statement
+    policy = "INSERT INTO action_policies (organization_id, action, mode) VALUES (%s, 'incident.open', %s)"
+    assert isinstance(as_org(db["app"], db["a"], policy, (db["a"], "sometimes")), psycopg2.errors.CheckViolation)
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

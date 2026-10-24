@@ -37,7 +37,7 @@ from libs.assessments import questions as aq
 from libs.common import oidc, secret_box
 from libs.common.store_assessments import new_portal_token, portal_token_hash
 from libs.common.store_watchlist import DuplicateTerm
-from libs.common import warroom
+from libs.common import actions, warroom
 from libs.intel import matching, sources as sources_registry, watchlist
 from libs.integrations import reports, webhooks
 
@@ -1041,7 +1041,11 @@ async def list_assessments(supplier_id: Optional[str] = None, status: Optional[s
 async def send_assessment(body: AssessmentRequest, token: str = Depends(security)):
     """Send a questionnaire to a supplier contact. The portal link is returned once (and
     emailed when email is configured); it works until submitted, cancelled or re-sent."""
-    user = await verify_token(token.credentials)
+    return await _send_assessment(await verify_token(token.credentials), body)
+
+
+async def _send_assessment(user, body: AssessmentRequest):
+    """Shared with approved AI proposals (assessment.send)."""
     require_write_access(user)
     template = await _assessment_template(user.organization_id, body.template_id)
     email = _valid_email(body.recipient_email)
@@ -1151,7 +1155,11 @@ async def list_watchlist(token: str = Depends(security)):
 
 @app.post("/api/v1/watchlist")
 async def add_watchlist_item(body: WatchlistItemRequest, token: str = Depends(security)):
-    user = await verify_token(token.credentials)
+    return await _add_watchlist_item(await verify_token(token.credentials), body)
+
+
+async def _add_watchlist_item(user, body: WatchlistItemRequest):
+    """Shared with approved AI proposals (watchlist.add)."""
     require_write_access(user)
     try:
         term = watchlist.clean_term(body.term)
@@ -1286,7 +1294,11 @@ async def list_incidents(status: Optional[str] = None, token: str = Depends(secu
 async def open_incident(body: IncidentRequest, token: str = Depends(security)):
     """Open an incident, from a public record (its suppliers are prefilled from the record's
     matches) or by hand."""
-    user = await verify_token(token.credentials)
+    return await _open_incident(await verify_token(token.credentials), body)
+
+
+async def _open_incident(user, body: IncidentRequest):
+    """Shared with approved AI proposals (incident.open): the same checks either way."""
     require_write_access(user)
     org = user.organization_id
     owner = await _member_or_none(org, body.owner_email, "owner")
@@ -1370,7 +1382,11 @@ async def update_incident(incident_id: str, body: IncidentUpdate, token: str = D
 
 @app.post("/api/v1/incidents/{incident_id}/notes")
 async def add_incident_note(incident_id: str, body: IncidentNote, token: str = Depends(security)):
-    user = await verify_token(token.credentials)
+    return await _add_incident_note(await verify_token(token.credentials), incident_id, body)
+
+
+async def _add_incident_note(user, incident_id: str, body: IncidentNote):
+    """Shared with approved AI proposals (incident.note)."""
     require_write_access(user)
     if not await audit_store.add_incident_note(user.organization_id, incident_id, [("note", body.text.strip())], user.email):
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -1435,6 +1451,174 @@ async def update_incident_task(incident_id: str, task_id: str, body: IncidentTas
     entry = ("task_done", f"Done: {task['title']}") if body.status == "done" else ("task_reopened", f"Reopened: {task['title']}")
     await audit_store.set_incident_task_status(user.organization_id, incident_id, task_id, body.status, [entry], user.email)
     return await _incident_view(user.organization_id, incident_id)
+
+
+# ---------------------------------------------------------------------------
+# AI control centre: the AI run log, the action policy and the approval queue
+# (libs/common/actions.py). Agents (the MCP server) propose actions; depending on the
+# policy a person approves them, or they run directly. Either way they run through the same
+# functions, and permission checks, as when a person does the action in SCIRM.
+# ---------------------------------------------------------------------------
+
+class ActionPolicyRequest(BaseModel):
+    action: str = Field(..., max_length=60)
+    mode: str = Field(..., pattern="^(never|approval|allowed)$")
+
+
+class ProposalDecision(BaseModel):
+    note: str = Field("", max_length=1000)
+
+
+class ActionRefused(Exception):
+    """The organization's policy does not let agents take this action."""
+
+
+def _action_request(action: str, params: Dict[str, Any]):
+    """The action's request model, checked now so a bad proposal never reaches the queue."""
+    if action == "incident.open":
+        return IncidentRequest(**params)
+    if action == "incident.note":
+        return IncidentNote(text=params.get("text", ""))
+    if action == "watchlist.add":
+        return WatchlistItemRequest(**params)
+    if action == "assessment.send":
+        return AssessmentRequest(**params)
+    raise ValueError(f"Unknown action {action!r}")
+
+
+async def _run_action(user, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Run an action as `user`, through the same function as its API endpoint. The result
+    keeps ids only (a supplier's portal link is returned to the approver once, not stored)."""
+    request = _action_request(action, params)
+    if action == "incident.open":
+        view = await _open_incident(user, request)
+        return {"incident_id": view["incident"]["id"]}
+    if action == "incident.note":
+        await _add_incident_note(user, str(params.get("incident_id") or ""), request)
+        return {"incident_id": str(params.get("incident_id"))}
+    if action == "watchlist.add":
+        return {"item_id": (await _add_watchlist_item(user, request))["item"]["id"]}
+    sent = await _send_assessment(user, request)
+    return {"assessment_id": sent["assessment"]["id"], "emailed": sent["emailed"], "_portal_url": sent["portal_url"]}
+
+
+async def propose_action(agent, action: str, params: Dict[str, Any], summary: str, via: str = "mcp") -> Dict[str, Any]:
+    """An agent asks to take an action. `agent` is the caller (an MCP key's internal user).
+    never: refused. approval: queued for a person. allowed: run now, as the agent."""
+    org = agent.organization_id
+    mode = actions.effective(await audit_store.get_action_policy(org)).get(action)
+    if mode is None:
+        raise ValueError(f"Unknown action {action!r}")
+    if mode == "never":
+        raise ActionRefused(f"Your organization does not let AI agents {actions.ACTIONS[action]['label'].lower()}.")
+    _action_request(action, params)  # pydantic ValidationError (a ValueError) for bad parameters
+    proposal = await audit_store.create_proposal(org, {"action": action, "params": params, "summary": summary.strip()[:500],
+                                                       "proposed_by": agent.email, "proposed_via": via})
+    await _audit_event(org, None, agent.email, "action.proposed", target=proposal["id"],
+                       details={"action": action, "summary": proposal["summary"]}, actor_type="api_key",
+                       resource_type="action")
+    if mode == "allowed":
+        proposal = await _decide(agent, proposal["id"], approve=True, note="Allowed by the organization's policy")
+    return proposal
+
+
+async def _decide(user, proposal_id: str, approve: bool, note: str) -> Dict[str, Any]:
+    org = user.organization_id
+    claimed = await audit_store.claim_proposal(org, proposal_id, user.email)
+    if not claimed:
+        raise HTTPException(status_code=409, detail="This proposal was already decided, or does not exist")
+    if not approve:
+        done = await audit_store.finish_proposal(org, proposal_id, "rejected", None, note or None)
+        await _audit_event(org, user.id, user.email, "action.rejected", target=proposal_id,
+                           details={"action": claimed["action"]}, resource_type="action")
+        return done
+    portal_url = None
+    try:
+        result = await _run_action(user, claimed["action"], claimed["params"] or {})
+        portal_url = result.pop("_portal_url", None)
+        status = "executed"
+    except HTTPException as exc:
+        result, status = {"error": str(exc.detail)}, "failed"
+    except ValueError as exc:
+        result, status = {"error": str(exc)[:300]}, "failed"
+    done = await audit_store.finish_proposal(org, proposal_id, status, result, note or None)
+    await _audit_event(org, user.id if not user.email.startswith("api-key:") else None, user.email,
+                       "action.executed" if status == "executed" else "action.failed", target=proposal_id,
+                       details={"action": claimed["action"], **result},
+                       actor_type="api_key" if user.email.startswith("api-key:") else "user", resource_type="action")
+    return {**done, **({"portal_url": portal_url} if portal_url else {})}
+
+
+@app.get("/api/v1/ai/policy")
+async def get_action_policy(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    modes = actions.effective(await audit_store.get_action_policy(user.organization_id))
+    return {"modes": actions.MODES, "actions": [
+        {"action": name, "label": spec["label"], "external": spec["external"], "default": spec["default"],
+         "mode": modes[name]} for name, spec in actions.ACTIONS.items()]}
+
+
+@app.put("/api/v1/ai/policy")
+async def set_action_policy(body: ActionPolicyRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "change what AI agents may do")
+    try:
+        actions.check_mode(body.action, body.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    before = actions.effective(await audit_store.get_action_policy(user.organization_id))[body.action]
+    await audit_store.set_action_policy(user.organization_id, body.action, body.mode, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "action.policy_changed", target=body.action,
+                       details={"action": body.action, "from": before, "to": body.mode}, resource_type="action")
+    return await get_action_policy(token)
+
+
+@app.get("/api/v1/ai/proposals")
+async def list_action_proposals(status: Optional[str] = None, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    if status and status not in ("pending", "executed", "rejected", "failed"):
+        raise HTTPException(status_code=400, detail="Unknown status")
+    rows = await audit_store.list_proposals(user.organization_id, status)
+    return {"proposals": [{**p, "label": actions.ACTIONS.get(p["action"], {}).get("label", p["action"])} for p in rows]}
+
+
+@app.post("/api/v1/ai/proposals/{proposal_id}/approve")
+async def approve_action_proposal(proposal_id: str, body: ProposalDecision, token: str = Depends(security)):
+    """Run the proposed action as the approver (who needs the role the action needs)."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    return {"proposal": await _decide(user, proposal_id, approve=True, note=body.note.strip())}
+
+
+@app.post("/api/v1/ai/proposals/{proposal_id}/reject")
+async def reject_action_proposal(proposal_id: str, body: ProposalDecision, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    return {"proposal": await _decide(user, proposal_id, approve=False, note=body.note.strip())}
+
+
+def _require_run_reader(user) -> None:
+    if not any(r in ("admin", "auditor") for r in user.roles):
+        raise HTTPException(status_code=403, detail="Only administrators and auditors can read the AI run log")
+
+
+@app.get("/api/v1/ai/runs")
+async def list_ai_runs(kind: Optional[str] = None, limit: int = 100, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_run_reader(user)
+    if kind and kind not in ("ask", "mcp_tool"):
+        raise HTTPException(status_code=400, detail="Unknown kind")
+    return {"runs": await audit_store.list_ai_runs(user.organization_id, kind, max(1, min(limit, 500)))}
+
+
+@app.get("/api/v1/ai/runs/{run_id}")
+async def get_ai_run(run_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_run_reader(user)
+    run = await audit_store.get_ai_run(user.organization_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {"run": run}
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:
@@ -2201,19 +2385,52 @@ class SupplierQuestion(BaseModel):
 @app.post("/api/v1/suppliers/{supplier_id}/ask")
 async def ask_about_supplier(supplier_id: str, body: SupplierQuestion, token: str = Depends(security)):
     """Grounded answer from public records about one supplier; every sentence cites a record."""
-    user = await verify_token(token.credentials)
+    return await _ask(await verify_token(token.credentials), supplier_id, body)
+
+
+# Methods where the answer did not come from the model as asked: shown as degraded in the run log.
+_DEGRADED_METHODS = ("extractive_after_llm_failed", "extractive_after_llm_rejected")
+
+
+async def _ask(user, supplier_id: str, body: SupplierQuestion):
+    """Ask, recorded in the AI run log (who asked what, which model answered, what the
+    citation checker kept and removed). Shared with the MCP server."""
+    import time
+    started = time.monotonic()
+    run: Dict[str, Any] = {"kind": "ask", "actor": user.email,
+                           "actor_type": "api_key" if (user.email or "").startswith("api-key:") else "user",
+                           "input": {"supplier_id": supplier_id, "question": body.question}}
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(f"{COORDINATOR_URL}/suppliers/{quote(supplier_id, safe='')}/ask",
                                          json=body.model_dump(), headers=_svc_headers(user), timeout=60.0)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
     except httpx.HTTPStatusError as e:
+        await _record_run(user, {**run, "status": "error", "degraded": True,
+                                 "output": {"http_status": e.response.status_code}}, started)
         if e.response.status_code in (404, 503):
             raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail"))
         raise HTTPException(status_code=502, detail="Answering failed")
-    except httpx.HTTPError:
+    except httpx.HTTPError as e:
+        await _record_run(user, {**run, "status": "error", "degraded": True, "output": {"error": type(e).__name__}},
+                          started)
         raise HTTPException(status_code=503, detail="Answering is unavailable")
+    run["input"]["supplier"] = result.get("supplier")
+    await _record_run(user, {**run, "status": result.get("status") or "unknown", "method": result.get("method"),
+                             "degraded": result.get("method") in _DEGRADED_METHODS, "llm": result.get("llm"),
+                             "output": {"note": result.get("note"), "retrieval": result.get("retrieval"),
+                                        "claims": result.get("claims") or [], "removed": result.get("removed") or [],
+                                        "citations": len(result.get("citations") or [])}}, started)
+    return result
+
+
+async def _record_run(user, run: Dict[str, Any], started: float) -> None:
+    import time
+    try:
+        await audit_store.record_ai_run(user.organization_id, {**run, "latency_ms": int((time.monotonic() - started) * 1000)})
+    except Exception as exc:  # the answer is still returned; the failure is logged
+        logger.error("AI run log write failed", error=type(exc).__name__)
 
 
 class ScanUpload(BaseModel):

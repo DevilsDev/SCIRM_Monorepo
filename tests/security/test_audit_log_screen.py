@@ -48,7 +48,8 @@ def test_categories():
     for action in ("report.scheduled", "POST /api/v1/org/reports/{schedule_id}/send-now", "webhook.created",
                    "PATCH /api/v1/org/webhooks/{webhook_id}"):
         assert audit_category(action) == "integrations", action
-    for action in ("sso.enforcement_off", "scim.user_deactivated", "PATCH /scim/v2/Users/{user_id}",
+    for action in ("sso.enforcement_off", "scim.user_deactivated", "PATCH /scim/v2/Users/{user_id}", "action.executed",
+                   "PUT /api/v1/ai/policy", "POST /api/v1/ai/proposals/{proposal_id}/approve",
                    "PUT /api/v1/org/sso", "DELETE /api/v1/org/api-keys/{key_id}"):
         assert audit_category(action) == "access", action
 
@@ -61,7 +62,8 @@ def test_categories_do_not_overlap():
                "webhook.created", "integrations.sap.save", "suppliers.import.sap"]
     actions += [f"POST /api/v1/org/{r}" for r in ("invitations", "members/{member_id}/mfa/reset", "api-keys",
                                                   "webhooks", "reports/{schedule_id}/send-now")]
-    actions += ["PUT /api/v1/org/sso", "POST /scim/v2/Users", "POST /api/v1/auth/forgot-password"]
+    actions += ["PUT /api/v1/org/sso", "POST /scim/v2/Users", "POST /api/v1/auth/forgot-password", "action.proposed",
+                "action.policy_changed", "PUT /api/v1/ai/policy"]
     for action in actions:
         hits = [name for name, patterns in AUDIT_CATEGORIES.items() if any(_like(p, action) for p in patterns)]
         assert len(hits) == 1, (action, hits)

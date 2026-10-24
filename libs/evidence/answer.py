@@ -119,13 +119,18 @@ def _extractive(evidence: Dict[str, Dict[str, Any]], results: List[Dict[str, Any
             for text, sids in sentences.items()]
 
 
-async def _llm_claims(question: str, supplier_name: str, evidence: Dict[str, Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+async def _llm_claims(question: str, supplier_name: str, evidence: Dict[str, Dict[str, Any]],
+                      usage_out: Optional[Dict[str, Any]] = None) -> Optional[List[Dict[str, Any]]]:
     records = "\n".join(f'<record id="{sid}">\n{json.dumps({k: r.get(k) for k in ("title", "summary", "published_at", "signal_type")}, default=str)}\n</record>'
                         for sid, r in evidence.items())
     prompt = f"Supplier: {supplier_name}\nQuestion: {question}\n\nRecords:\n{records}"
     try:
         with llm.track_usage() as usage:
-            raw = await llm.generate(prompt, system=SYSTEM_PROMPT)
+            try:
+                raw = await llm.generate(prompt, system=SYSTEM_PROMPT)
+            finally:
+                if usage_out is not None:
+                    usage_out.update(usage)
         if not usage.get("calls"):
             return None
         text = json.loads(raw).get("answer", "") if raw.strip().startswith("{") else raw
@@ -157,9 +162,15 @@ async def compose(question: str, supplier: Dict[str, Any], retrieved: Dict[str, 
     evidence = _evidence(results)
     draft, method = None, "extractive"
     if use_llm if use_llm is not None else llm.is_configured():
-        draft = await _llm_claims(question, name, evidence)
+        usage: Dict[str, Any] = {}
+        draft = await _llm_claims(question, name, evidence, usage)
+        # Which model wrote the draft (for the AI run log); a failed call leaves the answer to
+        # the records' own wording, which is reported as degraded.
+        base["llm"] = {k: usage.get(k) for k in ("provider", "model", "calls", "failures")}
         if draft is not None:
             method = "llm"
+        else:
+            method = "extractive_after_llm_failed"
     if draft is None:
         draft = _extractive(evidence, results)
     if method == "llm" and draft == []:

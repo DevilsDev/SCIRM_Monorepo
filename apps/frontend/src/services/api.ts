@@ -507,6 +507,51 @@ export interface IncidentDetail {
   timeline: Array<{ id: string; kind: string; text: string; actor: string | null; created_at: string }>;
 }
 
+export type ActionMode = 'never' | 'approval' | 'allowed';
+
+export interface ActionPolicyEntry {
+  action: string;
+  label: string;
+  /** Reaches outside the organization: at most 'approval'. */
+  external: boolean;
+  default: ActionMode;
+  mode: ActionMode;
+}
+
+export interface ActionProposal {
+  id: string;
+  action: string;
+  label: string;
+  params: Record<string, unknown>;
+  summary: string;
+  proposed_by: string;
+  proposed_via: 'mcp' | 'agent';
+  status: 'pending' | 'executed' | 'rejected' | 'failed';
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  result: Record<string, unknown> | null;
+  created_at: string;
+  /** Only in the approver's response to an approved assessment.send. */
+  portal_url?: string;
+}
+
+export interface AiRun {
+  id: string;
+  kind: 'ask' | 'mcp_tool';
+  actor: string | null;
+  actor_type: 'user' | 'api_key';
+  status: string;
+  method: string | null;
+  degraded: boolean;
+  input: Record<string, unknown>;
+  output?: { note?: string; retrieval?: Record<string, unknown>; claims?: Array<{ text: string; citations: string[] }>;
+    removed?: Array<{ text: string; reasons?: string[] }>; citations?: number; [k: string]: unknown };
+  llm: { provider: string | null; model: string | null; calls: number; failures: number } | null;
+  latency_ms: number | null;
+  created_at: string;
+}
+
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
@@ -914,6 +959,31 @@ export const api = {
 
   async setIncidentTask(id: string, taskId: string, status: 'open' | 'done'): Promise<IncidentDetail> {
     return (await apiClient.patch(`/api/v1/incidents/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`, { status })).data;
+  },
+
+  // AI control centre
+  async getActionPolicy(): Promise<{ modes: ActionMode[]; actions: ActionPolicyEntry[] }> {
+    return (await apiClient.get('/api/v1/ai/policy')).data;
+  },
+
+  async setActionPolicy(action: string, mode: ActionMode): Promise<{ modes: ActionMode[]; actions: ActionPolicyEntry[] }> {
+    return (await apiClient.put('/api/v1/ai/policy', { action, mode })).data;
+  },
+
+  async listProposals(status = ''): Promise<ActionProposal[]> {
+    return (await apiClient.get('/api/v1/ai/proposals', { params: status ? { status } : {} })).data.proposals;
+  },
+
+  async decideProposal(id: string, approve: boolean, note = ''): Promise<ActionProposal> {
+    return (await apiClient.post(`/api/v1/ai/proposals/${encodeURIComponent(id)}/${approve ? 'approve' : 'reject'}`, { note })).data.proposal;
+  },
+
+  async listAiRuns(kind = ''): Promise<AiRun[]> {
+    return (await apiClient.get('/api/v1/ai/runs', { params: kind ? { kind } : {} })).data.runs;
+  },
+
+  async getAiRun(id: string): Promise<AiRun> {
+    return (await apiClient.get(`/api/v1/ai/runs/${encodeURIComponent(id)}`)).data.run;
   },
 
   async supplierSubtier(supplierId: string): Promise<SubtierLink[]> {
