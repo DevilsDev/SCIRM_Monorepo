@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, PublicSignal, PublicSourceStatus } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
+import OpenInWarRoomButton from '../components/OpenInWarRoomButton';
 
 const SOURCE_COLORS: Record<string, string> = {
   fda_recalls: 'bg-red-100 text-red-800',
@@ -134,6 +135,7 @@ export default function IntelligenceFeedPage() {
                     {t('signals.viewSource', 'View source record')}
                   </a>
                 )}
+                <OpenInWarRoomButton signalId={doc.id} />
               </div>
             </div>
           ))}

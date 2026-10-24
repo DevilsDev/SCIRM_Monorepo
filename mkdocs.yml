@@ -28,6 +28,7 @@ nav:
       - Scheduled reports: scheduled-reports.md
       - Supplier assessments: supplier-assessments.md
       - Regulatory watch: regulatory-watch.md
+      - War room: war-room.md
   - Development:
       - Branching: development/branching.md
   - Operations:

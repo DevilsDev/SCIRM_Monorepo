@@ -37,7 +37,8 @@ from libs.assessments import questions as aq
 from libs.common import oidc, secret_box
 from libs.common.store_assessments import new_portal_token, portal_token_hash
 from libs.common.store_watchlist import DuplicateTerm
-from libs.intel import sources as sources_registry, watchlist
+from libs.common import warroom
+from libs.intel import matching, sources as sources_registry, watchlist
 from libs.integrations import reports, webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -1195,6 +1196,236 @@ async def regulatory_watch(days: int = 180, source: Optional[str] = None, token:
             break
     return {"terms": terms, "since": since, "matches": matches,
             "sources": {s: sources_registry.SOURCE_LABELS[s] for s in sources_registry.REGULATORY_SOURCES}}
+
+
+# ---------------------------------------------------------------------------
+# War room: incidents to coordinate the response to a disruption. Everyone in the
+# organization can read; admins and analysts change them. Every change is on the
+# incident's timeline (append-only).
+# ---------------------------------------------------------------------------
+
+INCIDENT_STATUSES = ("open", "monitoring", "resolved")
+
+
+class IncidentRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    summary: str = Field("", max_length=4000)
+    severity: Optional[str] = Field(None, pattern="^(low|medium|high|critical)$")
+    signal_id: Optional[str] = Field(None, max_length=64)
+    supplier_ids: List[str] = Field(default_factory=list, max_length=200)
+    owner_email: Optional[str] = Field(None, max_length=254)
+
+
+class IncidentUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    summary: Optional[str] = Field(None, max_length=4000)
+    severity: Optional[str] = Field(None, pattern="^(low|medium|high|critical)$")
+    status: Optional[str] = Field(None, pattern="^(open|monitoring|resolved)$")
+    owner_email: Optional[str] = Field(None, max_length=254)
+    resolution: Optional[str] = Field(None, max_length=4000)
+
+
+class IncidentNote(BaseModel):
+    text: str = Field(..., min_length=1, max_length=4000)
+
+
+class IncidentSupplierRequest(BaseModel):
+    supplier_id: str = Field(..., max_length=64)
+    reason: str = Field("", max_length=300)
+
+
+class IncidentTaskRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=300)
+    assignee_email: Optional[str] = Field(None, max_length=254)
+    due_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class IncidentTaskUpdate(BaseModel):
+    status: str = Field(..., pattern="^(open|done)$")
+
+
+async def _member_or_none(org: str, email: Optional[str], what: str) -> Optional[str]:
+    if not email or not email.strip():
+        return None
+    email = email.strip().lower()
+    if email not in await _member_emails(org):
+        raise HTTPException(status_code=400, detail=f"The {what} must be an active member of your organization")
+    return email
+
+
+async def _incident_view(org: str, incident_id: str) -> Dict[str, Any]:
+    found = await audit_store.get_incident(org, incident_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    found["suppliers"] = [{k: s.get(k) for k in ("id", "name", "country_code", "sap_supplier_number", "risk_tier",
+                                                  "spend_12m", "spend_main_currency", "spend_period", "reason", "added_at")}
+                          for s in found["suppliers"]]
+    found["exposure"] = warroom.exposure(found["suppliers"])
+    return found
+
+
+@app.get("/api/v1/incidents")
+async def list_incidents(status: Optional[str] = None, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    if status and status not in INCIDENT_STATUSES:
+        raise HTTPException(status_code=400, detail="Unknown status")
+    return {"incidents": await audit_store.list_incidents(user.organization_id, status),
+            "members": sorted(await _member_emails(user.organization_id))}
+
+
+@app.post("/api/v1/incidents")
+async def open_incident(body: IncidentRequest, token: str = Depends(security)):
+    """Open an incident, from a public record (its suppliers are prefilled from the record's
+    matches) or by hand."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    org = user.organization_id
+    owner = await _member_or_none(org, body.owner_email, "owner")
+    signal = await audit_store.get_public_signal(body.signal_id) if body.signal_id else None
+    if body.signal_id and not signal:
+        raise HTTPException(status_code=404, detail="Record not found")
+    links: Dict[str, str] = {}
+    if signal:
+        suppliers, _ = await audit_store.list_suppliers(org, limit=None)
+        for supplier_id, found in matching.match_all([s for s in suppliers if s.get("is_active", True)], [signal]).items():
+            best = next((m for m in found if m["kind"] == "exposure" or m["confidence"] >= webhooks.MIN_CONFIDENCE), None)
+            if best:
+                links[supplier_id] = (f"exposure: {best.get('match_type')}" if best["kind"] == "exposure"
+                                      else f"named in the record ({best.get('matched_on')})")
+    for supplier_id in body.supplier_ids:
+        if not await audit_store.get_supplier(org, supplier_id):
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        links.setdefault(str(supplier_id), "added when opening")
+    title = (body.title or (signal or {}).get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Give the incident a title")
+    snapshot = {k: signal.get(k) for k in ("source", "external_id", "signal_type", "title", "url", "severity",
+                                           "published_at")} if signal else None
+    if snapshot:
+        snapshot["source_label"] = sources_registry.SOURCE_LABELS.get(signal.get("source"))
+    names = {str(s["id"]): s.get("name") for s in (await audit_store.list_suppliers(org, limit=None))[0]} if links else {}
+    entries = [("opened", f"Opened from {snapshot['source_label'] or snapshot['source']}: {snapshot['title']}"
+                if snapshot else "Opened by hand")]
+    entries += [("supplier_added", f"Linked {names.get(sid) or 'a supplier'} ({reason})") for sid, reason in links.items()]
+    if owner:
+        entries.append(("owner", f"Owner: {owner}"))
+    incident_id = await audit_store.create_incident(org, {
+        "title": title[:200], "summary": body.summary.strip(),
+        "severity": body.severity or (signal or {}).get("severity") or "medium", "owner_email": owner,
+        "signal_id": str(signal["id"]) if signal else None, "signal": snapshot}, list(links.items()), entries, user.email)
+    await _audit_event(org, user.id, user.email, "incident.opened", target=incident_id,
+                       details={"title": title[:200], "suppliers": len(links), "from_record": bool(signal)},
+                       resource_type="incident")
+    return await _incident_view(org, incident_id)
+
+
+@app.get("/api/v1/incidents/{incident_id}")
+async def get_incident(incident_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return await _incident_view(user.organization_id, incident_id)
+
+
+@app.patch("/api/v1/incidents/{incident_id}")
+async def update_incident(incident_id: str, body: IncidentUpdate, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    org = user.organization_id
+    current = (await _incident_view(org, incident_id))["incident"]
+    asked = body.model_dump(exclude_unset=True)
+    changes: Dict[str, Any] = {}
+    entries: List[Tuple[str, str]] = []
+    if "owner_email" in asked:
+        owner = await _member_or_none(org, asked["owner_email"], "owner")
+        if owner != current["owner_email"]:
+            changes["owner_email"] = owner
+            entries.append(("owner", f"Owner: {owner or 'none'}"))
+    for field in ("severity", "status"):
+        if asked.get(field) and asked[field] != current[field]:
+            changes[field] = asked[field]
+            entries.append((field, f"{field.title()}: {current[field]} → {asked[field]}"))
+    if asked.get("status") == "resolved" and asked.get("resolution"):
+        entries[-1] = ("status", f"Status: {current['status']} → resolved. Resolution: {asked['resolution'].strip()}")
+    for field in ("title", "summary", "resolution"):
+        if field in asked and asked[field] is not None and asked[field].strip() != (current[field] or ""):
+            changes[field] = asked[field].strip()
+            if field != "resolution":
+                entries.append(("edited", f"{field.title()} changed"))
+    if not changes:
+        return await _incident_view(org, incident_id)
+    await audit_store.update_incident(org, incident_id, changes, entries, user.email)
+    if "status" in changes:
+        await _audit_event(org, user.id, user.email, "incident.status_changed", target=incident_id,
+                           details={"from": current["status"], "to": changes["status"]}, resource_type="incident")
+    return await _incident_view(org, incident_id)
+
+
+@app.post("/api/v1/incidents/{incident_id}/notes")
+async def add_incident_note(incident_id: str, body: IncidentNote, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    if not await audit_store.add_incident_note(user.organization_id, incident_id, [("note", body.text.strip())], user.email):
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return await _incident_view(user.organization_id, incident_id)
+
+
+@app.post("/api/v1/incidents/{incident_id}/suppliers")
+async def add_incident_supplier(incident_id: str, body: IncidentSupplierRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    supplier = await audit_store.get_supplier(user.organization_id, body.supplier_id)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    reason = body.reason.strip() or "added by hand"
+    try:
+        added = await audit_store.add_incident_supplier(user.organization_id, incident_id, body.supplier_id, reason,
+                                                        [("supplier_added", f"Linked {supplier.get('name')} ({reason})")],
+                                                        user.email)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if not added:
+        raise HTTPException(status_code=409, detail="That supplier is already linked")
+    return await _incident_view(user.organization_id, incident_id)
+
+
+@app.delete("/api/v1/incidents/{incident_id}/suppliers/{supplier_id}")
+async def remove_incident_supplier(incident_id: str, supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    supplier = await audit_store.get_supplier(user.organization_id, supplier_id)
+    name = (supplier or {}).get("name") or "a supplier"
+    if not await audit_store.remove_incident_supplier(user.organization_id, incident_id, supplier_id,
+                                                      [("supplier_removed", f"Unlinked {name}")], user.email):
+        raise HTTPException(status_code=404, detail="Not linked")
+    return await _incident_view(user.organization_id, incident_id)
+
+
+@app.post("/api/v1/incidents/{incident_id}/tasks")
+async def add_incident_task(incident_id: str, body: IncidentTaskRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    assignee = await _member_or_none(user.organization_id, body.assignee_email, "assignee")
+    text = f"Task: {body.title.strip()}" + (f" (assigned to {assignee}" if assignee else "") + \
+        (f", due {body.due_date})" if assignee and body.due_date else ")" if assignee else
+         f" (due {body.due_date})" if body.due_date else "")
+    task = await audit_store.add_incident_task(user.organization_id, incident_id, {
+        "title": body.title.strip(), "assignee_email": assignee, "due_date": body.due_date},
+        [("task_added", text)], user.email)
+    if not task:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return await _incident_view(user.organization_id, incident_id)
+
+
+@app.patch("/api/v1/incidents/{incident_id}/tasks/{task_id}")
+async def update_incident_task(incident_id: str, task_id: str, body: IncidentTaskUpdate, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    view = await _incident_view(user.organization_id, incident_id)
+    task = next((t for t in view["tasks"] if t["id"] == task_id), None)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    entry = ("task_done", f"Done: {task['title']}") if body.status == "done" else ("task_reopened", f"Reopened: {task['title']}")
+    await audit_store.set_incident_task_status(user.organization_id, incident_id, task_id, body.status, [entry], user.email)
+    return await _incident_view(user.organization_id, incident_id)
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:
