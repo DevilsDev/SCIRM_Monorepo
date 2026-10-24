@@ -144,7 +144,7 @@ async def sample_features_gate(request: Request, call_next):
 async def audit_writes(request: Request, call_next):
     """Record every state-changing API call — who, which tenant, what, and the outcome."""
     response = await call_next(request)
-    if (request.method in _AUDITED_METHODS and request.url.path.startswith("/api/v1/")
+    if (request.method in _AUDITED_METHODS and request.url.path.startswith(("/api/v1/", "/scim/v2/"))
             and request.url.path not in _SELF_AUDITED_PATHS):
         caller = _caller(request)
         route = request.scope.get("route")
@@ -228,12 +228,16 @@ async def api_key_auth(request: Request, call_next):
 
     if not found or not found.get("live"):
         return await refuse(401, "Invalid, expired or revoked API key")
-    if (request.method, template) not in API_KEY_ROUTES:
+    scim = "scim" in (found.get("scopes") or [])
+    if scim:  # a SCIM token: user provisioning only
+        if not (template or "").startswith("/scim/v2/"):
+            return await refuse(403, "A SCIM token can only call /scim/v2.")
+    elif (request.method, template) not in API_KEY_ROUTES:
         return await refuse(403, "API keys can only read suppliers, their public records, alerts, risks and the "
                                  "intelligence feed. See the API documentation.")
     token = create_access_token(data={
         "sub": str(found["id"]), "email": f"api-key:{found['name']} ({found['prefix']})", "name": found["name"],
-        "roles": ["viewer"], "org_id": str(found["organization_id"]), "api_key": True,
+        "roles": ["scim"] if scim else ["viewer"], "org_id": str(found["organization_id"]), "api_key": True,
     }, expires_delta=timedelta(minutes=1))
     request.scope["headers"] = [(k, v) for k, v in request.scope["headers"] if k not in (b"authorization", b"x-api-key")]
     request.scope["headers"].append((b"authorization", f"Bearer {token}".encode()))
@@ -663,6 +667,8 @@ async def reset_member_mfa(member_id: str, token: str = Depends(security)):
 class ApiKeyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     expires_in_days: Optional[int] = Field(None, ge=1, le=730)
+    # read: the public API; scim: user provisioning by an identity provider (/scim/v2 only).
+    scope: str = Field("read", pattern="^(read|scim)$")
 
 
 @app.get("/api/v1/org/api-keys")
@@ -679,7 +685,8 @@ async def create_api_key(body: ApiKeyRequest, token: str = Depends(security)):
     user = await verify_token(token.credentials)
     _require_admin(user, "manage API keys")
     expires = (datetime.utcnow() + timedelta(days=body.expires_in_days)).isoformat() if body.expires_in_days else None
-    row, key = await audit_store.create_api_key(user.organization_id, body.name.strip(), user.email, expires)
+    row, key = await audit_store.create_api_key(user.organization_id, body.name.strip(), user.email, expires,
+                                                scope=body.scope)
     await _audit_event(user.organization_id, user.id, user.email, "api_key.created", target=str(row["id"]))
     return {"api_key": row, "key": key,
             "note": "Copy this key now: it cannot be shown again. Send it as 'Authorization: Bearer <key>'."}
@@ -903,6 +910,282 @@ async def send_report_now(schedule_id: str, token: str = Depends(security)):
     if not row:
         raise HTTPException(status_code=404, detail="Scheduled report not found")
     return {"schedule": _schedule_view(row), "note": "Queued: it is sent within about a minute."}
+
+
+# ---------------------------------------------------------------------------
+# SCIM 2.0 user provisioning (RFC 7643/7644): /scim/v2, with a SCIM token (an API key
+# with the scope "scim"). Users only; groups are not supported. DELETE deactivates.
+# ---------------------------------------------------------------------------
+
+SCIM_USER = "urn:ietf:params:scim:schemas:core:2.0:User"
+SCIM_LIST = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+SCIM_ERROR = "urn:ietf:params:scim:api:messages:2.0:Error"
+SCIM_PATCH = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+SCIM_MEDIA = "application/scim+json"
+
+
+class ScimError(Exception):
+    def __init__(self, status: int, detail: str, scim_type: Optional[str] = None):
+        super().__init__(detail)
+        self.status, self.detail, self.scim_type = status, detail, scim_type
+
+
+def _scim(body: Any, status: int = 200):
+    from fastapi.responses import JSONResponse, Response
+    if status == 204:
+        return Response(status_code=204)
+    return JSONResponse(body, status_code=status, media_type=SCIM_MEDIA)
+
+
+@app.exception_handler(ScimError)
+async def _scim_error(request: Request, exc: ScimError):
+    body = {"schemas": [SCIM_ERROR], "status": str(exc.status), "detail": exc.detail}
+    if exc.scim_type:
+        body["scimType"] = exc.scim_type
+    return _scim(body, exc.status)
+
+
+async def _scim_caller(token: str):
+    user = await verify_token(token)
+    if "scim" not in user.roles:
+        raise ScimError(403, "A SCIM token is required (Administration > Integrations > User provisioning).")
+    return user
+
+
+def _scim_resource(u: Dict[str, Any]) -> Dict[str, Any]:
+    location = f"{PUBLIC_API_URL}/scim/v2/Users/{u['id']}" if PUBLIC_API_URL else f"/scim/v2/Users/{u['id']}"
+    out = {"schemas": [SCIM_USER], "id": str(u["id"]), "userName": u["email"],
+           "name": {"formatted": u.get("name") or ""}, "displayName": u.get("name") or "",
+           "active": bool(u.get("is_active")),
+           "emails": [{"value": u["email"], "type": "work", "primary": True}],
+           "roles": [{"value": r} for r in u.get("roles") or []],
+           "meta": {"resourceType": "User", "created": str(u.get("created_at") or ""),
+                    "lastModified": str(u.get("updated_at") or u.get("created_at") or ""), "location": location}}
+    if u.get("scim_external_id"):
+        out["externalId"] = u["scim_external_id"]
+    return out
+
+
+def _scim_bool(value: Any) -> bool:
+    """Entra sends "True"/"False" as strings in PATCH."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    raise ScimError(400, "active must be true or false", "invalidValue")
+
+
+def _scim_name(body: Dict[str, Any]) -> Optional[str]:
+    name = body.get("name") if isinstance(body.get("name"), dict) else {}
+    joined = " ".join(p for p in (name.get("givenName"), name.get("familyName")) if p)
+    found = (name.get("formatted") or joined or body.get("displayName") or "").strip()
+    return found[:255] or None
+
+
+def _scim_roles(value: Any) -> List[str]:
+    items = value if isinstance(value, list) else [value]
+    roles = [str(i.get("value") if isinstance(i, dict) else i).strip().lower() for i in items if i]
+    unknown = [r for r in roles if r not in ROLES]
+    if unknown or not roles:
+        raise ScimError(400, f"roles must be among: {', '.join(ROLES)}", "invalidValue")
+    return list(dict.fromkeys(roles))
+
+
+def _scim_email(value: Any) -> str:
+    email = str(value or "").strip().lower()
+    local, _, domain = email.partition("@")
+    if not local or "." not in domain or " " in email:
+        raise ScimError(400, "userName must be the user's email address", "invalidValue")
+    return email
+
+
+async def _scim_apply(org: str, user_id: str, changes: Dict[str, Any]) -> Dict[str, Any]:
+    """Write changes (email, name, external_id, roles, active) and return the resource."""
+    try:
+        if {"email", "name", "external_id"} & changes.keys():
+            await audit_store.scim_set_profile(org, user_id, email=changes.get("email"), name=changes.get("name"),
+                                               external_id=changes.get("external_id"))
+        if {"roles", "active"} & changes.keys():
+            if not await audit_store.update_member(org, user_id, roles=changes.get("roles"),
+                                                   is_active=changes.get("active")):
+                raise ScimError(404, "User not found")
+    except EmailExists:
+        raise ScimError(409, "Another account already uses that email", "uniqueness")
+    except LastAdmin:
+        raise ScimError(409, "The organization must keep at least one active administrator", "mutability")
+    user = await audit_store.scim_user(org, user_id)
+    if not user:
+        raise ScimError(404, "User not found")
+    return _scim_resource(user)
+
+
+@app.get("/scim/v2/ServiceProviderConfig")
+async def scim_config(token: str = Depends(security)):
+    await _scim_caller(token.credentials)
+    return _scim({"schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
+                  "patch": {"supported": True}, "bulk": {"supported": False, "maxOperations": 0, "maxPayloadSize": 0},
+                  "filter": {"supported": True, "maxResults": 200}, "changePassword": {"supported": False},
+                  "sort": {"supported": False}, "etag": {"supported": False},
+                  "authenticationSchemes": [{"type": "oauthbearertoken", "name": "SCIM token",
+                                             "description": "Bearer token from Administration > Integrations"}]})
+
+
+@app.get("/scim/v2/ResourceTypes")
+async def scim_resource_types(token: str = Depends(security)):
+    await _scim_caller(token.credentials)
+    return _scim({"schemas": [SCIM_LIST], "totalResults": 1, "Resources": [
+        {"schemas": ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"], "id": "User", "name": "User",
+         "endpoint": "/Users", "schema": SCIM_USER}]})
+
+
+@app.get("/scim/v2/Schemas")
+async def scim_schemas(token: str = Depends(security)):
+    await _scim_caller(token.credentials)
+    attrs = [{"name": n, "type": t, "multiValued": m, "required": r, "mutability": "readWrite", "returned": "default"}
+             for n, t, m, r in (("userName", "string", False, True), ("name", "complex", False, False),
+                                ("displayName", "string", False, False), ("active", "boolean", False, False),
+                                ("emails", "complex", True, False), ("roles", "complex", True, False),
+                                ("externalId", "string", False, False))]
+    return _scim({"schemas": [SCIM_LIST], "totalResults": 1, "Resources": [
+        {"schemas": ["urn:ietf:params:scim:schemas:core:2.0:Schema"], "id": SCIM_USER, "name": "User",
+         "attributes": attrs}]})
+
+
+@app.get("/scim/v2/Users")
+async def scim_list_users(filter: Optional[str] = None, startIndex: int = 1, count: int = 100,
+                          token: str = Depends(security)):
+    """Filters: userName eq "..." or externalId eq "..." (what identity providers send)."""
+    user = await _scim_caller(token.credentials)
+    start, count = max(startIndex, 1), min(max(count, 0), 200)
+    user_name = external_id = None
+    if filter:
+        match = re.fullmatch(r'\s*(userName|externalId)\s+eq\s+"([^"]*)"\s*', filter, re.IGNORECASE)
+        if not match:
+            raise ScimError(400, 'Only userName eq "..." and externalId eq "..." filters are supported', "invalidFilter")
+        if match.group(1).lower() == "username":
+            user_name = match.group(2)
+        else:
+            external_id = match.group(2)
+    if external_id is not None:
+        everyone, _ = await audit_store.scim_users(user.organization_id, None, 1, 100000)
+        found = [u for u in everyone if u.get("scim_external_id") == external_id]
+        rows, total = found[start - 1:start - 1 + count], len(found)
+    else:
+        rows, total = await audit_store.scim_users(user.organization_id, user_name, start, count)
+    return _scim({"schemas": [SCIM_LIST], "totalResults": total, "startIndex": start, "itemsPerPage": len(rows),
+                  "Resources": [_scim_resource(u) for u in rows]})
+
+
+@app.get("/scim/v2/Users/{user_id}")
+async def scim_get_user(user_id: str, token: str = Depends(security)):
+    user = await _scim_caller(token.credentials)
+    found = await audit_store.scim_user(user.organization_id, user_id)
+    if not found:
+        raise ScimError(404, "User not found")
+    return _scim(_scim_resource(found))
+
+
+@app.post("/scim/v2/Users")
+async def scim_create_user(request: Request, token: str = Depends(security)):
+    """Create an account. It has no usable password: the person signs in with single
+    sign-on (or sets a password with a reset link)."""
+    user = await _scim_caller(token.credentials)
+    body = await request.json()
+    email = _scim_email(body.get("userName"))
+    roles = _scim_roles(body["roles"]) if body.get("roles") else ["viewer"]
+    try:
+        created = await audit_store.create_user(user.organization_id, email, _scim_name(body) or email,
+                                                get_password_hash(secrets.token_urlsafe(32)), roles)
+    except EmailExists:
+        raise ScimError(409, "An account with that email already exists", "uniqueness")
+    changes: Dict[str, Any] = {}
+    if body.get("externalId"):
+        changes["external_id"] = str(body["externalId"])[:200]
+    if "active" in body and not _scim_bool(body["active"]):
+        changes["active"] = False
+    resource = await _scim_apply(user.organization_id, str(created["id"]), changes) if changes else \
+        _scim_resource(await audit_store.scim_user(user.organization_id, str(created["id"])))
+    return _scim(resource, 201)
+
+
+@app.put("/scim/v2/Users/{user_id}")
+async def scim_replace_user(user_id: str, request: Request, token: str = Depends(security)):
+    user = await _scim_caller(token.credentials)
+    if not await audit_store.scim_user(user.organization_id, user_id):
+        raise ScimError(404, "User not found")
+    body = await request.json()
+    changes: Dict[str, Any] = {"email": _scim_email(body.get("userName"))}
+    if _scim_name(body):
+        changes["name"] = _scim_name(body)
+    if "active" in body:
+        changes["active"] = _scim_bool(body["active"])
+    if body.get("roles"):
+        changes["roles"] = _scim_roles(body["roles"])
+    if body.get("externalId"):
+        changes["external_id"] = str(body["externalId"])[:200]
+    return _scim(await _scim_apply(user.organization_id, user_id, changes))
+
+
+@app.patch("/scim/v2/Users/{user_id}")
+async def scim_patch_user(user_id: str, request: Request, token: str = Depends(security)):
+    """PatchOp: add/replace on active, userName, name, displayName, externalId, roles and the
+    work email; with or without a path (Entra and Okta send both forms)."""
+    user = await _scim_caller(token.credentials)
+    if not await audit_store.scim_user(user.organization_id, user_id):
+        raise ScimError(404, "User not found")
+    body = await request.json()
+    operations = body.get("Operations") or body.get("operations")
+    if not isinstance(operations, list) or not operations:
+        raise ScimError(400, "A PatchOp with Operations is required", "invalidSyntax")
+    changes: Dict[str, Any] = {}
+
+    def apply(path: str, value: Any) -> None:
+        key = path.lower()
+        if key == "active":
+            changes["active"] = _scim_bool(value)
+        elif key in ("username", 'emails[type eq "work"].value', "emails"):
+            changes["email"] = _scim_email(value[0].get("value") if isinstance(value, list) and value
+                                           and isinstance(value[0], dict) else value)
+        elif key in ("name.formatted", "displayName".lower()):
+            changes["name"] = str(value).strip()[:255] or changes.get("name")
+        elif key in ("name.givenname", "name.familyname"):
+            changes.setdefault("_name_parts", {})[key] = str(value).strip()
+        elif key == "name" and isinstance(value, dict):
+            changes["name"] = _scim_name({"name": value}) or changes.get("name")
+        elif key == "externalid":
+            changes["external_id"] = str(value)[:200]
+        elif key == "roles":
+            changes["roles"] = _scim_roles(value)
+        # other attributes (title, phone numbers, ...) are not stored and are ignored
+
+    for operation in operations:
+        op_name = str(operation.get("op", "")).lower()
+        if op_name not in ("add", "replace"):
+            raise ScimError(400, f"Unsupported PATCH op {operation.get('op')!r}", "invalidValue")
+        path, value = operation.get("path"), operation.get("value")
+        if path:
+            apply(str(path), value)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                apply(key, item)
+    parts = changes.pop("_name_parts", None)
+    if parts and "name" not in changes:
+        current = await audit_store.scim_user(user.organization_id, user_id)
+        given, family = parts.get("name.givenname"), parts.get("name.familyname")
+        old = (current.get("name") or "").split(" ", 1)
+        changes["name"] = " ".join(p for p in (given or old[0], family or (old[1] if len(old) > 1 else "")) if p)
+    return _scim(await _scim_apply(user.organization_id, user_id, {k: v for k, v in changes.items() if v is not None}))
+
+
+@app.delete("/scim/v2/Users/{user_id}")
+async def scim_delete_user(user_id: str, token: str = Depends(security)):
+    """Deactivate (accounts are kept for the audit trail). Sessions end within the access
+    token's lifetime: refreshing is refused for inactive accounts."""
+    user = await _scim_caller(token.credentials)
+    if not await audit_store.scim_user(user.organization_id, user_id):
+        raise ScimError(404, "User not found")
+    await _scim_apply(user.organization_id, user_id, {"active": False})
+    return _scim(None, 204)
 
 
 @app.post("/api/v1/org/invitations")

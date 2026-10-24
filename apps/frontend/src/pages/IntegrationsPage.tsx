@@ -8,6 +8,7 @@ import ApiKeysSettings from '../components/ApiKeysSettings';
 import WebhooksSettings from '../components/WebhooksSettings';
 import ReportsSettings from '../components/ReportsSettings';
 import SsoSettings from '../components/SsoSettings';
+import ScimSettings from '../components/ScimSettings';
 
 type Tone = 'ok' | 'warn' | 'bad' | 'off';
 const TONES: Record<Tone, string> = {
@@ -129,6 +130,7 @@ export default function IntegrationsPage() {
       </Card>
 
       <SsoSettings />
+      <ScimSettings />
       <ApiKeysSettings />
       <WebhooksSettings />
       <ReportsSettings />

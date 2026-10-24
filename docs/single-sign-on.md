@@ -21,7 +21,7 @@ sign-in; SCIRM's two-step sign-in is not asked for after single sign-on.
    keep it.
 3. Invite your members as usual. **SSO does not create accounts.** Someone without an
    active SCIRM account in your organization is refused after signing in at the provider.
-   Automatic provisioning comes with SCIM. In an organization that requires single sign-on,
+   To provision them automatically, use [SCIM](scim.md). In an organization that requires single sign-on,
    accepting an invitation creates the account but does not sign the person in with the
    password; they continue with **Sign in with SSO**.
 
@@ -96,8 +96,7 @@ Without it, first sign-ins are refused (`no_verified_email`).
 
 ## Not built yet
 
-- Creating accounts at first sign-in (SCIM will provision them).
+- Creating accounts at first sign-in: use [SCIM](scim.md) to provision them.
 - Domain verification.
-- Ending SCIRM sessions when the identity provider disables someone (SCIM will deactivate
-  them).
-- Single logout.
+- Single logout. People disabled at the identity provider are deactivated through
+  [SCIM](scim.md); their sessions then end within 60 minutes.
