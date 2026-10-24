@@ -385,6 +385,76 @@ export interface ReportSchedule extends ReportScheduleInput {
   created_by: string | null;
 }
 
+export type QuestionType = 'yes_no' | 'text' | 'number' | 'date' | 'choice' | 'subtier';
+
+export interface AssessmentQuestion {
+  id: string;
+  text: string;
+  type: QuestionType;
+  required: boolean;
+  help?: string;
+  /** yes_no only: the answer that counts towards the score. */
+  good?: 'yes' | 'no';
+  /** 1 to 5, with good. */
+  weight?: number;
+  options?: string[];
+}
+
+export interface AssessmentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  questions: AssessmentQuestion[];
+  built_in?: boolean;
+  created_by?: string | null;
+}
+
+export type AssessmentStatus = 'sent' | 'submitted' | 'reviewed' | 'cancelled';
+
+export interface SubtierLink {
+  id?: string;
+  supplier_id?: string;
+  assessment_id?: string;
+  name: string;
+  country_code: string | null;
+  city: string | null;
+  supplies: string | null;
+  reported_at?: string;
+}
+
+export interface SupplierAssessment {
+  id: string;
+  supplier_id: string;
+  supplier_name: string | null;
+  template_name: string;
+  status: AssessmentStatus;
+  recipient_email: string;
+  recipient_name: string;
+  due_date: string | null;
+  token_expires_at: string | null;
+  submitted_at: string | null;
+  submitted_by_name: string | null;
+  submitted_by_email: string | null;
+  /** 0-100 from the scored yes/no questions; computed by code, from the supplier's own answers. */
+  score: number | null;
+  flags: Array<{ id: string; text: string; answer: string; weight: number }>;
+  review_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  sent_by: string | null;
+  sent_at: string;
+  questions?: AssessmentQuestion[];
+  answers?: Record<string, unknown>;
+}
+
+export interface AssessmentSent {
+  assessment: SupplierAssessment;
+  /** Shown once: the supplier's personal link. */
+  portal_url: string;
+  emailed: boolean;
+  note: string | null;
+}
+
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
@@ -694,6 +764,49 @@ export const api = {
 
   async sendReportNow(id: string): Promise<void> {
     await apiClient.post(`/api/v1/org/reports/${encodeURIComponent(id)}/send-now`);
+  },
+
+  // Supplier assessments
+  async listAssessmentTemplates(): Promise<AssessmentTemplate[]> {
+    return (await apiClient.get('/api/v1/assessment-templates')).data.templates;
+  },
+
+  async createAssessmentTemplate(body: { name: string; description: string; questions: Partial<AssessmentQuestion>[] }): Promise<AssessmentTemplate> {
+    return (await apiClient.post('/api/v1/assessment-templates', body)).data.template;
+  },
+
+  async archiveAssessmentTemplate(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/assessment-templates/${encodeURIComponent(id)}`);
+  },
+
+  async listAssessments(filters: { supplier_id?: string; status?: AssessmentStatus | '' } = {}): Promise<SupplierAssessment[]> {
+    const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
+    return (await apiClient.get('/api/v1/assessments', { params })).data.assessments;
+  },
+
+  async sendAssessment(body: { supplier_id: string; template_id: string; recipient_email: string; recipient_name?: string;
+    due_date?: string | null; link_days?: number; send_email?: boolean }): Promise<AssessmentSent> {
+    return (await apiClient.post('/api/v1/assessments', body)).data;
+  },
+
+  async getAssessment(id: string): Promise<{ assessment: SupplierAssessment; subtier: SubtierLink[] }> {
+    return (await apiClient.get(`/api/v1/assessments/${encodeURIComponent(id)}`)).data;
+  },
+
+  async resendAssessment(id: string): Promise<AssessmentSent> {
+    return (await apiClient.post(`/api/v1/assessments/${encodeURIComponent(id)}/resend`)).data;
+  },
+
+  async cancelAssessment(id: string): Promise<SupplierAssessment> {
+    return (await apiClient.post(`/api/v1/assessments/${encodeURIComponent(id)}/cancel`)).data.assessment;
+  },
+
+  async reviewAssessment(id: string, note: string): Promise<SupplierAssessment> {
+    return (await apiClient.post(`/api/v1/assessments/${encodeURIComponent(id)}/review`, { note })).data.assessment;
+  },
+
+  async supplierSubtier(supplierId: string): Promise<SubtierLink[]> {
+    return (await apiClient.get(`/api/v1/suppliers/${encodeURIComponent(supplierId)}/subtier`)).data.links;
   },
 
   // Audit log (admins and auditors)

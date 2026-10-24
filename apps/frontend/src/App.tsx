@@ -30,6 +30,8 @@ import ComponentsPage from './pages/ComponentsPage';
 import SettingsPage from './pages/SettingsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import IntegrationsPage from './pages/IntegrationsPage';
+import SupplierAssessmentsPage from './pages/SupplierAssessmentsPage';
+import PortalPage from './pages/PortalPage';
 
 export default function App() {
   return (
@@ -52,6 +54,7 @@ export default function App() {
             <Route path="/assessments/new" element={<NewAssessmentPage />} />
             <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/supplier-assessments" element={<SupplierAssessmentsPage />} />
             <Route path="/scan" element={<SupplierScanPage />} />
             <Route path="/suppliers/import/sap" element={<SapImportPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
@@ -72,6 +75,8 @@ export default function App() {
         <Route path="/invite" element={<AcceptInvitePage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/sso/complete" element={<SsoCompletePage />} />
+        {/* The supplier portal: no account, the link's token is the key (pages/PortalPage.tsx). */}
+        <Route path="/portal" element={<PortalPage />} />
 
         {/* 404 catch-all */}
         <Route path="*" element={<NotFoundPage />} />

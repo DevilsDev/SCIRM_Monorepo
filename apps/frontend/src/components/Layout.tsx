@@ -15,6 +15,7 @@ import {
   CubeIcon,
   SunIcon,
   MoonIcon,
+  ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
   PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
@@ -48,6 +49,7 @@ const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem
     fallbackLabel: 'Supply Chain',
     items: [
       { to: '/suppliers', tKey: 'nav.suppliers', fallback: 'Suppliers', icon: TruckIcon },
+      { to: '/supplier-assessments', tKey: 'nav.supplierAssessments', fallback: 'Supplier assessments', icon: ClipboardDocumentCheckIcon },
       { to: '/components', tKey: 'nav.components', fallback: 'Components', icon: CubeIcon },
       { to: '/supply-chain', tKey: 'nav.supplyChain', fallback: 'Network Map', icon: MapIcon },
     ],

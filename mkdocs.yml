@@ -26,6 +26,7 @@ nav:
       - Public API: public-api.md
       - Webhooks: webhooks.md
       - Scheduled reports: scheduled-reports.md
+      - Supplier assessments: supplier-assessments.md
   - Development:
       - Branching: development/branching.md
   - Operations:

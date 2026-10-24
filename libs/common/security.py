@@ -61,7 +61,8 @@ def setup_cors(app: FastAPI) -> None:
         allow_credentials=True,
         # PATCH: changing a teammate's role or access (Settings > Team).
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+        # X-Portal-Token: the supplier portal's link token (pages/PortalPage.tsx).
+        allow_headers=["Authorization", "Content-Type", "X-Portal-Token"],
         # Read by the web app: the audit export's row count and whether it hit the limit.
         expose_headers=["X-Rows", "X-Truncated", "Content-Disposition"],
     )
