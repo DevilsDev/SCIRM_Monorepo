@@ -38,6 +38,7 @@ export default function RegulatoryWatchPage() {
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [matches, setMatches] = useState<RegulatoryMatch[]>([]);
   const [sources, setSources] = useState<Record<string, string>>({});
+  const [truncated, setTruncated] = useState(false);
   const [days, setDays] = useState(180);
   const [source, setSource] = useState('');
   const [form, setForm] = useState({ kind: 'substance' as WatchlistItem['kind'], term: '', note: '' });
@@ -51,6 +52,7 @@ export default function RegulatoryWatchPage() {
       const r = await api.regulatoryWatch({ days, source });
       setMatches(r.matches);
       setSources(r.sources);
+      setTruncated(!!r.truncated);
     } catch (err) {
       setError(errorText(err, t('rw.loadFailed', 'Could not load the regulatory records.')));
     } finally {
@@ -128,6 +130,11 @@ export default function RegulatoryWatchPage() {
             </select>
             {loading && <span className="text-xs text-gray-500">{t('common.loading', 'Loading...')}</span>}
           </div>
+          {truncated && (
+            <p className="mb-3 text-sm text-amber-700 dark:text-amber-300">
+              {t('rw.truncated', 'Only the most recent matches are shown. Choose a shorter period or one source to see the rest.')}
+            </p>
+          )}
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
             {matches.length === 0 ? (
               <p className="p-6 text-sm text-gray-500">{terms.length ? t('rw.noMatches', 'No records name a watched term in this period.') : t('rw.addTerms', 'Add substances or products to the watchlist to follow them here.')}</p>

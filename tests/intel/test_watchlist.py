@@ -29,5 +29,8 @@ def test_terms_need_three_letters_or_digits():
         raise AssertionError(bad)
 
 
-def test_sql_prefilters_use_the_first_word():
-    assert watchlist.like_patterns(["Metformin hydrochloride", "rifampicin", "Rifampicin"]) == ["%metformin%", "%rifampicin%"]
+def test_sql_prefilters_use_every_word_of_each_term():
+    """Found at the Phase 2 gate: first-word prefilters let "sodium ..." records crowd out
+    other terms' matches."""
+    assert watchlist.like_patterns(["Sodium chloride", "rifampicin", "Rifampicin"]) == ["%rifampicin%", "%sodium%chloride%"]
+    assert watchlist.pattern_words("%sodium%chloride%") == ["sodium", "chloride"]

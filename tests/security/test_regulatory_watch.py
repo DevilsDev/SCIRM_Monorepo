@@ -88,6 +88,37 @@ class TestMatches:
         assert client.get("/api/v1/regulatory-watch", headers=other).json()["matches"] == []
 
 
+class TestLimits:
+    def test_a_common_first_word_does_not_crowd_out_other_terms(self, client, apps, new_team, monkeypatch):
+        """Found at the Phase 2 gate: with first-word prefilters, newer "sodium ..." records
+        filled the scan limit and an older match for another term disappeared silently."""
+        team = new_team(("admin",))
+        admin = bearer(team["admin"]["access_token"])
+        tag = uuid.uuid4().hex[:4]
+        older = ema_dhpc(f"zelvarocin{tag}", published_at="2026-01-05")
+        newer = [ema_dhpc(f"sodium bicarbonate{tag}") for _ in range(3)]
+        asyncio.run(apps["gateway"].audit_store.upsert_signals([older, *newer]))
+        for term in (f"sodium chloride{tag}", f"zelvarocin{tag}"):
+            client.post("/api/v1/watchlist", json={"term": term}, headers=admin)
+        monkeypatch.setattr(apps["gateway"], "REGULATORY_SCAN_LIMIT", 2)
+        found = client.get("/api/v1/regulatory-watch", params={"days": 3650}, headers=admin).json()
+        assert [m["terms"] for m in found["matches"]] == [[f"zelvarocin{tag}"]] and found["truncated"] is False
+
+    def test_hitting_a_limit_is_reported(self, client, apps, new_team, monkeypatch):
+        team = new_team(("admin",))
+        admin = bearer(team["admin"]["access_token"])
+        substance = f"quintavir{uuid.uuid4().hex[:4]}"
+        asyncio.run(apps["gateway"].audit_store.upsert_signals([ema_dhpc(substance) for _ in range(3)]))
+        client.post("/api/v1/watchlist", json={"term": substance}, headers=admin)
+        assert client.get("/api/v1/regulatory-watch", headers=admin).json()["truncated"] is False
+        monkeypatch.setattr(apps["gateway"], "REGULATORY_SCAN_LIMIT", 2)
+        assert client.get("/api/v1/regulatory-watch", headers=admin).json()["truncated"] is True
+        monkeypatch.setattr(apps["gateway"], "REGULATORY_SCAN_LIMIT", 5000)
+        monkeypatch.setattr(apps["gateway"], "REGULATORY_MATCH_LIMIT", 2)
+        found = client.get("/api/v1/regulatory-watch", headers=admin).json()
+        assert len(found["matches"]) == 2 and found["truncated"] is True
+
+
 class TestDelivery:
     def test_new_matching_records_become_watchlist_events_once(self, apps):
         store = apps["gateway"].audit_store

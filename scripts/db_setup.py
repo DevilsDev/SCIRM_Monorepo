@@ -62,6 +62,9 @@ def ensure_app_role(owner_url: str, role: str, password: str) -> None:
     cur.execute("SELECT to_regclass('public.incident_timeline') IS NOT NULL")
     if cur.fetchone()[0]:
         cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON incident_timeline FROM {}").format(ident))
+        # Incidents are never deleted (resolved instead): deleting one would cascade to its
+        # timeline and erase it, so the application cannot delete them either.
+        cur.execute(sql.SQL("REVOKE DELETE, TRUNCATE ON incidents FROM {}").format(ident))
     # Migrations are not for the application role.
     cur.execute(sql.SQL("REVOKE ALL ON alembic_version FROM {}").format(ident))
     # The only lookups allowed before a tenant is known (login, refresh, invitations: migration
