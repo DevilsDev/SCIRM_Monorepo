@@ -10,6 +10,16 @@ def bearer(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_preflight_allows_the_supplier_portal_token(client):
+    """Found in the live check: the portal's X-Portal-Token header failed the preflight."""
+    for method in ("GET", "PUT", "POST"):
+        response = client.options("/api/v1/portal/assessment", headers={
+            "Origin": ORIGIN, "Access-Control-Request-Method": method,
+            "Access-Control-Request-Headers": "content-type,x-portal-token"})
+        assert response.status_code == 200, (method, response.text)
+        assert "x-portal-token" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_preflight_allows_every_method_the_app_uses(client):
     for method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
         response = client.options("/api/v1/org/members/x", headers={

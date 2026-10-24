@@ -11,7 +11,7 @@ import re
 import secrets
 import uuid
 from contextlib import asynccontextmanager
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from urllib.parse import quote, urlencode
 from uuid import uuid4
 
@@ -33,7 +33,9 @@ from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
 from libs.common.security import public_url, setup_cors, setup_rate_limiting
 from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
                                audit_category, audit_cursor, create_store, is_api_key)
+from libs.assessments import questions as aq
 from libs.common import oidc, secret_box
+from libs.common.store_assessments import new_portal_token, portal_token_hash
 from libs.integrations import reports, webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -84,7 +86,9 @@ app = FastAPI(
 _AUDITED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 # Recorded by the handlers themselves, with the account email.
 _SELF_AUDITED_PATHS = {"/api/v1/auth/login", "/api/v1/invitations/accept", "/api/v1/invitations/lookup",
-                       "/api/v1/auth/sso/exchange"}
+                       "/api/v1/auth/sso/exchange",
+                       # The supplier portal has no signed-in user; a submission is audited by name.
+                       "/api/v1/portal/assessment", "/api/v1/portal/assessment/submit"}
 
 
 async def _account_owner(email: str) -> Optional[Dict[str, Any]]:
@@ -912,6 +916,271 @@ async def send_report_now(schedule_id: str, token: str = Depends(security)):
     if not row:
         raise HTTPException(status_code=404, detail="Scheduled report not found")
     return {"schedule": _schedule_view(row), "note": "Queued: it is sent within about a minute."}
+
+
+# ---------------------------------------------------------------------------
+# Supplier assessments: questionnaires sent to a supplier contact, answered through the
+# supplier portal (a link, no account). Answers are the supplier's own statements; the
+# score is computed by code (libs/assessments/questions.py).
+# ---------------------------------------------------------------------------
+
+_PORTAL_GONE = ("This link is not valid any more. It may have expired or been replaced by a newer link, or the "
+                "questionnaire was already submitted. Ask the person who sent it for a new link.")
+
+
+class AssessmentTemplateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field("", max_length=500)
+    questions: List[Dict[str, Any]] = Field(..., min_length=1, max_length=aq.MAX_QUESTIONS)
+
+
+class AssessmentRequest(BaseModel):
+    supplier_id: str = Field(..., max_length=64)
+    template_id: str = Field(..., max_length=64)
+    recipient_email: str = Field(..., max_length=254)
+    recipient_name: str = Field("", max_length=200)
+    due_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    link_days: int = Field(30, ge=1, le=90)
+    send_email: bool = True
+
+
+class AssessmentReview(BaseModel):
+    note: str = Field("", max_length=2000)
+
+
+class PortalAnswers(BaseModel):
+    answers: Dict[str, Any]
+
+
+class PortalSubmit(BaseModel):
+    answers: Dict[str, Any]
+    name: str = Field(..., min_length=1, max_length=200)
+    email: str = Field(..., max_length=254)
+
+
+async def _assessment_template(org: str, template_id: str) -> Dict[str, Any]:
+    template = aq.BUILT_IN.get(template_id) or await audit_store.get_assessment_template(org, template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Questionnaire not found")
+    return template
+
+
+async def _send_assessment_link(org: str, row: Dict[str, Any], link: str, due: Optional[str]) -> Optional[str]:
+    """Email the portal link to the supplier contact. Returns why it was not sent, if not."""
+    if reports.smtp_config() is None:
+        return "Email is not configured on this deployment: send the link to the supplier yourself."
+    import html
+    org_name = await audit_store.organization_name(org)
+    lines = [f"Hello {row.get('recipient_name') or ''}".rstrip() + ",", "",
+             f"{org_name} asks {row.get('supplier_name') or 'your company'} to answer a short questionnaire: "
+             f"{row['template_name']}.", "", f"Open it here: {link}", ""]
+    if due:
+        lines += [f"Please answer by {due}.", ""]
+    lines += ["You can save a draft and come back with the same link until you submit. The link is personal: "
+              "do not forward it.", "", "This message was sent by SCIRM on behalf of " + org_name + "."]
+    text_body = "\n".join(lines)
+    html_body = "<p>" + "</p><p>".join(html.escape(p) for p in text_body.split("\n\n")).replace(
+        html.escape(link), f'<a href="{html.escape(link)}">{html.escape(link)}</a>') + "</p>"
+    try:
+        await reports.send_email([row["recipient_email"]], f"{org_name}: supplier questionnaire", text_body, html_body)
+    except Exception as exc:
+        logger.error("Assessment email failed", error=type(exc).__name__)
+        return "The email could not be sent: send the link to the supplier yourself."
+    return None
+
+
+def _portal_link(token: str) -> str:
+    return f"{PUBLIC_APP_URL}/portal#{token}" if PUBLIC_APP_URL else f"/portal#{token}"
+
+
+@app.get("/api/v1/assessment-templates")
+async def list_assessment_templates(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    own = await audit_store.list_assessment_templates(user.organization_id)
+    return {"templates": [*aq.BUILT_IN.values(), *own], "question_types": aq.TYPES}
+
+
+@app.post("/api/v1/assessment-templates")
+async def create_assessment_template(body: AssessmentTemplateRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    try:
+        questions = aq.validate_questions(body.questions)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    row = await audit_store.create_assessment_template(user.organization_id, body.name.strip(),
+                                                       body.description.strip(), questions, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "assessment.template_created", target=row["id"],
+                       details={"name": row["name"], "questions": len(questions)}, resource_type="assessment")
+    return {"template": row}
+
+
+@app.delete("/api/v1/assessment-templates/{template_id}")
+async def archive_assessment_template(template_id: str, token: str = Depends(security)):
+    """Retire a questionnaire. Assessments already sent keep their own copy of it."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    if not await audit_store.archive_assessment_template(user.organization_id, template_id):
+        raise HTTPException(status_code=404, detail="Questionnaire not found")
+    return {"deleted": True}
+
+
+@app.get("/api/v1/assessments")
+async def list_assessments(supplier_id: Optional[str] = None, status: Optional[str] = None,
+                           token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    if status and status not in ("sent", "submitted", "reviewed", "cancelled"):
+        raise HTTPException(status_code=400, detail="Unknown status")
+    return {"assessments": await audit_store.list_assessments(user.organization_id, supplier_id, status)}
+
+
+@app.post("/api/v1/assessments")
+async def send_assessment(body: AssessmentRequest, token: str = Depends(security)):
+    """Send a questionnaire to a supplier contact. The portal link is returned once (and
+    emailed when email is configured); it works until submitted, cancelled or re-sent."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    template = await _assessment_template(user.organization_id, body.template_id)
+    email = _valid_email(body.recipient_email)
+    portal_token, token_hash = new_portal_token()
+    try:
+        row = await audit_store.create_assessment(user.organization_id, {
+            "supplier_id": body.supplier_id, "template_name": template["name"], "questions": template["questions"],
+            "recipient_email": email, "recipient_name": body.recipient_name.strip(), "due_date": body.due_date,
+            "token_hash": token_hash, "token_expires_at": datetime.now(timezone.utc) + timedelta(days=body.link_days),
+            "sent_by": user.email})
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    link = _portal_link(portal_token)
+    email_note = await _send_assessment_link(user.organization_id, row, link, body.due_date) if body.send_email \
+        else "Not emailed: send the link to the supplier yourself."
+    await _audit_event(user.organization_id, user.id, user.email, "assessment.sent", target=row["id"],
+                       details={"supplier": row["supplier_name"], "questionnaire": row["template_name"],
+                                "recipient": email, "emailed": email_note is None}, resource_type="assessment")
+    return {"assessment": row, "portal_url": link, "emailed": email_note is None, "note": email_note}
+
+
+@app.get("/api/v1/assessments/{assessment_id}")
+async def get_assessment(assessment_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    row = await audit_store.get_assessment(user.organization_id, assessment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    links = [link for link in await audit_store.list_subtier_links(user.organization_id, row["supplier_id"])
+             if link["assessment_id"] == row["id"]]
+    return {"assessment": row, "subtier": links}
+
+
+@app.post("/api/v1/assessments/{assessment_id}/resend")
+async def resend_assessment(assessment_id: str, token: str = Depends(security)):
+    """A new link (the old one stops working), emailed again when email is configured."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    portal_token, token_hash = new_portal_token()
+    row = await audit_store.resend_assessment(user.organization_id, assessment_id, token_hash,
+                                              datetime.now(timezone.utc) + timedelta(days=30))
+    if not row:
+        raise HTTPException(status_code=409, detail="Only a questionnaire that is still waiting for answers can be re-sent")
+    link = _portal_link(portal_token)
+    email_note = await _send_assessment_link(user.organization_id, row, link, row.get("due_date"))
+    await _audit_event(user.organization_id, user.id, user.email, "assessment.resent", target=row["id"],
+                       details={"supplier": row["supplier_name"], "emailed": email_note is None},
+                       resource_type="assessment")
+    return {"assessment": row, "portal_url": link, "emailed": email_note is None, "note": email_note}
+
+
+@app.post("/api/v1/assessments/{assessment_id}/cancel")
+async def cancel_assessment(assessment_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    row = await audit_store.cancel_assessment(user.organization_id, assessment_id)
+    if not row:
+        raise HTTPException(status_code=409, detail="Only a questionnaire that is still waiting for answers can be cancelled")
+    await _audit_event(user.organization_id, user.id, user.email, "assessment.cancelled", target=row["id"],
+                       details={"supplier": row["supplier_name"]}, resource_type="assessment")
+    return {"assessment": row}
+
+
+@app.post("/api/v1/assessments/{assessment_id}/review")
+async def review_assessment(assessment_id: str, body: AssessmentReview, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    row = await audit_store.review_assessment(user.organization_id, assessment_id, body.note.strip(), user.email)
+    if not row:
+        raise HTTPException(status_code=409, detail="Only a submitted questionnaire can be marked as reviewed")
+    await _audit_event(user.organization_id, user.id, user.email, "assessment.reviewed", target=row["id"],
+                       details={"supplier": row["supplier_name"], "score": row["score"]}, resource_type="assessment")
+    return {"assessment": row}
+
+
+@app.get("/api/v1/suppliers/{supplier_id}/subtier")
+async def supplier_subtier(supplier_id: str, token: str = Depends(security)):
+    """The supplier's own suppliers, as the supplier reported them in assessments."""
+    user = await verify_token(token.credentials)
+    if not await audit_store.get_supplier(user.organization_id, supplier_id):
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"links": await audit_store.list_subtier_links(user.organization_id, supplier_id),
+            "source": "supplier-reported"}
+
+
+async def _portal_caller(request: Request) -> Tuple[str, str, str]:
+    """(assessment id, organization, token hash) for the X-Portal-Token header. The portal
+    never reads Authorization: a signed-in session in the same browser changes nothing."""
+    portal_token = request.headers.get("x-portal-token", "").strip()
+    token_hash = portal_token_hash(portal_token) if 20 <= len(portal_token) <= 100 else None
+    found = await audit_store.assessment_by_token(token_hash) if token_hash else None
+    if not found:
+        raise HTTPException(status_code=404, detail=_PORTAL_GONE)
+    return found[0], found[1], token_hash
+
+
+@app.get("/api/v1/portal/assessment")
+async def portal_get(request: Request):
+    assessment_id, org, token_hash = await _portal_caller(request)
+    row = await audit_store.portal_assessment(org, assessment_id, token_hash)
+    if not row:
+        raise HTTPException(status_code=404, detail=_PORTAL_GONE)
+    return {"assessment": row}
+
+
+@app.put("/api/v1/portal/assessment")
+async def portal_save(body: PortalAnswers, request: Request):
+    """Save a draft: incomplete answers are fine until submitting."""
+    assessment_id, org, token_hash = await _portal_caller(request)
+    row = await audit_store.portal_assessment(org, assessment_id, token_hash)
+    if not row:
+        raise HTTPException(status_code=404, detail=_PORTAL_GONE)
+    try:
+        answers, _ = aq.clean_answers(row["questions"], body.answers, final=False)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not await audit_store.portal_save(org, assessment_id, token_hash, answers):
+        raise HTTPException(status_code=404, detail=_PORTAL_GONE)
+    return {"saved": True}
+
+
+@app.post("/api/v1/portal/assessment/submit")
+async def portal_submit(body: PortalSubmit, request: Request):
+    """Submit the answers. The link stops working; the answers cannot be changed."""
+    assessment_id, org, token_hash = await _portal_caller(request)
+    row = await audit_store.portal_assessment(org, assessment_id, token_hash)
+    if not row:
+        raise HTTPException(status_code=404, detail=_PORTAL_GONE)
+    email = _valid_email(body.email)
+    try:
+        answers, links = aq.clean_answers(row["questions"], body.answers, final=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    score, flags = aq.score(row["questions"], answers)
+    done = await audit_store.portal_submit(org, assessment_id, token_hash, answers, links, score, flags,
+                                           body.name.strip(), email)
+    if not done:
+        raise HTTPException(status_code=404, detail=_PORTAL_GONE)
+    await _audit_event(org, None, f"supplier:{email}", "assessment.submitted", target=assessment_id,
+                       details={"supplier": row["supplier_name"], "submitted_by": body.name.strip(), "score": score,
+                                "flags": len(flags), "subtier_suppliers": len(links)},
+                       actor_type="supplier", resource_type="assessment")
+    return {"submitted": True, "note": f"Thank you. Your answers were sent to {row.get('organization_name') or 'the requester'}."}
 
 
 # ---------------------------------------------------------------------------

@@ -360,6 +360,40 @@ def test_webhook_and_report_tables_are_tenant_scoped_with_forced_rls(db):
     assert isinstance(duplicate, psycopg2.errors.UniqueViolation)
 
 
+def test_assessment_tables_and_the_portal_lookup(db):
+    """Migration 025: assessments stay in their organization, cannot point at another
+    organization's supplier, and the portal lookup only finds a live token."""
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = ANY(%s)",
+                    (["assessment_templates", "supplier_assessments", "supplier_subtier_links"],))
+        flags = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+    # supplier_assessments is read by the SECURITY DEFINER lookup, so RLS is enabled, not forced.
+    assert flags == {"assessment_templates": (True, True), "supplier_assessments": (True, False),
+                     "supplier_subtier_links": (True, True)}
+    [(supplier,)] = as_org(db["app"], db["a"], (
+        "INSERT INTO suppliers (organization_id, supplier_code, name) VALUES (%s, %s, 'Assessed GmbH') RETURNING id::text"),
+        (db["a"], f"AS-{uuid.uuid4().hex[:6]}"))
+    live, spent = "a" * 64, "b" * 64
+    insert = ("INSERT INTO supplier_assessments (organization_id, supplier_id, template_name, questions, recipient_email, "
+              "token_hash, token_expires_at, status) VALUES (%s, %s, 'T', '[]', 'q@x.example.com', %s, now() + interval '1 day', %s) "
+              "RETURNING id::text")
+    [(assessment,)] = as_org(db["app"], db["a"], insert, (db["a"], supplier, live, "sent"))
+    as_org(db["app"], db["a"], insert, (db["a"], supplier, None, "submitted"))
+    # Org B cannot hang an assessment off org A's supplier, even naming itself as the owner.
+    assert isinstance(as_org(db["app"], db["b"], insert, (db["b"], supplier, spent, "sent")),
+                      psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM supplier_assessments") == [(0,)]
+    lookup = "SELECT id::text, organization_id::text FROM scirm_assessment_by_token(%s)"
+    assert as_org(db["app"], "", lookup, (live,)) == [(assessment, db["a"])]
+    assert as_org(db["app"], "", lookup, (spent,)) == []
+    as_org(db["app"], db["a"], "UPDATE supplier_assessments SET token_expires_at = now() - interval '1 minute' "
+                               "WHERE id = %s", (assessment,))
+    assert as_org(db["app"], "", lookup, (live,)) == []  # expired
+    with pytest.raises(psycopg2.errors.CheckViolation):  # a token exists only while answers are awaited
+        with db["owner"].cursor() as cur:
+            cur.execute("UPDATE supplier_assessments SET status = 'submitted' WHERE id = %s", (assessment,))
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])
