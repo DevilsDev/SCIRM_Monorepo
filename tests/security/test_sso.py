@@ -265,6 +265,33 @@ class TestConfiguration:
         shown = client.get("/api/v1/org/sso", headers=bearer(sarah["access_token"])).json()
         assert shown["config"]["client_id"] == CLIENT_ID and CLIENT_SECRET not in json.dumps(shown)
 
+    def test_changes_and_enforcement_are_audited_without_the_secret(self, client, sarah, configured):
+        """Found at the Phase 2 gate: turning enforcement off was logged like a first setup."""
+        admin = bearer(sarah["access_token"])
+        for enforce in (True, False):
+            assert client.put("/api/v1/org/sso", json={"issuer": ISSUER, "client_id": CLIENT_ID, "enforce": enforce},
+                              headers=admin).status_code == 200
+        log = client.get("/api/v1/audit", params={"category": "access", "limit": 50}, headers=admin).json()["entries"]
+        # Entries written in the same request can share a timestamp, so compare as sets.
+        named = [e for e in log if e["action"].startswith("sso.")][:4]
+        assert sorted(e["action"] for e in named) == sorted(
+            ["sso.enforcement_off", "sso.updated", "sso.enforcement_on", "sso.updated"])
+        turned_off = next(e for e in named if e["action"] == "sso.updated" and e["details"]["enforce"] is False)
+        assert turned_off["details"]["changed"] == ["enforce"] and turned_off["details"]["secret_replaced"] is False
+        assert CLIENT_SECRET not in json.dumps(log)
+
+    def test_placeholder_public_urls_count_as_unset(self, monkeypatch):
+        """Found at the Phase 2 gate: the staging manifests' REPLACE_WITH_... values made SSO
+        look available with a broken redirect URI."""
+        from libs.common.security import public_url
+        for value in ("REPLACE_WITH_STAGING_API_URL", "scirm.example.com", "javascript:alert(1)", "http://"):
+            monkeypatch.setenv("PUBLIC_API_URL", value)
+            assert public_url("PUBLIC_API_URL") == "", value
+        monkeypatch.setenv("PUBLIC_API_URL", "https://api.scirm.example.com/")
+        assert public_url("PUBLIC_API_URL") == "https://api.scirm.example.com"
+        monkeypatch.delenv("PUBLIC_API_URL")
+        assert public_url("PUBLIC_API_URL", "http://localhost:8000") == "http://localhost:8000"
+
     def test_strict_mode_requires_https(self):
         with pytest.raises(oidc.OidcError):
             oidc.validate_issuer("http://idp.example.com/realms/acme", strict=True)

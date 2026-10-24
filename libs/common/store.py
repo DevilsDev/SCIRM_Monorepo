@@ -1189,12 +1189,15 @@ def _jsonable(row: Dict[str, Any]) -> Dict[str, Any]:
 # --- audit log filters (shared) ------------------------------------------------
 # Categories for the audit log screen, as SQL LIKE patterns on the action. Named actions
 # (auth.login, mfa.enabled, ...) and the middleware's "METHOD /api/v1/<route>" both match.
-# "changes" is everything not in another category.
+# "changes" is everything not in another category. The categories must not overlap: the
+# PostgreSQL filter matches each one's patterns on their own.
 AUDIT_CATEGORIES: Dict[str, Tuple[str, ...]] = {
     "sign_in": ("auth.%",),
-    "access": ("mfa.%", "invitation.%", "api_key.%", "% /api/v1/org/%", "% /api/v1/auth/%",
-               "% /api/v1/invitations/%", "% /scim/v2/%", "sso.%"),
-    "integrations": ("integrations.%", "suppliers.import.%", "% /api/v1/integrations/%"),
+    "access": ("mfa.%", "invitation.%", "api_key.%", "sso.%", "scim.%", "% /api/v1/org/invitations%",
+               "% /api/v1/org/members%", "% /api/v1/org/api-keys%", "% /api/v1/org/sso%", "% /api/v1/auth/%",
+               "% /api/v1/invitations/%", "% /scim/v2/%"),
+    "integrations": ("integrations.%", "suppliers.import.%", "webhook.%", "report.%", "% /api/v1/integrations/%",
+                     "% /api/v1/org/webhooks%", "% /api/v1/org/reports%"),
 }
 AUDIT_CATEGORY_NAMES = (*AUDIT_CATEGORIES, "changes")
 

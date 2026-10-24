@@ -30,7 +30,7 @@ from libs.common.auth import (
 )
 from libs.common.monitoring import setup_monitoring
 from libs.common.models import RiskAssessmentRequest, RiskAssessmentResponse
-from libs.common.security import setup_cors, setup_rate_limiting
+from libs.common.security import public_url, setup_cors, setup_rate_limiting
 from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VERDICTS, ROLES, EmailExists, LastAdmin,
                                audit_category, audit_cursor, create_store, is_api_key)
 from libs.common import oidc, secret_box
@@ -329,7 +329,7 @@ def _is_sample_feature(path: str) -> bool:
 
 
 # Base for invitation links. Configured, never taken from the request's Host header.
-PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "http://localhost:3000" if IS_DEV else "").rstrip("/")
+PUBLIC_APP_URL = public_url("PUBLIC_APP_URL", "http://localhost:3000" if IS_DEV else "")
 # Checked for unknown emails too, so response time does not reveal which accounts exist.
 _DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(16))
 
@@ -467,11 +467,13 @@ async def _save_mfa(org: str, user_id: str, email: str, secret: Optional[str], e
         raise HTTPException(status_code=404, detail="Account not found")
 
 
-async def _audit_event(org: str, user_id: str, actor: str, action: str, target: Optional[str] = None) -> None:
+async def _audit_event(org: str, user_id: Optional[str], actor: str, action: str, target: Optional[str] = None,
+                       details: Optional[Dict[str, Any]] = None, actor_type: str = "user",
+                       resource_type: str = "auth") -> None:
     try:
         await audit_store.record_audit(org, {
-            "user_id": user_id, "actor_type": "user", "actor": actor, "action": action,
-            "resource_type": "auth", "resource_id": target, "status_code": 200})
+            "user_id": user_id, "actor_type": actor_type, "actor": actor, "action": action,
+            "resource_type": resource_type, "resource_id": target, "details": details or {}, "status_code": 200})
     except Exception as exc:
         logger.error("Audit write failed", error=type(exc).__name__, action=action)
 
@@ -999,8 +1001,36 @@ def _scim_email(value: Any) -> str:
     return email
 
 
+_SCIM_AUDITED = (("email", "userName"), ("name", "name"), ("roles", "roles"), ("is_active", "active"),
+                 ("scim_external_id", "externalId"))
+
+
+async def _scim_audit(caller, before: Optional[Dict[str, Any]], after: Dict[str, Any]) -> None:
+    """A named audit entry for a provisioning change: who was created, deactivated,
+    reactivated or updated, and each changed field as [before, after]. No entry if nothing
+    changed (the request itself is still logged by the middleware)."""
+    if before is None:
+        action, changed = "scim.user_created", {}
+    else:
+        changed = {label: [before.get(field), after.get(field)] for field, label in _SCIM_AUDITED
+                   if (sorted(before.get(field) or []) if field == "roles" else before.get(field))
+                   != (sorted(after.get(field) or []) if field == "roles" else after.get(field))}
+        if not changed:
+            return
+        active = changed.get("active")
+        action = ("scim.user_deactivated" if active and not active[1] else
+                  "scim.user_reactivated" if active else "scim.user_updated")
+    details = {"userName": after.get("email"), "roles": after.get("roles") or [], "active": bool(after.get("is_active"))}
+    if changed:
+        details["changed"] = changed
+    if after.get("scim_external_id"):
+        details["externalId"] = after["scim_external_id"]
+    await _audit_event(caller.organization_id, None, caller.email, action, target=str(after["id"]),
+                       details=details, actor_type="api_key", resource_type="user")
+
+
 async def _scim_apply(org: str, user_id: str, changes: Dict[str, Any]) -> Dict[str, Any]:
-    """Write changes (email, name, external_id, roles, active) and return the resource."""
+    """Write changes (email, name, external_id, roles, active) and return the stored user."""
     try:
         if {"email", "name", "external_id"} & changes.keys():
             await audit_store.scim_set_profile(org, user_id, email=changes.get("email"), name=changes.get("name"),
@@ -1016,7 +1046,7 @@ async def _scim_apply(org: str, user_id: str, changes: Dict[str, Any]) -> Dict[s
     user = await audit_store.scim_user(org, user_id)
     if not user:
         raise ScimError(404, "User not found")
-    return _scim_resource(user)
+    return user
 
 
 @app.get("/scim/v2/ServiceProviderConfig")
@@ -1103,15 +1133,17 @@ async def scim_create_user(request: Request, token: str = Depends(security)):
         changes["external_id"] = str(body["externalId"])[:200]
     if "active" in body and not _scim_bool(body["active"]):
         changes["active"] = False
-    resource = await _scim_apply(user.organization_id, str(created["id"]), changes) if changes else \
-        _scim_resource(await audit_store.scim_user(user.organization_id, str(created["id"])))
-    return _scim(resource, 201)
+    stored = await _scim_apply(user.organization_id, str(created["id"]), changes) if changes else \
+        await audit_store.scim_user(user.organization_id, str(created["id"]))
+    await _scim_audit(user, None, stored)
+    return _scim(_scim_resource(stored), 201)
 
 
 @app.put("/scim/v2/Users/{user_id}")
 async def scim_replace_user(user_id: str, request: Request, token: str = Depends(security)):
     user = await _scim_caller(token.credentials)
-    if not await audit_store.scim_user(user.organization_id, user_id):
+    before = await audit_store.scim_user(user.organization_id, user_id)
+    if not before:
         raise ScimError(404, "User not found")
     body = await request.json()
     changes: Dict[str, Any] = {"email": _scim_email(body.get("userName"))}
@@ -1123,7 +1155,9 @@ async def scim_replace_user(user_id: str, request: Request, token: str = Depends
         changes["roles"] = _scim_roles(body["roles"])
     if body.get("externalId"):
         changes["external_id"] = str(body["externalId"])[:200]
-    return _scim(await _scim_apply(user.organization_id, user_id, changes))
+    stored = await _scim_apply(user.organization_id, user_id, changes)
+    await _scim_audit(user, before, stored)
+    return _scim(_scim_resource(stored))
 
 
 @app.patch("/scim/v2/Users/{user_id}")
@@ -1131,7 +1165,8 @@ async def scim_patch_user(user_id: str, request: Request, token: str = Depends(s
     """PatchOp: add/replace on active, userName, name, displayName, externalId, roles and the
     work email; with or without a path (Entra and Okta send both forms)."""
     user = await _scim_caller(token.credentials)
-    if not await audit_store.scim_user(user.organization_id, user_id):
+    before = await audit_store.scim_user(user.organization_id, user_id)
+    if not before:
         raise ScimError(404, "User not found")
     body = await request.json()
     operations = body.get("Operations") or body.get("operations")
@@ -1174,7 +1209,9 @@ async def scim_patch_user(user_id: str, request: Request, token: str = Depends(s
         given, family = parts.get("name.givenname"), parts.get("name.familyname")
         old = (current.get("name") or "").split(" ", 1)
         changes["name"] = " ".join(p for p in (given or old[0], family or (old[1] if len(old) > 1 else "")) if p)
-    return _scim(await _scim_apply(user.organization_id, user_id, {k: v for k, v in changes.items() if v is not None}))
+    stored = await _scim_apply(user.organization_id, user_id, {k: v for k, v in changes.items() if v is not None})
+    await _scim_audit(user, before, stored)
+    return _scim(_scim_resource(stored))
 
 
 @app.delete("/scim/v2/Users/{user_id}")
@@ -1182,9 +1219,10 @@ async def scim_delete_user(user_id: str, token: str = Depends(security)):
     """Deactivate (accounts are kept for the audit trail). Sessions end within the access
     token's lifetime: refreshing is refused for inactive accounts."""
     user = await _scim_caller(token.credentials)
-    if not await audit_store.scim_user(user.organization_id, user_id):
+    before = await audit_store.scim_user(user.organization_id, user_id)
+    if not before:
         raise ScimError(404, "User not found")
-    await _scim_apply(user.organization_id, user_id, {"active": False})
+    await _scim_audit(user, before, await _scim_apply(user.organization_id, user_id, {"active": False}))
     return _scim(None, 204)
 
 
@@ -2108,7 +2146,7 @@ async def export_full_report(token: str = Depends(security)):
 
 # The gateway's own public address: the redirect URI registered at identity providers.
 # Configured, never taken from the request's Host header.
-PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", "http://localhost:8000" if IS_DEV else "").rstrip("/")
+PUBLIC_API_URL = public_url("PUBLIC_API_URL", "http://localhost:8000" if IS_DEV else "")
 SSO_COOKIE, SSO_COOKIE_PATH, SSO_STATE_TYPE = "scirm_sso", "/api/v1/auth/sso", "sso_state"
 SSO_HANDOFF_SECONDS = 60
 
@@ -2302,12 +2340,24 @@ async def put_sso(body: SsoConfigRequest, token: str = Depends(security)):
         await oidc.discover(issuer)
     except oidc.OidcError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    before = await audit_store.get_sso_config(user.organization_id)
+    secret = (body.client_secret or "").strip() or None
     try:
         config = await audit_store.set_sso_config(user.organization_id, issuer, body.client_id.strip(),
-                                                  (body.client_secret or "").strip() or None, body.enforce, user.email)
+                                                  secret, body.enforce, user.email)
     except ValueError:
         raise HTTPException(status_code=400, detail="Enter the client secret.")
-    await _audit_event(user.organization_id, user.id, user.email, "sso.configured")
+    # Record what changed (never the secret), and turning enforcement on or off as its own
+    # entry: it decides whether members can still sign in with a password.
+    changed = [f for f in ("issuer", "client_id", "enforce") if before and before.get(f) != config.get(f)]
+    details = {"issuer": config.get("issuer"), "client_id": config.get("client_id"),
+               "enforce": bool(config.get("enforce")), "changed": changed, "secret_replaced": bool(before and secret)}
+    await _audit_event(user.organization_id, user.id, user.email, "sso.updated" if before else "sso.configured",
+                       details=details)
+    if before and "enforce" in changed:
+        await _audit_event(user.organization_id, user.id, user.email,
+                           "sso.enforcement_on" if config.get("enforce") else "sso.enforcement_off",
+                           details={"issuer": config.get("issuer")})
     return _sso_view(config)
 
 

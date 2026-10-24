@@ -29,7 +29,7 @@ from libs.common.models import (
 )
 from libs.common.monitoring import setup_monitoring, track_agent_task
 from libs.common import secret_box
-from libs.common.security import setup_cors
+from libs.common.security import public_url, setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
 from libs.integrations import reports, sap_import, sap_odata, sap_spend, webhooks
@@ -55,7 +55,7 @@ WEBHOOKS_ENABLED = os.getenv("WEBHOOKS_ENABLED", "true").lower() == "true"
 WEBHOOK_TICK_SECONDS = int(os.getenv("WEBHOOK_TICK_SECONDS", "30"))
 WEBHOOK_DETECT_SECONDS = int(os.getenv("WEBHOOK_DETECT_SECONDS", "300"))
 # Links in report emails (none when unset).
-PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "").rstrip("/")
+PUBLIC_APP_URL = public_url("PUBLIC_APP_URL")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 logger = structlog.get_logger()

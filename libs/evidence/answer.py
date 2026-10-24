@@ -50,8 +50,9 @@ def describe(record: Dict[str, Any], matched_on: str = "") -> str:
         firm = raw.get("recalling_firm") or _first(record.get("entity_names") or [])
         product = record.get("title", "").split(":", 1)[-1].strip()
         reason = (raw.get("reason_for_recall") or "").strip().rstrip(".")
-        cls = raw.get("classification") or "unclassified"
-        return f"On {published}, FDA published a {cls} recall by {firm} of {product}" + (f": {reason}." if reason else ".")
+        cls = raw.get("classification")
+        kind = f"a {cls} recall" if cls else "an unclassified recall"
+        return f"On {published}, FDA published {kind} by {firm} of {product}" + (f": {reason}." if reason else ".")
     if t in ("shortage", "discontinuation"):
         company = raw.get("company_name") or _first(record.get("entity_names") or [])
         drug = raw.get("generic_name") or record.get("title", "")

@@ -133,6 +133,28 @@ class TestChanges:
         mine = [e for e in log if e["action"] == "POST /scim/v2/Users"]
         assert mine and mine[0]["actor"].startswith("api-key:Entra provisioning")
 
+    def test_each_change_names_the_account_and_what_changed(self, client, sarah, scim):
+        """Found at the Phase 2 gate: SCIM entries showed only the route, not who or what."""
+        user = new_user(client, scim, roles=[{"value": "analyst"}])
+        path = f"/scim/v2/Users/{user['id']}"
+        patch = {"schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"]}
+        client.patch(path, json={**patch, "Operations": [{"op": "replace", "path": "roles", "value": [{"value": "auditor"}]}]},
+                     headers=scim)
+        client.patch(path, json={**patch, "Operations": [{"op": "replace", "path": "roles", "value": [{"value": "auditor"}]}]},
+                     headers=scim)  # no change: no named entry
+        assert client.delete(path, headers=scim).status_code == 204
+        client.patch(path, json={**patch, "Operations": [{"op": "replace", "value": {"active": "True"}}]}, headers=scim)
+        log = client.get("/api/v1/audit", params={"category": "access", "limit": 100},
+                         headers=bearer(sarah["access_token"])).json()["entries"]
+        entries = [e for e in log if e["action"].startswith("scim.") and e["resource_id"] == user["id"]]
+        assert sorted(e["action"] for e in entries) == ["scim.user_created", "scim.user_deactivated",
+                                                        "scim.user_reactivated", "scim.user_updated"]  # no-op PATCH: none
+        named = {e["action"]: e for e in entries}
+        assert all(e["details"]["userName"] == user["userName"] for e in named.values())
+        assert all(e["actor"].startswith("api-key:Entra provisioning") for e in named.values())
+        assert named["scim.user_updated"]["details"]["changed"] == {"roles": [["analyst"], ["auditor"]]}
+        assert named["scim.user_deactivated"]["details"]["changed"] == {"active": [True, False]}
+
 
 class TestBoundaries:
     def test_another_organizations_users_are_invisible(self, client, lisa, scim):
