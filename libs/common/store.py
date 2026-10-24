@@ -120,6 +120,7 @@ _REPORT_EDITABLE = ("name", "frequency", "weekday", "hour_utc", "recipients", "s
 
 
 _SSO_PUBLIC = ("issuer", "client_id", "enforce", "created_by", "updated_at")
+_SCIM_FIELDS = ("id", "email", "name", "roles", "is_active", "scim_external_id", "created_at")
 _SSO_MEMBER = ("id", "email", "name", "roles", "is_active", "sso_issuer", "sso_subject")
 
 
@@ -580,6 +581,38 @@ class MemoryStore:
         self.users[user["id"]] = user
         return _member(user)
 
+    # --- SCIM provisioning -------------------------------------------------
+    def _scim_view(self, u: Dict[str, Any]) -> Dict[str, Any]:
+        return {**{k: u.get(k) for k in _SCIM_FIELDS}, "updated_at": u.get("updated_at") or u.get("created_at")}
+
+    async def scim_users(self, org: str, user_name: Optional[str] = None, start: int = 1,
+                         count: int = 100) -> Tuple[List[Dict[str, Any]], int]:
+        found = [u for u in self.users.values() if u["organization_id"] == org
+                 and (user_name is None or u["email"] == user_name.lower())]
+        found.sort(key=lambda u: (u["created_at"], u["id"]))
+        return [self._scim_view(u) for u in found[start - 1:start - 1 + count]], len(found)
+
+    async def scim_user(self, org: str, user_id: str) -> Optional[Dict[str, Any]]:
+        u = self.users.get(str(user_id))
+        return self._scim_view(u) if u and u["organization_id"] == org else None
+
+    async def scim_set_profile(self, org: str, user_id: str, email: Optional[str] = None, name: Optional[str] = None,
+                               external_id: Optional[str] = None) -> bool:
+        """Name, email and the provider's externalId (roles and active go through update_member)."""
+        u = self.users.get(str(user_id))
+        if not u or u["organization_id"] != org:
+            return False
+        if email is not None and email.lower() != u["email"]:
+            if self._user_by_email(email):
+                raise EmailExists(email)
+            u["email"] = email.lower()
+        if name is not None:
+            u["name"] = name
+        if external_id is not None:
+            u["scim_external_id"] = external_id
+        u["updated_at"] = _now()
+        return True
+
     async def list_members(self, org: str) -> List[Dict[str, Any]]:
         return [_member(u) for u in self.users.values() if u["organization_id"] == org]
 
@@ -836,10 +869,10 @@ class MemoryStore:
 
     # --- API keys -----------------------------------------------------------
     async def create_api_key(self, org: str, name: str, created_by: Optional[str],
-                             expires_at: Optional[str] = None) -> Tuple[Dict[str, Any], str]:
+                             expires_at: Optional[str] = None, scope: str = "read") -> Tuple[Dict[str, Any], str]:
         key, prefix, digest = new_api_key()
         row = {"id": str(uuid.uuid4()), "organization_id": org, "name": name, "prefix": prefix, "key_hash": digest,
-               "scopes": ["read"], "created_by": created_by, "created_at": _now(), "expires_at": expires_at,
+               "scopes": [scope], "created_by": created_by, "created_at": _now(), "expires_at": expires_at,
                "last_used_at": None, "revoked_at": None}
         self.api_keys[row["id"]] = row
         return {k: row[k] for k in _API_KEY_PUBLIC}, key
@@ -1160,7 +1193,7 @@ def _jsonable(row: Dict[str, Any]) -> Dict[str, Any]:
 AUDIT_CATEGORIES: Dict[str, Tuple[str, ...]] = {
     "sign_in": ("auth.%",),
     "access": ("mfa.%", "invitation.%", "api_key.%", "% /api/v1/org/%", "% /api/v1/auth/%",
-               "% /api/v1/invitations/%"),
+               "% /api/v1/invitations/%", "% /scim/v2/%", "sso.%"),
     "integrations": ("integrations.%", "suppliers.import.%", "% /api/v1/integrations/%"),
 }
 AUDIT_CATEGORY_NAMES = (*AUDIT_CATEGORIES, "changes")
@@ -1875,6 +1908,45 @@ class PostgresStore:
             raise EmailExists(email)
         return self._account(rows[0])
 
+    # --- SCIM provisioning -------------------------------------------------
+    _SCIM_COLUMNS = "id, email, name, roles::text[] AS roles, is_active, scim_external_id, created_at, updated_at"
+
+    async def scim_users(self, org: str, user_name: Optional[str] = None, start: int = 1,
+                         count: int = 100) -> Tuple[List[Dict[str, Any]], int]:
+        where = "WHERE CAST(:u AS text) IS NULL OR lower(email) = lower(:u)"
+        rows = await self._all(org, (f"SELECT {self._SCIM_COLUMNS} FROM users {where} "
+                                     "ORDER BY created_at, id OFFSET :o LIMIT :n"),
+                               {"u": user_name, "o": max(start - 1, 0), "n": count})
+        total = (await self._all(org, f"SELECT count(*) AS n FROM users {where}", {"u": user_name}))[0]["n"]
+        return [self._account(r) for r in rows], total
+
+    async def scim_user(self, org: str, user_id: str) -> Optional[Dict[str, Any]]:
+        if not _is_uuid(user_id):
+            return None
+        rows = await self._all(org, f"SELECT {self._SCIM_COLUMNS} FROM users WHERE id = CAST(:i AS uuid)",
+                               {"i": user_id})
+        return self._account(rows[0]) if rows else None
+
+    async def scim_set_profile(self, org: str, user_id: str, email: Optional[str] = None, name: Optional[str] = None,
+                               external_id: Optional[str] = None) -> bool:
+        """Name, email and the provider's externalId (roles and active go through update_member)."""
+        from sqlalchemy.exc import IntegrityError
+        if not _is_uuid(user_id):
+            return False
+        if email is not None:
+            other = await self.find_login_user(email)
+            if other and str(other["id"]) != str(user_id):
+                raise EmailExists(email)
+        try:
+            rows = await self._all(org, (
+                "UPDATE users SET email = COALESCE(:e, email), name = COALESCE(:n, name), "
+                "scim_external_id = COALESCE(:x, scim_external_id), updated_at = now() "
+                "WHERE id = CAST(:i AS uuid) RETURNING id"),
+                {"e": email.lower() if email else None, "n": name, "x": external_id, "i": user_id})
+        except IntegrityError:
+            raise EmailExists(email or "")
+        return bool(rows)
+
     async def list_members(self, org: str) -> List[Dict[str, Any]]:
         rows = await self._all(org, f"SELECT {self._MEMBER_COLUMNS} FROM users ORDER BY created_at, email")
         return [self._account(r) for r in rows]
@@ -2189,14 +2261,14 @@ class PostgresStore:
     _API_KEY_COLUMNS = ", ".join(_API_KEY_PUBLIC)
 
     async def create_api_key(self, org: str, name: str, created_by: Optional[str],
-                             expires_at: Optional[str] = None) -> Tuple[Dict[str, Any], str]:
+                             expires_at: Optional[str] = None, scope: str = "read") -> Tuple[Dict[str, Any], str]:
         key, prefix, digest = new_api_key()
         expires = _naive_utc(expires_at)
         rows = await self._all(org, (
-            "INSERT INTO api_keys (organization_id, name, prefix, key_hash, created_by, expires_at) "
-            "VALUES (CAST(:org AS uuid), :n, :p, :h, :by, :exp) "
+            "INSERT INTO api_keys (organization_id, name, prefix, key_hash, scopes, created_by, expires_at) "
+            "VALUES (CAST(:org AS uuid), :n, :p, :h, CAST(:sc AS text[]), :by, :exp) "
             f"RETURNING {self._API_KEY_COLUMNS}"),
-            {"org": org, "n": name, "p": prefix, "h": digest, "by": created_by,
+            {"org": org, "n": name, "p": prefix, "h": digest, "sc": [scope], "by": created_by,
              "exp": expires.replace(tzinfo=timezone.utc) if expires else None})
         return self._api_key_row(rows[0]), key
 

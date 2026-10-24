@@ -21,6 +21,7 @@ nav:
       - Two-step sign-in: two-step-sign-in.md
       - Passwords: passwords.md
       - Single sign-on: single-sign-on.md
+      - User provisioning (SCIM): scim.md
       - Audit log: audit-log.md
       - Public API: public-api.md
       - Webhooks: webhooks.md

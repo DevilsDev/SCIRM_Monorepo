@@ -330,11 +330,16 @@ class TestApiKeys:
         assert as_org(db["app"], "", lookup, ("0" * 64,)) == [(db["a"], False)]
         assert as_org(db["app"], "", lookup, ("7" * 64,)) == []
 
-    def test_only_read_scope_and_hashes_are_accepted(self, db):
+    def test_only_known_scopes_and_hashes_are_accepted(self, db):
         bad_scope = as_org(db["app"], db["a"], "INSERT INTO api_keys (organization_id, name, prefix, key_hash, scopes) "
                            "VALUES (%s, 'k', 'scirm_ABCDEFGH', %s, '{write}')", (db["a"], "1" * 64))
         assert isinstance(bad_scope, psycopg2.errors.CheckViolation)
         assert isinstance(self._key(db, db["a"], "not-a-hash"), psycopg2.errors.CheckViolation)
+        insert = ("INSERT INTO api_keys (organization_id, name, prefix, key_hash, scopes) "
+                  "VALUES (%s, 'k', 'scirm_ABCDEFGH', %s, CAST(%s AS text[]))")
+        assert as_org(db["app"], db["a"], insert, (db["a"], "2" * 64, "{scim}")) == 1  # migration 024
+        both = as_org(db["app"], db["a"], insert, (db["a"], "3" * 64, "{read,scim}"))
+        assert isinstance(both, psycopg2.errors.CheckViolation)  # one scope per key
 
 
 def test_webhook_and_report_tables_are_tenant_scoped_with_forced_rls(db):
