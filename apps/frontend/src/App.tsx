@@ -32,6 +32,7 @@ import AuditLogPage from './pages/AuditLogPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import SupplierAssessmentsPage from './pages/SupplierAssessmentsPage';
 import PortalPage from './pages/PortalPage';
+import RegulatoryWatchPage from './pages/RegulatoryWatchPage';
 
 export default function App() {
   return (
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="/predictions" element={<SampleRoute><PredictionsPage /></SampleRoute>} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/intelligence" element={<IntelligenceFeedPage />} />
+            <Route path="/regulatory-watch" element={<RegulatoryWatchPage />} />
             <Route path="/simulator" element={<SampleRoute><SimulatorPage /></SampleRoute>} />
             <Route path="/procurement" element={<SampleRoute><ProcurementPage /></SampleRoute>} />
             <Route path="/components" element={<SampleRoute><ComponentsPage /></SampleRoute>} />

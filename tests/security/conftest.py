@@ -140,3 +140,32 @@ def auditor(login):
 
 def bearer(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def new_team(apps, client):
+    """make(roles) -> {role: tokens}: a fresh organization with one signed-in user per role,
+    for tests that list everything in an organization (the shared demo ones are left alone)."""
+    import asyncio
+    import uuid
+
+    from libs.common.auth import get_password_hash
+
+    def make(roles=("admin", "viewer")):
+        store = apps["gateway"].audit_store
+        tag = uuid.uuid4().hex[:8]
+
+        async def setup():
+            org = await store.create_organization(f"Team {tag}")
+            for role in roles:
+                await store.create_user(org, f"{role}-{tag}@team.example.com", role.title(),
+                                        get_password_hash("team-tests-pw-1"), [role])
+        asyncio.run(setup())
+        tokens = {}
+        for role in roles:
+            response = client.post("/api/v1/auth/login", json={"email": f"{role}-{tag}@team.example.com",
+                                                                "password": "team-tests-pw-1"})
+            assert response.status_code == 200, response.text
+            tokens[role] = response.json()
+        return tokens
+    return make

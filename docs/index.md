@@ -1,7 +1,7 @@
 # SCIRM documentation
 
 SCIRM monitors a company's suppliers against public records (FDA recalls, warning
-letters, import alerts and shortages, and GDACS disaster alerts) and answers questions
+letters, import alerts and shortages; EMA shortages, safety communications and referrals; and GDACS disaster alerts) and answers questions
 about them with citations to those records.
 
 ## Guides

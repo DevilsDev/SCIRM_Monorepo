@@ -76,7 +76,9 @@ def _row(event: Dict[str, Any]) -> Dict[str, Any]:
         where = f"{site.get('distance_km', '?')} km from {site.get('site') or 'a site'}"
     elif match.get("match_type") == "country_exposure":
         where = f"in {match.get('matched_on')}"
-    return {"type": event["type"], "supplier": supplier.get("name") or "", "title": record.get("title") or "",
+    terms = data.get("terms") or []
+    label = supplier.get("name") or (f"Watching {', '.join(terms)}" if terms else "")
+    return {"type": event["type"], "supplier": label, "title": record.get("title") or "",
             "source": record.get("source") or "", "severity": record.get("severity") or "",
             "url": record.get("url") or "", "published": (record.get("published_at") or "")[:10],
             "count": data.get("record_count") or 1, "where": where}
@@ -85,20 +87,23 @@ def _row(event: Dict[str, Any]) -> Dict[str, Any]:
 def build_digest(org_name: str, events: List[Dict[str, Any]], since: datetime, until: datetime,
                  app_url: str = "") -> Tuple[str, str, str]:
     """(subject, plain text, HTML) of the supplier risk digest."""
-    rows = [_row(e) for e in events if e["type"] in ("record.matched", "exposure.detected")]
+    rows = [_row(e) for e in events if e["type"] in ("record.matched", "exposure.detected", "watchlist.matched")]
     records = [r for r in rows if r["type"] == "record.matched"]
     exposures = [r for r in rows if r["type"] == "exposure.detected"]
+    watched = [r for r in rows if r["type"] == "watchlist.matched"]
+    sections = (("New public records naming your suppliers", records), ("New disaster exposures", exposures),
+                ("Regulatory watch: FDA and EMA records naming substances or products you watch", watched))
     period = f"{since.astimezone(timezone.utc):%Y-%m-%d %H:%M} to {until.astimezone(timezone.utc):%Y-%m-%d %H:%M} UTC"
     if rows:
         subject = (f"SCIRM digest for {org_name}: {len(records)} new record(s) naming your suppliers, "
-                   f"{len(exposures)} disaster exposure(s)")
+                   f"{len(exposures)} disaster exposure(s)"
+                   + (f", {len(watched)} regulatory watch match(es)" if watched else ""))
     else:
         subject = f"SCIRM digest for {org_name}: nothing new"
     text = [f"Supplier risk digest for {org_name}", period, ""]
     if not rows:
         text.append("No new public records named your suppliers, and no new disaster alerts were near them.")
-    for title, group in (("New public records naming your suppliers", records),
-                         ("New disaster exposures", exposures)):
+    for title, group in sections:
         if group:
             text += [f"{title} ({len(group)})", ""]
             for r in group[:MAX_ROWS]:
@@ -139,7 +144,7 @@ def build_digest(org_name: str, events: List[Dict[str, Any]], since: datetime, u
     if not rows:
         parts.append("<p style='font-family:sans-serif'>No new public records named your suppliers, and no new "
                      "disaster alerts were near them.</p>")
-    for title, group in (("New public records naming your suppliers", records), ("New disaster exposures", exposures)):
+    for title, group in sections:
         if group:
             parts.append(f"<h3 style='font-family:sans-serif'>{e(title)} ({len(group)})</h3>{table(group)}")
     parts.append("<p style='font-family:sans-serif;color:#777;font-size:12px'>These are public records matched by "

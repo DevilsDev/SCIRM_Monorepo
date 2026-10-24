@@ -1,0 +1,56 @@
+{
+ "meta": {
+  "total_records": 3,
+  "timestamp": "2026-10-24T06:05:16Z"
+ },
+ "data": [
+  {
+   "category": "Human",
+   "medicine_affected": "Human normal immunoglobulins",
+   "supply_shortage_status": "Shortage ongoing",
+   "international_non_proprietary_name_inn_or_common_name": "human normal immunoglobulins",
+   "therapeutic_area_mesh": "Primary Immunodeficiency Diseases;Immunologic Deficiency Syndromes",
+   "pharmaceutical_forms_affected": "Solution for injection/infusion",
+   "strengths_affected": "",
+   "availability_of_alternatives": "Yes",
+   "start_of_shortage_date": "",
+   "expected_resolution_date": "",
+   "expected_resolution": "March 2027",
+   "first_published_date": "03/06/2024",
+   "last_updated_date": "22/09/2026",
+   "shortage_url": "https://www.ema.europa.eu/en/medicines/human/shortages/human-normal-immunoglobulins"
+  },
+  {
+   "category": "Human",
+   "medicine_affected": "Dynastat",
+   "supply_shortage_status": "Shortage resolved",
+   "international_non_proprietary_name_inn_or_common_name": "parecoxib",
+   "therapeutic_area_mesh": "",
+   "pharmaceutical_forms_affected": "Powder and solvent for solution for injection;Powder for solution for injection",
+   "strengths_affected": "40 mg",
+   "availability_of_alternatives": "",
+   "start_of_shortage_date": "",
+   "expected_resolution_date": "",
+   "expected_resolution": "",
+   "first_published_date": "14/04/2025",
+   "last_updated_date": "18/09/2026",
+   "shortage_url": "https://www.ema.europa.eu/en/medicines/human/shortages/dynastat"
+  },
+  {
+   "category": "Human",
+   "medicine_affected": "Natpar",
+   "supply_shortage_status": "Medicine discontinued",
+   "international_non_proprietary_name_inn_or_common_name": "parathyroid hormone",
+   "therapeutic_area_mesh": "Hypoparathyroidism",
+   "pharmaceutical_forms_affected": "Powder and solvent for solution for injection",
+   "strengths_affected": "100 micrograms/dose ;75 micrograms/dose ;50 micrograms/dose ;25 micrograms/dose",
+   "availability_of_alternatives": "Yes",
+   "start_of_shortage_date": "",
+   "expected_resolution_date": "",
+   "expected_resolution": "",
+   "first_published_date": "02/05/2022",
+   "last_updated_date": "09/09/2026",
+   "shortage_url": "https://www.ema.europa.eu/en/medicines/human/shortages/natpar"
+  }
+ ]
+}

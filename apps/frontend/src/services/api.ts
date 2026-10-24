@@ -336,7 +336,7 @@ export interface SsoSettings {
   available: boolean;
 }
 
-export type WebhookEvent = 'record.matched' | 'exposure.detected';
+export type WebhookEvent = 'record.matched' | 'exposure.detected' | 'watchlist.matched';
 
 export interface Webhook {
   id: string;
@@ -453,6 +453,23 @@ export interface AssessmentSent {
   portal_url: string;
   emailed: boolean;
   note: string | null;
+}
+
+export interface WatchlistItem {
+  id: string;
+  kind: 'substance' | 'product';
+  term: string;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface RegulatoryMatch {
+  /** The watched terms the record names. */
+  terms: string[];
+  source_label: string | null;
+  record: { id: string; source: string; external_id: string; signal_type: string; title: string; summary: string;
+    severity: string; url: string | null; published_at: string; updated_at: string | null };
 }
 
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
@@ -803,6 +820,25 @@ export const api = {
 
   async reviewAssessment(id: string, note: string): Promise<SupplierAssessment> {
     return (await apiClient.post(`/api/v1/assessments/${encodeURIComponent(id)}/review`, { note })).data.assessment;
+  },
+
+  // Regulatory watch
+  async listWatchlist(): Promise<{ items: WatchlistItem[]; max_items: number }> {
+    return (await apiClient.get('/api/v1/watchlist')).data;
+  },
+
+  async addWatchlistItem(body: { kind: WatchlistItem['kind']; term: string; note?: string }): Promise<WatchlistItem> {
+    return (await apiClient.post('/api/v1/watchlist', body)).data.item;
+  },
+
+  async deleteWatchlistItem(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/watchlist/${encodeURIComponent(id)}`);
+  },
+
+  async regulatoryWatch(params: { days?: number; source?: string } = {}): Promise<{ terms: string[]; since: string;
+    matches: RegulatoryMatch[]; sources: Record<string, string> }> {
+    const query = Object.fromEntries(Object.entries(params).filter(([, v]) => v));
+    return (await apiClient.get('/api/v1/regulatory-watch', { params: query })).data;
   },
 
   async supplierSubtier(supplierId: string): Promise<SubtierLink[]> {
