@@ -21,6 +21,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from libs.common import secret_box
 from libs.common.store_assessments import MemoryAssessments, PostgresAssessments
+from libs.common.store_watchlist import MemoryWatchlist, PostgresWatchlist
 
 SEVERITIES = ("low", "medium", "high", "critical")
 
@@ -239,7 +240,7 @@ DEMO_ORGS = [
 # In-memory backend
 # ===========================================================================
 
-class MemoryStore(MemoryAssessments):
+class MemoryStore(MemoryAssessments, MemoryWatchlist):
     def __init__(self, seed_demo: bool = True):
         self.tasks: Dict[str, Dict[str, Any]] = {}
         self.manual_risks: Dict[str, Dict[str, Any]] = {}
@@ -1285,7 +1286,7 @@ def _audit_matches(entry: Dict[str, Any], filters: Dict[str, Any]) -> bool:
     return True
 
 
-class PostgresStore(PostgresAssessments):
+class PostgresStore(PostgresAssessments, PostgresWatchlist):
     def __init__(self, database_url: str):
         from sqlalchemy.ext.asyncio import create_async_engine
         if database_url.startswith("postgresql://"):

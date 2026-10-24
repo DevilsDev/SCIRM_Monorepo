@@ -73,7 +73,7 @@ def test_feed_keeps_its_shape_and_adds_provenance(client):
 
 def test_failed_sources_are_reported_and_nothing_is_invented(client, service):
     service.set_transport(recorded_transport({h: 503 for h in ("api.fda.gov", "www.gdacs.org", "www.fda.gov",
-                                                               "www.accessdata.fda.gov")}))
+                                                               "www.accessdata.fda.gov", "www.ema.europa.eu")}))
     result = client.post("/ingest", headers=HEADERS).json()
     assert result["documents_ingested"] == 0
     status = client.get("/sources", headers=HEADERS).json()

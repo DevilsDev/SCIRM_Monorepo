@@ -7,6 +7,9 @@ Events
   letter, import alert). One event per recall event and supplier, listing every record.
 - exposure.detected: a new disaster alert near one of the supplier's sites, or in its
   country when sites are unknown or the alert has no point (droughts).
+- watchlist.matched: a new FDA or EMA record names a substance or product on the
+  organization's regulatory watchlist (libs/intel/watchlist.py). One event per record,
+  listing the terms it names.
 - ping: sent by the "Send test" button.
 
 Only records first seen after webhooks were set up for the organization are sent. An alert
@@ -34,12 +37,12 @@ from urllib.parse import urlsplit
 import httpx
 
 from libs.common import outbound
-from libs.intel import matching
+from libs.intel import matching, watchlist
 
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 STRICT = _ENVIRONMENT not in {"development", "dev", "local", "test"}
 
-EVENT_TYPES = ("record.matched", "exposure.detected")
+EVENT_TYPES = ("record.matched", "exposure.detected", "watchlist.matched")
 MIN_CONFIDENCE = float(os.getenv("WEBHOOK_MIN_CONFIDENCE", "0.6"))  # as the supplier panel
 # Seconds to wait before attempt n+1 (after n failures). Then the delivery is marked failed.
 BACKOFF = (60, 300, 1800, 7200, 21600, 43200)
@@ -147,6 +150,17 @@ def events_for(suppliers: List[Dict[str, Any]], signals: List[Dict[str, Any]]) -
     return out
 
 
+def watchlist_events(terms: List[str], signals: List[Dict[str, Any]]) -> List[Tuple[str, str, Dict[str, Any]]]:
+    """(type, dedupe key, payload) for new regulatory records that name a watched term."""
+    out: List[Tuple[str, str, Dict[str, Any]]] = []
+    for signal in signals:
+        named = watchlist.matching_terms(signal, terms)
+        if named:
+            out.append(("watchlist.matched", f"watchlist.matched:{signal.get('source')}:{signal.get('external_id')}",
+                        {"terms": named, "record": _record(signal)}))
+    return out
+
+
 def next_attempt(attempts: int, now: datetime) -> Optional[datetime]:
     """When to retry after `attempts` failed attempts, or None to give up."""
     return now + timedelta(seconds=BACKOFF[attempts - 1]) if attempts <= len(BACKOFF) else None
@@ -215,6 +229,12 @@ async def detect(store: Any, org: str) -> int:
         signals = await store.new_signal_candidates(index["keys"], index["countries"], after, until)
         if signals:
             created = len(await store.record_events(org, events_for(suppliers, signals)))
+    terms = [item["term"] for item in await store.list_watchlist(org)]
+    if terms:
+        signals = await store.regulatory_candidates(terms, first_seen_after=after, first_seen_until=until)
+        found = watchlist_events(terms, signals)
+        if found:
+            created += len(await store.record_events(org, found))
     await store.set_watermark(org, until)
     return created
 

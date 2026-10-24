@@ -32,6 +32,11 @@ def recorded_transport(overrides=None):
             return httpx.Response(200, json=fixture("fda_enforcement.json"))
         if path.endswith("/shortages.json"):
             return httpx.Response(200, json=fixture("fda_shortages.json"))
+        if request.url.host == "www.ema.europa.eu":
+            for name, fixture_name in (("shortages", "ema_shortages.json"), ("dhpc", "ema_dhpc.json"),
+                                       ("referrals", "ema_referrals.json")):
+                if path.endswith(f"/{name}-output-json-report_en.json"):
+                    return httpx.Response(200, json=fixture(fixture_name))
         if "gdacs" in request.url.host:
             return httpx.Response(200, json=fixture("gdacs.json"))
         if request.url.host == "www.fda.gov" and path.startswith("/datatables/"):

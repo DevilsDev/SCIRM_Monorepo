@@ -209,3 +209,59 @@ class TestCollect:
     def test_no_matches_is_not_an_error(self):
         results = self.run(recorded_transport({"api.fda.gov": 404}))
         assert results["fda_recalls"].status == "ok" and results["fda_recalls"].signals == []
+
+
+class TestEma:
+    """EMA's JSON data files (recorded): shortages, DHPCs and referrals, human medicines only."""
+
+    def run(self, only):
+        async def go():
+            async with httpx.AsyncClient(transport=recorded_transport()) as client:
+                return await sources.collect(client, 36500, today=date(2026, 10, 24), only=only)
+        return {r.source: r for r in asyncio.run(go())}
+
+    def test_shortages_are_a_snapshot_with_status_and_substances(self):
+        result = self.run(["ema_shortages"])["ema_shortages"]
+        assert result.status == "ok" and "ema_shortages" in sources.SNAPSHOT_SOURCES
+        by_id = {s["external_id"]: s for s in result.signals}
+        ongoing = by_id["human-normal-immunoglobulins"]
+        assert ongoing["signal_type"] == "ema_shortage" and ongoing["severity"] == "medium"
+        assert ongoing["published_at"] == "2024-06-03" and ongoing["updated_at"] == "2026-09-22"
+        assert ongoing["raw"]["substances"] == ["human normal immunoglobulins"] and ongoing["entity_names"] == []
+        assert by_id["dynastat"]["severity"] == "low" and by_id["dynastat"]["raw"]["status"] == "resolved"
+        assert by_id["natpar"]["raw"]["status"] == "discontinued"
+
+    def test_an_ongoing_shortage_without_alternatives_is_high(self):
+        row = {**fixture("ema_shortages.json")["data"][0], "availability_of_alternatives": "No"}
+        assert sources.parse_ema_shortage(row)["severity"] == "high"
+
+    def test_dhpcs_and_referrals_skip_veterinary_medicines(self):
+        results = self.run(["ema_dhpc", "ema_referrals"])
+        dhpc, referrals = results["ema_dhpc"].signals, results["ema_referrals"].signals
+        assert len(dhpc) == 3 and len(referrals) == 3  # each fixture has one veterinary row
+        jentadueto = next(s for s in dhpc if "Jentadueto" in s["title"])
+        assert jentadueto["raw"]["substances"] == ["linagliptin", "metformin hydrochloride"]
+        assert jentadueto["signal_type"] == "safety_communication" and jentadueto["published_at"] == "2026-08-20"
+        rifadin = next(s for s in referrals if "Rifadin" in s["title"])
+        assert rifadin["severity"] == "medium" and rifadin["raw"]["substances"] == ["rifampicin"]
+        assert all(s["severity"] == "low" for s in referrals if s["raw"]["final"])
+
+    def test_the_lookback_applies_to_history_not_to_the_shortage_list(self):
+        async def go():
+            async with httpx.AsyncClient(transport=recorded_transport()) as client:
+                return await sources.collect(client, 30, today=date(2026, 10, 24),
+                                             only=["ema_shortages", "ema_dhpc", "ema_referrals"])
+        results = {r.source: r for r in asyncio.run(go())}
+        assert len(results["ema_shortages"].signals) == 3
+        assert [s["external_id"] for s in results["ema_referrals"].signals] == ["EMA/REF/0000355053"]
+        assert results["ema_dhpc"].signals == []  # the newest recorded DHPC is from August
+
+    def test_a_changed_file_format_is_an_error_not_an_empty_list(self):
+        def handler(request):
+            return httpx.Response(200, json={"unexpected": True})
+
+        async def go():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                return await sources.collect(client, 30, only=["ema_shortages"])
+        [result] = asyncio.run(go())
+        assert result.status == "error" and result.signals == []

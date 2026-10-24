@@ -36,6 +36,8 @@ from libs.common.store import (API_KEY_PREFIX, AUDIT_CATEGORY_NAMES, FEEDBACK_VE
 from libs.assessments import questions as aq
 from libs.common import oidc, secret_box
 from libs.common.store_assessments import new_portal_token, portal_token_hash
+from libs.common.store_watchlist import DuplicateTerm
+from libs.intel import sources as sources_registry, watchlist
 from libs.integrations import reports, webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -713,12 +715,12 @@ async def revoke_api_key(key_id: str, token: str = Depends(security)):
 class WebhookRequest(BaseModel):
     url: str = Field(..., min_length=8, max_length=500)
     description: Optional[str] = Field(None, max_length=200)
-    events: List[str] = Field(default_factory=lambda: list(webhooks.EVENT_TYPES), min_length=1, max_length=2)
+    events: List[str] = Field(default_factory=lambda: list(webhooks.EVENT_TYPES), min_length=1, max_length=len(webhooks.EVENT_TYPES))
 
 
 class WebhookUpdate(BaseModel):
     active: Optional[bool] = None
-    events: Optional[List[str]] = Field(None, min_length=1, max_length=2)
+    events: Optional[List[str]] = Field(None, min_length=1, max_length=len(webhooks.EVENT_TYPES))
 
 
 def _webhook_events(events: List[str]) -> List[str]:
@@ -1121,6 +1123,78 @@ async def supplier_subtier(supplier_id: str, token: str = Depends(security)):
         raise HTTPException(status_code=404, detail="Supplier not found")
     return {"links": await audit_store.list_subtier_links(user.organization_id, supplier_id),
             "source": "supplier-reported"}
+
+
+# ---------------------------------------------------------------------------
+# Regulatory watch: FDA and EMA records that name a substance or product on the
+# organization's watchlist (libs/intel/watchlist.py).
+# ---------------------------------------------------------------------------
+
+class WatchlistItemRequest(BaseModel):
+    kind: str = Field("substance", pattern="^(substance|product)$")
+    term: str = Field(..., min_length=3, max_length=100)
+    note: str = Field("", max_length=300)
+
+
+@app.get("/api/v1/watchlist")
+async def list_watchlist(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return {"items": await audit_store.list_watchlist(user.organization_id), "max_items": watchlist.MAX_ITEMS}
+
+
+@app.post("/api/v1/watchlist")
+async def add_watchlist_item(body: WatchlistItemRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    try:
+        term = watchlist.clean_term(body.term)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if len(await audit_store.list_watchlist(user.organization_id)) >= watchlist.MAX_ITEMS:
+        raise HTTPException(status_code=409, detail=f"The watchlist is full ({watchlist.MAX_ITEMS} terms).")
+    try:
+        item = await audit_store.add_watchlist_item(user.organization_id, body.kind, term, body.note.strip(), user.email)
+    except DuplicateTerm:
+        raise HTTPException(status_code=409, detail="That term is already on the watchlist.")
+    await _audit_event(user.organization_id, user.id, user.email, "watchlist.added", target=item["id"],
+                       details={"kind": item["kind"], "term": item["term"]}, resource_type="watchlist")
+    return {"item": item}
+
+
+@app.delete("/api/v1/watchlist/{item_id}")
+async def delete_watchlist_item(item_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    item = await audit_store.delete_watchlist_item(user.organization_id, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Not on the watchlist")
+    await _audit_event(user.organization_id, user.id, user.email, "watchlist.removed", target=item_id,
+                       details={"kind": item["kind"], "term": item["term"]}, resource_type="watchlist")
+    return {"deleted": True}
+
+
+@app.get("/api/v1/regulatory-watch")
+async def regulatory_watch(days: int = 180, source: Optional[str] = None, token: str = Depends(security)):
+    """FDA and EMA records with activity in the last `days` that name a watched term, newest
+    first. Public records matched by wording: check the source record."""
+    user = await verify_token(token.credentials)
+    if not 1 <= days <= 3650:
+        raise HTTPException(status_code=400, detail="days must be between 1 and 3650")
+    if source and source not in sources_registry.REGULATORY_SOURCES:
+        raise HTTPException(status_code=400, detail="Unknown source")
+    terms = [item["term"] for item in await audit_store.list_watchlist(user.organization_id)]
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    matches = []
+    for signal in await audit_store.regulatory_candidates(terms, since=since, limit=5000):
+        named = watchlist.matching_terms(signal, terms)
+        if named and (not source or signal.get("source") == source):
+            matches.append({"terms": named, "record": {k: signal.get(k) for k in (
+                "id", "source", "external_id", "signal_type", "title", "summary", "severity", "url",
+                "published_at", "updated_at")}, "source_label": sources_registry.SOURCE_LABELS.get(signal.get("source"))})
+        if len(matches) >= 500:
+            break
+    return {"terms": terms, "since": since, "matches": matches,
+            "sources": {s: sources_registry.SOURCE_LABELS[s] for s in sources_registry.REGULATORY_SOURCES}}
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:

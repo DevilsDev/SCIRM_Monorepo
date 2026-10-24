@@ -4,6 +4,8 @@ A **supplier risk digest** by email, daily, weekly or monthly. It lists what is 
 the previous report:
 - **public records naming your suppliers**: FDA recalls, shortages, warning letters and
   import alerts, one line per recall event, with a link to the source
+- **regulatory watch matches**: new FDA and EMA records naming a substance or product on
+  your [watchlist](regulatory-watch.md)
 - **disaster exposures**: GDACS alerts near a supplier's site, or in its country when its
   sites are unknown
 

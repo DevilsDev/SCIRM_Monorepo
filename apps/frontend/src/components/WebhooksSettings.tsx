@@ -6,6 +6,7 @@ import { utcDate } from '../services/time';
 const EVENTS: Array<{ value: WebhookEvent; label: string; hint: string }> = [
   { value: 'record.matched', label: 'New public record names a supplier', hint: 'FDA recall, shortage, warning letter or import alert' },
   { value: 'exposure.detected', label: 'New disaster near a supplier', hint: 'GDACS alert near a site, or in its country' },
+  { value: 'watchlist.matched', label: 'Regulatory watch match', hint: 'New FDA or EMA record naming a substance or product on your watchlist' },
 ];
 
 function errorText(err: any, fallback: string): string {

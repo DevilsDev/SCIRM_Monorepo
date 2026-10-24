@@ -46,6 +46,7 @@ a an the and or of to in on at by for with from into as that this these those
 it its they their them is are was were be been being has have had do does did
 since until while when where which who whose there so may can could
 fda gdacs us usa u.s united states food drug administration
+ema status started open
 recall recalls recalled published publish posted post reported report issued sent received listed lists
 warning letter letters import alert alerts red list border detained detention without physical examination
 shortage shortages discontinuation discontinued notice available unavailable limited availability presentations

@@ -442,18 +442,156 @@ async def _openfda_all(client: httpx.AsyncClient, path: str, search: str) -> Lis
             return records
 
 
+# --- European Medicines Agency (EMA) ----------------------------------------
+# EMA publishes its website data as JSON files, refreshed daily (reuse is allowed with
+# acknowledgement of the source). Records name medicines and active substances, not
+# manufacturers, so they are not matched to suppliers by name: organizations follow them
+# through their regulatory watchlist (substances and products they buy). Human medicines only.
+
+EMA_FILES = "https://www.ema.europa.eu/en/documents/report/"
+
+
+def _dmy(value: Optional[str]) -> Optional[str]:
+    """EMA dates: 22/09/2026 -> 2026-09-22."""
+    try:
+        return datetime.strptime(value.strip(), "%d/%m/%Y").date().isoformat() if value and value.strip() else None
+    except ValueError:
+        return None
+
+
+def _slug(url: Optional[str]) -> Optional[str]:
+    return url.rstrip("/").rsplit("/", 1)[-1] if url else None
+
+
+def _substances(*values: Optional[str]) -> List[str]:
+    """Active substances from EMA's free-text fields ("a, b" or "a;b"), lowercased, unique."""
+    found: List[str] = []
+    for value in values:
+        for part in re.split(r"[;,]|\band\b", value or ""):
+            part = part.strip().lower()
+            if 2 < len(part) <= 120 and part not in found:
+                found.append(part)
+    return found
+
+
+async def _ema_file(client: httpx.AsyncClient, name: str) -> List[Dict[str, Any]]:
+    response = await client.get(f"{EMA_FILES}{name}")
+    response.raise_for_status()
+    body = response.json()
+    rows = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("unexpected EMA file format")
+    return [r for r in rows if isinstance(r, dict) and r.get("category") == "Human"]
+
+
+EMA_SHORTAGE_STATUS = {"shortage ongoing": "ongoing", "shortage resolved": "resolved",
+                       "medicine discontinued": "discontinued"}
+
+
+def parse_ema_shortage(r: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    name, url = (r.get("medicine_affected") or "").strip(), r.get("shortage_url")
+    published = _dmy(r.get("first_published_date"))
+    if not name or not url or not published:
+        return None
+    status = EMA_SHORTAGE_STATUS.get((r.get("supply_shortage_status") or "").strip().lower(), "ongoing")
+    alternatives = (r.get("availability_of_alternatives") or "").strip()
+    severity = ("low" if status == "resolved" else
+                "high" if status == "ongoing" and alternatives.lower() == "no" else "medium")
+    substances = _substances(r.get("international_non_proprietary_name_inn_or_common_name"))
+    parts = [r.get("supply_shortage_status") or "", f"Active substance: {', '.join(substances)}" if substances else "",
+             f"Forms: {r['pharmaceutical_forms_affected']}" if r.get("pharmaceutical_forms_affected") else "",
+             f"Alternatives available: {alternatives}" if alternatives else "",
+             f"Expected resolution: {r['expected_resolution']}" if r.get("expected_resolution") else ""]
+    return _signal(
+        source="ema_shortages", external_id=_slug(url), signal_type="ema_shortage",
+        title=f"EMA medicine shortage: {name}", summary=". ".join(p for p in parts if p) + ".",
+        severity=severity, entity_names=[], country_codes=[], occurred_at=_dmy(r.get("start_of_shortage_date")),
+        published_at=published, updated_at=_dmy(r.get("last_updated_date")) or published, url=url,
+        raw={"medicine": name, "status": status, "substances": substances, "alternatives": alternatives,
+             "expected_resolution": r.get("expected_resolution") or None,
+             "therapeutic_area": r.get("therapeutic_area_mesh") or None})
+
+
+def parse_ema_dhpc(r: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    name, url = (r.get("name_of_medicine") or "").strip(), r.get("dhpc_url")
+    published = _dmy(r.get("dissemination_date")) or _dmy(r.get("first_published_date"))
+    if not name or not url or not published:
+        return None
+    kinds = [k.strip() for k in (r.get("dhpc_type") or "").split(";") if k.strip()]
+    substances = _substances(r.get("active_substances"))
+    severity = "high" if {"Safety signal", "Quality defect"} & set(kinds) else "medium"
+    summary = (f"Direct healthcare professional communication about {name}"
+               + (f" ({', '.join(substances)})" if substances else "")
+               + (f": {', '.join(kinds).lower()}" if kinds else "") + ".")
+    return _signal(
+        source="ema_dhpc", external_id=r.get("procedure_number") or _slug(url), signal_type="safety_communication",
+        title=f"EMA safety communication: {name}", summary=summary, severity=severity, entity_names=[],
+        country_codes=[], occurred_at=None, published_at=published,
+        updated_at=_dmy(r.get("last_updated_date")) or published, url=url,
+        raw={"medicine": name, "substances": substances, "kinds": kinds,
+             "outcome": r.get("regulatory_outcome") or None, "therapeutic_area": r.get("therapeutic_area_mesh") or None})
+
+
+def parse_ema_referral(r: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    name, url = (r.get("referral_name") or "").strip(), r.get("referral_url")
+    published = _dmy(r.get("first_published_date")) or _dmy(r.get("procedure_start_date"))
+    if not name or not url or not published:
+        return None
+    status = (r.get("current_status") or "").strip()
+    final = status in ("European Commission final decision", "CMDh final position")
+    safety = (r.get("safety_referral") or "").strip().lower() == "yes"
+    severity = "low" if final else "high" if safety else "medium"
+    substances = _substances(r.get("international_non_proprietary_name_inn_common_name"))
+    summary = (f"{'Safety referral' if safety else 'Referral'} ({r.get('referral_type') or 'EU procedure'}): {status or 'status not given'}"
+               + (f". Active substance: {', '.join(substances)}" if substances else "") + ".")
+    return _signal(
+        source="ema_referrals", external_id=r.get("reference_number") or _slug(url), signal_type="referral",
+        title=f"EMA referral: {name}", summary=summary, severity=severity, entity_names=[], country_codes=[],
+        occurred_at=_dmy(r.get("procedure_start_date")), published_at=published,
+        updated_at=_dmy(r.get("last_updated_date")) or published, url=url,
+        raw={"medicine": name, "substances": substances, "status": status, "safety": safety, "final": final,
+             "referral_type": r.get("referral_type") or None})
+
+
+def _recent(signals: List[Dict[str, Any]], since: date) -> List[Dict[str, Any]]:
+    return [s for s in signals if s and (s.get("updated_at") or s["published_at"]) >= since.isoformat()]
+
+
+async def fetch_ema_shortages(client: httpx.AsyncClient, since: date, until: date) -> SourceResult:
+    # The full list (ongoing, resolved and discontinued) every run, as a snapshot.
+    rows = await _ema_file(client, "shortages-output-json-report_en.json")
+    return SourceResult("ema_shortages", [s for s in map(parse_ema_shortage, rows) if s])
+
+
+async def fetch_ema_dhpc(client: httpx.AsyncClient, since: date, until: date) -> SourceResult:
+    rows = await _ema_file(client, "dhpc-output-json-report_en.json")
+    return SourceResult("ema_dhpc", _recent([parse_ema_dhpc(r) for r in rows], since))
+
+
+async def fetch_ema_referrals(client: httpx.AsyncClient, since: date, until: date) -> SourceResult:
+    rows = await _ema_file(client, "referrals-output-json-report_en.json")
+    return SourceResult("ema_referrals", _recent([parse_ema_referral(r) for r in rows], since))
+
+
 SOURCES: Dict[str, Callable] = {
     "fda_recalls": fetch_recalls,
     "fda_shortages": fetch_shortages,
     "fda_warning_letters": fetch_warning_letters,
     "fda_import_alerts": fetch_import_alerts,
     "gdacs": fetch_gdacs,
+    "ema_shortages": fetch_ema_shortages,
+    "ema_dhpc": fetch_ema_dhpc,
+    "ema_referrals": fetch_ema_referrals,
 }
 # Sources published as current lists (no history): entries missing from a run are delisted.
-SNAPSHOT_SOURCES = frozenset({"fda_shortages", "fda_import_alerts"})
+SNAPSHOT_SOURCES = frozenset({"fda_shortages", "fda_import_alerts", "ema_shortages"})
 SOURCE_LABELS = {"fda_recalls": "FDA drug recalls", "fda_shortages": "FDA drug shortages",
                  "fda_warning_letters": "FDA warning letters", "fda_import_alerts": "FDA import alerts",
-                 "gdacs": "GDACS disaster alerts"}
+                 "gdacs": "GDACS disaster alerts", "ema_shortages": "EMA medicine shortages",
+                 "ema_dhpc": "EMA safety communications (DHPCs)", "ema_referrals": "EMA referrals"}
+# The regulators' records, followed through each organization's watchlist (regulatory watch).
+REGULATORY_SOURCES = ("fda_recalls", "fda_shortages", "fda_warning_letters", "fda_import_alerts",
+                      "ema_shortages", "ema_dhpc", "ema_referrals")
 
 
 async def collect(client: httpx.AsyncClient, lookback_days: int, today: Optional[date] = None,

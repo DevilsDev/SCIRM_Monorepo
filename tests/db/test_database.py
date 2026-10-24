@@ -394,6 +394,24 @@ def test_assessment_tables_and_the_portal_lookup(db):
             cur.execute("UPDATE supplier_assessments SET status = 'submitted' WHERE id = %s", (assessment,))
 
 
+def test_watchlist_is_tenant_scoped_and_watchlist_events_are_allowed(db):
+    """Migration 026: forced RLS on watchlist_items, one term per org regardless of case,
+    and watchlist.matched accepted by the webhook event checks."""
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'watchlist_items'")
+        assert cur.fetchone() == (True, True)
+    insert = "INSERT INTO watchlist_items (organization_id, kind, term) VALUES (%s, 'substance', %s)"
+    assert as_org(db["app"], db["a"], insert, (db["a"], "Rifampicin")) == 1
+    assert isinstance(as_org(db["app"], db["a"], insert, (db["a"], "RIFAMPICIN")), psycopg2.errors.UniqueViolation)
+    assert as_org(db["app"], db["b"], insert, (db["b"], "Rifampicin")) == 1  # another org may watch it too
+    assert isinstance(as_org(db["app"], db["b"], insert, (db["a"], "Metformin")), psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM watchlist_items") == [(1,)]
+    event = ("INSERT INTO webhook_events (organization_id, type, dedupe_key, payload) "
+             "VALUES (%s, %s, %s, '{}')")
+    assert as_org(db["app"], db["a"], event, (db["a"], "watchlist.matched", "wl-1")) == 1
+    assert isinstance(as_org(db["app"], db["a"], event, (db["a"], "made.up", "wl-2")), psycopg2.errors.CheckViolation)
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

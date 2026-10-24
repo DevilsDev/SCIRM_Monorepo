@@ -9,6 +9,7 @@ suppliers**. It sends a signed HTTPS `POST` to an endpoint you choose.
 |---|---|
 | `record.matched` | A new FDA recall, shortage, warning letter or import alert names a supplier, by the same name rules as the supplier panel (confidence 0.6 or more). One event per recall event and supplier, listing every record it covers. |
 | `exposure.detected` | A new GDACS disaster alert is near one of the supplier's sites (within the alert radius), or is in its country when its sites are unknown or the alert has no point (droughts). |
+| `watchlist.matched` | A new FDA or EMA record names a substance or product on your [regulatory watchlist](regulatory-watch.md). One event per record, with the terms it names. |
 | `ping` | You pressed **Send test**. |
 
 Only records **first seen after the endpoint's organization started using webhooks** are
@@ -57,6 +58,9 @@ SCIRM-Signature: t=1792697571,v1=a9f7146…
 
 `exposure.detected` has `supplier`, `match` (with `site` and the distance for site
 matches) and `record`.
+
+`watchlist.matched` has `terms` (the watched terms the record names) and `record`; no
+`supplier`, since EMA records name medicines and substances, not companies.
 
 ## Verifying the signature
 
