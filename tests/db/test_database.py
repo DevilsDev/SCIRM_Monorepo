@@ -501,6 +501,38 @@ def test_signatures_are_tenant_scoped_and_can_never_be_changed_or_removed(db):
             cur.execute("DELETE FROM users WHERE id = %s", (user,))
 
 
+def test_due_diligence_records_are_tenant_scoped_kept_and_block_supplier_deletion(db):
+    """Migration 032: forced RLS on every table; risks and measures can be updated but not
+    deleted, the history is append-only, and a supplier with records cannot be deleted
+    (LkSG section 10(1): documentation kept for seven years)."""
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class "
+                    "WHERE relname IN ('dd_settings', 'dd_risks', 'dd_measures', 'dd_events') ORDER BY relname")
+        assert [r[1:] for r in cur.fetchall()] == [(True, True)] * 4
+    [(supplier,)] = as_org(db["app"], db["a"], (
+        "INSERT INTO suppliers (organization_id, supplier_code, name) VALUES (%s, %s, 'Diligent Ltd') RETURNING id::text"),
+        (db["a"], f"DD-{uuid.uuid4().hex[:6]}"))
+    risk_sql = ("INSERT INTO dd_risks (organization_id, supplier_id, area, description, likelihood, severity, rating_reason, "
+                "source) VALUES (%s, %s, %s, 'Overtime', 3, 2, 'Audit finding', 'in_depth') RETURNING id::text")
+    [(risk,)] = as_org(db["app"], db["a"], risk_sql, (db["a"], supplier, "occupational_safety"))
+    assert isinstance(as_org(db["app"], db["a"], risk_sql, (db["a"], supplier, "made_up")), psycopg2.errors.CheckViolation)
+    assert isinstance(as_org(db["app"], db["b"], risk_sql, (db["b"], supplier, "fair_wage")),
+                      psycopg2.errors.InsufficientPrivilege)  # another organization's supplier
+    [(measure,)] = as_org(db["app"], db["a"], (
+        "INSERT INTO dd_measures (organization_id, supplier_id, risk_id, kind, description) "
+        "VALUES (%s, %s, %s, 'corrective_action_plan', 'Shift plan') RETURNING id::text"), (db["a"], supplier, risk))
+    assert as_org(db["app"], db["a"], (
+        "INSERT INTO dd_events (organization_id, supplier_id, risk_id, kind, text) VALUES (%s, %s, %s, 'risk_added', 'x')"),
+        (db["a"], supplier, risk)) == 1
+    assert as_org(db["app"], db["a"], "UPDATE dd_measures SET status = 'done' WHERE id = %s", (measure,)) == 1
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM dd_risks") == [(0,)]
+    for statement in ("DELETE FROM dd_risks", "DELETE FROM dd_measures", "TRUNCATE dd_risks", "UPDATE dd_events SET text = 'y'",
+                      "DELETE FROM dd_events", "TRUNCATE dd_events"):
+        assert isinstance(as_org(db["app"], db["a"], statement), psycopg2.errors.InsufficientPrivilege), statement
+    assert isinstance(as_org(db["app"], db["a"], "DELETE FROM suppliers WHERE id = %s", (supplier,)),
+                      psycopg2.errors.ForeignKeyViolation)
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

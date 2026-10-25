@@ -21,12 +21,18 @@ analysts; viewers and auditors can read everything).
 
 ## Questionnaires
 
-Two built-in templates (labelled as such) cover common needs:
+Three built-in templates (labelled as such) cover common needs:
 
 - **Supply continuity**: business continuity plan, single sites and single sources, safety
   stock, recent disruptions, and their critical suppliers.
 - **Quality and compliance**: GMP status, the last inspection and its outcome, open
   corrective actions, recalls, change notification, data integrity.
+- **Human rights and environment**: the in-depth step of [due diligence](due-diligence.md)
+  (child and forced labour, safety, working hours, wages, unions, equal treatment, permits,
+  mercury and persistent pollutants, waste, land and security, grievances). Answers raise
+  flags to follow up and are never scored. Sending it needs a reason: why the information is
+  needed and cannot reasonably be obtained another way (CSDDD Article 8(2a)). The reason is
+  kept with the questionnaire and is not shown to the supplier.
 
 Under **Questionnaires** you can build your own (up to 60 questions). Question types: yes/no,
 text, number, date, one of several options, and a list of their suppliers. A sent

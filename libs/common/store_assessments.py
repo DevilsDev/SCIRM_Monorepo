@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 ASSESSMENT_SUMMARY = ("id", "supplier_id", "supplier_name", "template_name", "status", "recipient_email",
                       "recipient_name", "due_date", "token_expires_at", "submitted_at", "submitted_by_name",
                       "submitted_by_email", "score", "flags", "review_note", "reviewed_by", "reviewed_at", "sent_by",
-                      "sent_at", "updated_at")
+                      "sent_at", "updated_at", "request_reason")
 ASSESSMENT_DETAIL = ASSESSMENT_SUMMARY + ("questions", "answers")
 TEMPLATE_PUBLIC = ("id", "name", "description", "questions", "created_by", "created_at")
 LINK_PUBLIC = ("id", "supplier_id", "assessment_id", "name", "country_code", "city", "supplies", "reported_at")
@@ -100,7 +100,7 @@ class MemoryAssessments:
         row = {"id": str(uuid.uuid4()), "organization_id": org, "status": "sent", "answers": {}, "flags": [],
                "score": None, "submitted_at": None, "submitted_by_name": None, "submitted_by_email": None,
                "review_note": None, "reviewed_by": None, "reviewed_at": None, "sent_at": now, "updated_at": now,
-               **fields, "supplier_id": str(fields["supplier_id"])}
+               "request_reason": None, **fields, "supplier_id": str(fields["supplier_id"])}
         self._assessment_tables()[0][row["id"]] = row
         return _pick(self._with_supplier_name(row), ASSESSMENT_SUMMARY)
 
@@ -187,7 +187,7 @@ class MemoryAssessments:
 
 _A = "a.id, a.supplier_id, s.name AS supplier_name, a.template_name, a.status, a.recipient_email, a.recipient_name, " \
      "a.due_date, a.token_expires_at, a.submitted_at, a.submitted_by_name, a.submitted_by_email, a.score, a.flags, " \
-     "a.review_note, a.reviewed_by, a.reviewed_at, a.sent_by, a.sent_at, a.updated_at"
+     "a.review_note, a.reviewed_by, a.reviewed_at, a.sent_by, a.sent_at, a.updated_at, a.request_reason"
 _FROM = "FROM supplier_assessments a JOIN suppliers s ON s.id = a.supplier_id"
 _LIVE = "a.token_hash = :h AND a.status = 'sent' AND a.token_expires_at > now()"
 
@@ -241,13 +241,14 @@ class PostgresAssessments:
             raise LookupError("supplier")
         rows = await self._all(org, (
             "WITH a AS (INSERT INTO supplier_assessments (organization_id, supplier_id, template_name, questions, "
-            "recipient_email, recipient_name, due_date, token_hash, token_expires_at, sent_by) VALUES "
-            "(CAST(:org AS uuid), CAST(:s AS uuid), :t, CAST(:q AS jsonb), :e, :n, :due, :h, :x, :by) RETURNING *) "
+            "recipient_email, recipient_name, due_date, token_hash, token_expires_at, sent_by, request_reason) VALUES "
+            "(CAST(:org AS uuid), CAST(:s AS uuid), :t, CAST(:q AS jsonb), :e, :n, :due, :h, :x, :by, :why) RETURNING *) "
             f"SELECT {_A} FROM a JOIN suppliers s ON s.id = a.supplier_id"),
             {"org": org, "s": str(fields["supplier_id"]), "t": fields["template_name"],
              "q": json.dumps(fields["questions"]), "e": fields["recipient_email"], "n": fields.get("recipient_name") or "",
              "due": date.fromisoformat(fields["due_date"]) if fields.get("due_date") else None,
-             "h": fields["token_hash"], "x": fields["token_expires_at"], "by": fields.get("sent_by")})
+             "h": fields["token_hash"], "x": fields["token_expires_at"], "by": fields.get("sent_by"),
+             "why": fields.get("request_reason")})
         return _pick(rows[0], ASSESSMENT_SUMMARY)
 
     async def list_assessments(self, org: str, supplier_id: Optional[str] = None,
