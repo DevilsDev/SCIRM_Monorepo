@@ -36,7 +36,8 @@ Every signature, and every failed attempt, is in the [audit log](audit-log.md).
 
 Not covered by SCIRM itself: your validation (for example the computer software assurance
 approach), procedures and training, and the other system controls of section 11.10 that
-depend on how you operate SCIRM.
+depend on how you operate SCIRM. The [validation pack](validation-pack.md) traces these
+controls to the automated tests that show them, as evidence for your validation.
 
 API: `GET /api/v1/signatures?record_type=&record_id=`, `GET /api/v1/signatures/method`,
 `POST /api/v1/signatures` (password), `POST /api/v1/signatures/sso/prepare` (identity provider).

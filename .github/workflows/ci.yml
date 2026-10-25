@@ -35,7 +35,20 @@ jobs:
         run: python -m compileall -q libs services apps/api-gateway alembic
 
       - name: Security, AI-trust and public-intelligence tests
-        run: pytest tests/security tests/ai_trust tests/intel tests/evidence tests/erp tests/scenarios -q
+        env:
+          # Per-test outcomes for the validation pack (tests/conftest.py).
+          SCIRM_TEST_REPORT: reports/memory.json
+        run: >
+          pytest tests/security tests/ai_trust tests/intel tests/evidence tests/erp tests/scenarios tests/validation -q
+          --junitxml=reports/memory-junit.xml
+
+      - name: Keep the test reports for the validation pack
+        if: ${{ !cancelled() && github.ref != 'refs/heads/main' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-memory
+          path: reports/
+          retention-days: 7
 
   postgres:
     name: Backend tests on PostgreSQL
@@ -66,7 +79,56 @@ jobs:
         run: pip install -r requirements-test.txt
 
       - name: Security suite on the Postgres store, RLS/audit/migration checks, and the Evidence Engine quality gate
-        run: pytest tests/security tests/db tests/evidence -q
+        env:
+          SCIRM_TEST_REPORT: reports/postgres.json
+        run: pytest tests/security tests/db tests/evidence -q --junitxml=reports/postgres-junit.xml
+
+      - name: Keep the test reports for the validation pack
+        if: ${{ !cancelled() && github.ref != 'refs/heads/main' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-postgres
+          path: reports/
+          retention-days: 7
+
+  validation-pack:
+    name: Validation pack
+    # Built from the reports of the two test runs above, never by re-running tests. Not on
+    # main: releasing is a separate decision.
+    needs: [backend, postgres]
+    if: ${{ !cancelled() && github.ref != 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-reports-*
+          path: reports
+          merge-multiple: true
+
+      - name: Build the pack
+        run: >
+          python scripts/validation_pack.py --report memory=reports/memory.json --report postgres=reports/postgres.json
+          --evidence reports/memory-junit.xml --evidence reports/postgres-junit.xml --out validation-pack
+
+      - name: Publish the pack
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-pack-${{ github.sha }}
+          path: validation-pack/
+          retention-days: 90
 
   frontend:
     name: Frontend type check and build
