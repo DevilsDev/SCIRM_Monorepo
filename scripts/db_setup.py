@@ -73,6 +73,12 @@ def ensure_app_role(owner_url: str, role: str, password: str) -> None:
     cur.execute("SELECT to_regclass('public.e_signatures') IS NOT NULL")
     if cur.fetchone()[0]:
         cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON e_signatures FROM {}").format(ident))
+    # Due diligence documentation is kept for seven years (LkSG section 10(1), migration 032):
+    # risks and measures can be updated but never deleted, and their history is append-only.
+    cur.execute("SELECT to_regclass('public.dd_events') IS NOT NULL")
+    if cur.fetchone()[0]:
+        cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON dd_events FROM {}").format(ident))
+        cur.execute(sql.SQL("REVOKE DELETE, TRUNCATE ON dd_risks, dd_measures FROM {}").format(ident))
     # Migrations are not for the application role.
     cur.execute(sql.SQL("REVOKE ALL ON alembic_version FROM {}").format(ident))
     # The only lookups allowed before a tenant is known (login, refresh, invitations: migration

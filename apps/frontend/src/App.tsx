@@ -36,6 +36,7 @@ import RegulatoryWatchPage from './pages/RegulatoryWatchPage';
 import WarRoomPage from './pages/WarRoomPage';
 import AiControlPage from './pages/AiControlPage';
 import ScenarioStudioPage from './pages/ScenarioStudioPage';
+import DueDiligencePage from './pages/DueDiligencePage';
 
 export default function App() {
   return (
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/war-room" element={<WarRoomPage />} />
             <Route path="/ai-control" element={<AiControlPage />} />
             <Route path="/scenario-studio" element={<ScenarioStudioPage />} />
+            <Route path="/due-diligence" element={<DueDiligencePage />} />
             <Route path="/simulator" element={<SampleRoute><SimulatorPage /></SampleRoute>} />
             <Route path="/procurement" element={<SampleRoute><ProcurementPage /></SampleRoute>} />
             <Route path="/components" element={<SampleRoute><ComponentsPage /></SampleRoute>} />

@@ -21,13 +21,21 @@ _COUNTRY = re.compile(r"[A-Za-z]{2}")
 
 
 def _q(qid: str, text: str, qtype: str, required: bool = False, good: Optional[str] = None, weight: int = 1,
-       options: Optional[List[str]] = None, help: str = "") -> Dict[str, Any]:
+       options: Optional[List[str]] = None, help: str = "", flag_only: bool = False) -> Dict[str, Any]:
     q: Dict[str, Any] = {"id": qid, "text": text, "type": qtype, "required": required, "help": help}
     if good:
         q.update(good=good, weight=weight)
+    if flag_only:
+        q["flag_only"] = True
     if options:
         q["options"] = options
     return q
+
+
+def _dd(qid: str, text: str, good: str, refs: str, weight: int = 3) -> Dict[str, Any]:
+    """A due-diligence question: the answer is the supplier's claim, so it can raise a flag
+    for someone to follow up but never counts toward a score."""
+    return _q(qid, text, "yes_no", True, good, weight, help=refs, flag_only=True)
 
 
 BUILT_IN: Dict[str, Dict[str, Any]] = {
@@ -69,6 +77,55 @@ BUILT_IN: Dict[str, Dict[str, Any]] = {
                "yes_no", True, "yes", 3),
             _q("data_integrity", "Do you run a data integrity program (for example ALCOA+)?", "yes_no", False,
                "yes", 1),
+        ],
+    },
+    "builtin:due_diligence": {
+        "id": "builtin:due_diligence", "built_in": True, "due_diligence": True,
+        "name": "Human rights and environment",
+        "description": "Built-in template for the in-depth step of due diligence (LkSG, CSDDD): the supplier's "
+                       "own statements on labour, safety, wages, environment and grievances. Answers raise flags "
+                       "to follow up; they are not scored.",
+        "questions": [
+            _dd("policy", "Do you have a written policy that commits your company to respect human rights and the "
+                          "environment?", "yes", "LkSG § 6(4); CSDDD Article 10"),
+            _dd("supplier_expectations", "Do you pass these expectations on to your own suppliers and check that "
+                                         "they meet them?", "yes", "LkSG § 6(4); CSDDD Article 10"),
+            _dd("grievance", "Can workers and people affected by your operations raise concerns through a grievance "
+                             "channel, without fear of reprisal?", "yes", "LkSG § 8; CSDDD Article 14"),
+            _dd("age_checks", "Do you verify the age of every worker at the sites that supply us, including agency "
+                              "and subcontracted workers?", "yes", "LkSG § 2(2) no. 1-2; CSDDD Annex Part I, 9-10"),
+            _dd("forced_labour", "Does any worker pay recruitment fees, hand over identity documents, or have their "
+                                 "freedom to leave restricted?", "no", "LkSG § 2(2) no. 3-4; CSDDD Annex Part I, 11-12"),
+            _dd("safety_system", "Do the sites that supply us run an occupational safety and health system, with "
+                                 "risk assessments and training?", "yes", "LkSG § 2(2) no. 5; CSDDD Annex Part I, 6"),
+            _dd("working_hours", "Do working hours, including overtime, stay within the limits of local law?", "yes",
+                "LkSG § 2(2) no. 5(c); CSDDD Annex Part I, 6"),
+            _dd("wages", "Is every worker paid at least the legal minimum wage, in full and on time?", "yes",
+                "LkSG § 2(2) no. 8; CSDDD Annex Part I, 6"),
+            _dd("association", "Are workers free to form or join a trade union and to bargain collectively?", "yes",
+                "LkSG § 2(2) no. 6; CSDDD Annex Part I, 13"),
+            _dd("equal_treatment", "Do you have a non-discrimination policy that includes equal pay for work of equal "
+                                   "value?", "yes", "LkSG § 2(2) no. 7; CSDDD Annex Part I, 14"),
+            _dd("environment_permits", "Do the sites that supply us hold their environmental permits and monitor "
+                                       "discharges to water, air and soil?", "yes",
+                "LkSG § 2(2) no. 9; CSDDD Annex Part I, 15"),
+            _dd("mercury_pops", "Do you use mercury, mercury compounds or persistent organic pollutants (Stockholm "
+                                "Convention, Annex A) to make the products you supply to us?", "no",
+                "LkSG § 2(3) no. 1-4; CSDDD Annex Part II, 3-6"),
+            _dd("waste_contractors", "Is your hazardous waste handled only by licensed contractors?", "yes",
+                "LkSG § 2(3) no. 5; CSDDD Annex Part II, 7"),
+            _dd("waste_export", "Do you export hazardous waste to another country?", "no",
+                "LkSG § 2(3) no. 6-8; CSDDD Annex Part II, 10-12", weight=2),
+            _dd("land_security", "In the last five years, did any of your sites involve resettling people or "
+                                 "acquiring land they used, or use armed security?", "no",
+                "LkSG § 2(2) no. 10-11; CSDDD Annex Part I, 1-2 and 16", weight=2),
+            _dd("breaches", "In the last 36 months, have authorities, auditors or workers found a breach in any of "
+                            "these areas at your company?", "no", "LkSG §§ 5, 7; CSDDD Articles 8, 11"),
+            _q("breaches_detail", "If yes, what was found and what has been done since?", "text"),
+            _q("certifications", "Audits or certifications that cover these areas (for example SA8000, SMETA, "
+                                 "ISO 45001, ISO 14001), with their dates", "text"),
+            _q("subtier", "Your suppliers for the products you supply to us", "subtier",
+               help="Name, country and what they supply; used to see where risks may sit deeper in the chain."),
         ],
     },
 }
@@ -182,6 +239,10 @@ def score(questions: List[Dict[str, Any]], answers: Dict[str, Any]) -> Tuple[Opt
         if q.get("type") != "yes_no" or not q.get("good") or answers.get(q["id"]) not in ("yes", "no"):
             continue
         weight = int(q.get("weight") or 1)
+        if q.get("flag_only"):
+            if answers[q["id"]] != q["good"]:
+                flags.append({"id": q["id"], "text": q["text"], "answer": answers[q["id"]], "weight": weight})
+            continue
         total += weight
         if answers[q["id"]] == q["good"]:
             good += weight

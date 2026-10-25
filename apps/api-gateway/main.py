@@ -39,6 +39,7 @@ from libs.common.store_assessments import new_portal_token, portal_token_hash
 from libs.common.store_watchlist import DuplicateTerm
 from libs.common import actions, mcp_tools, warroom
 from libs.scenarios import engine as scenario_engine
+from libs.due_diligence import catalog as dd
 from libs.intel import matching, sources as sources_registry, watchlist
 from libs.integrations import reports, webhooks
 
@@ -955,6 +956,8 @@ class AssessmentRequest(BaseModel):
     due_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     link_days: int = Field(30, ge=1, le=90)
     send_email: bool = True
+    # Why the information is needed (CSDDD Article 8(2a)); required for due-diligence questionnaires.
+    request_reason: str = Field("", max_length=1000)
 
 
 class AssessmentReview(BaseModel):
@@ -1058,6 +1061,11 @@ async def _send_assessment(user, body: AssessmentRequest):
     """Shared with approved AI proposals (assessment.send)."""
     require_write_access(user)
     template = await _assessment_template(user.organization_id, body.template_id)
+    reason = body.request_reason.strip()
+    if template.get("due_diligence") and not reason:
+        raise HTTPException(status_code=400, detail=(
+            "Say why this information is needed and cannot reasonably be obtained another way: a business partner "
+            "is asked for due diligence information only where necessary (CSDDD Article 8(2a))."))
     email = _valid_email(body.recipient_email)
     portal_token, token_hash = new_portal_token()
     try:
@@ -1065,7 +1073,7 @@ async def _send_assessment(user, body: AssessmentRequest):
             "supplier_id": body.supplier_id, "template_name": template["name"], "questions": template["questions"],
             "recipient_email": email, "recipient_name": body.recipient_name.strip(), "due_date": body.due_date,
             "token_hash": token_hash, "token_expires_at": datetime.now(timezone.utc) + timedelta(days=body.link_days),
-            "sent_by": user.email})
+            "sent_by": user.email, "request_reason": reason or None})
     except LookupError:
         raise HTTPException(status_code=404, detail="Supplier not found")
     link = _portal_link(portal_token)
@@ -2107,6 +2115,333 @@ async def list_record_signatures(record_type: str, record_id: str, token: str = 
         except HTTPException:
             current = None
     return {"signatures": [{**s, "intact": current is not None and s["record_hash"] == current} for s in signatures]}
+
+
+# ---------------------------------------------------------------------------
+# Human rights and environmental due diligence (LkSG, CSDDD): a risk register per supplier,
+# rated by people; measures and their effectiveness; the periodic review of the risk
+# analysis; the yearly documentation. libs/due_diligence/catalog.py has the legal basis.
+# Nothing is scored by code and nothing is ever deleted (seven-year retention).
+# ---------------------------------------------------------------------------
+
+class DdRiskRequest(BaseModel):
+    supplier_id: str = Field(..., max_length=64)
+    area: str = Field(..., max_length=40)
+    description: str = Field(..., min_length=1, max_length=2000)
+    likelihood: int = Field(..., ge=1, le=4)
+    severity: int = Field(..., ge=1, le=4)
+    rating_reason: str = Field(..., min_length=1, max_length=2000)
+    source: str = Field(..., max_length=40)
+    source_ref: Optional[str] = Field(None, max_length=200)
+
+
+class DdRiskUpdate(BaseModel):
+    description: Optional[str] = Field(None, min_length=1, max_length=2000)
+    likelihood: Optional[int] = Field(None, ge=1, le=4)
+    severity: Optional[int] = Field(None, ge=1, le=4)
+    rating_reason: Optional[str] = Field(None, min_length=1, max_length=2000)
+    status: Optional[str] = Field(None, max_length=20)
+
+
+class DdMeasureRequest(BaseModel):
+    supplier_id: str = Field(..., max_length=64)
+    risk_id: Optional[str] = Field(None, max_length=64)
+    kind: str = Field(..., max_length=40)
+    description: str = Field(..., min_length=1, max_length=2000)
+    owner_email: Optional[str] = Field(None, max_length=254)
+    due_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class DdMeasureUpdate(BaseModel):
+    description: Optional[str] = Field(None, min_length=1, max_length=2000)
+    owner_email: Optional[str] = Field(None, max_length=254)
+    due_date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    status: Optional[str] = Field(None, max_length=20)
+    effectiveness: Optional[str] = Field(None, max_length=20)
+    effectiveness_note: Optional[str] = Field(None, max_length=2000)
+
+
+class DdReviewRequest(BaseModel):
+    supplier_id: str = Field(..., max_length=64)
+    conclusion: str = Field(..., min_length=1, max_length=4000)
+
+
+class DdSettingsRequest(BaseModel):
+    review_months: int = Field(..., ge=1, le=dd.MAX_REVIEW_MONTHS)
+
+
+def _dd_rating(likelihood: int, severity: int) -> str:
+    return f"likelihood {dd.LIKELIHOOD[likelihood].lower()}, severity {dd.SEVERITY[severity].lower()}"
+
+
+async def _dd_member_email(org: str, email: Optional[str]) -> Optional[str]:
+    if not email:
+        return None
+    email = _valid_email(email)
+    if email not in {m["email"].lower() for m in await audit_store.list_members(org) if m.get("is_active")}:
+        raise HTTPException(status_code=400, detail="The owner must be an active member of your organization")
+    return email
+
+
+async def _dd_review_states(org: str) -> Dict[str, Dict[str, Any]]:
+    """Each supplier's review state, keyed by supplier id."""
+    months = (await audit_store.get_dd_settings(org))["review_months"]
+    last, facts = await audit_store.dd_last_reviews(org), await audit_store.dd_change_facts(org)
+    by_supplier: Dict[str, List[Dict[str, Any]]] = {}
+    for fact in facts:
+        by_supplier.setdefault(fact["supplier_id"], []).append(fact)
+    ids = set(last) | set(by_supplier)
+    return {sid: dd.review_status(last.get(sid), months, by_supplier.get(sid, [])) for sid in ids}
+
+
+@app.get("/api/v1/due-diligence/catalog")
+async def due_diligence_catalog(token: str = Depends(security)):
+    await verify_token(token.credentials)
+    return {"areas": list(dd.AREAS.values()), "sources": [{"key": k, "label": dd.SOURCE_LABEL[k]} for k in dd.SOURCES],
+            "likelihood": dd.LIKELIHOOD, "severity": dd.SEVERITY, "risk_statuses": dd.RISK_STATUSES,
+            "measure_kinds": [{"key": k, "label": v, "last_resort": k in dd.LAST_RESORT}
+                              for k, v in dd.MEASURE_KINDS.items()],
+            "measure_statuses": dd.MEASURE_STATUSES, "effectiveness": dd.EFFECTIVENESS}
+
+
+@app.get("/api/v1/due-diligence/overview")
+async def due_diligence_overview(token: str = Depends(security)):
+    """The scoping view: per active supplier, what SCIRM already holds (country and sites,
+    spend, incidents, questionnaires) next to its rated risks, open measures and where its
+    risk analysis stands. Nothing here is a computed risk score."""
+    user = await verify_token(token.credentials)
+    org = user.organization_id
+    suppliers = [s for s in (await audit_store.list_suppliers(org, limit=None))[0] if s.get("is_active", True)]
+    risks, measures = await audit_store.list_dd_risks(org), await audit_store.list_dd_measures(org)
+    states, facts = await _dd_review_states(org), await audit_store.dd_change_facts(org)
+    assessments = await audit_store.list_assessments(org)
+    rows = []
+    for s in suppliers:
+        sid = str(s["id"])
+        own = [r for r in risks if r["supplier_id"] == sid and r["status"] != "closed"]
+        top = sorted(own, key=dd.priority_key)[0] if own else None
+        site_countries = sorted({(site.get("country") or "").upper() for site in s.get("sites") or []
+                                 if isinstance(site, dict) and site.get("country")})
+        rows.append({
+            "supplier_id": sid, "name": s.get("name"), "country_code": s.get("country_code"),
+            "site_countries": site_countries, "spend_12m": s.get("spend_12m"),
+            "spend_main_currency": s.get("spend_main_currency"), "spend_rank": s.get("spend_rank"),
+            "incidents": sum(1 for f in facts if f["supplier_id"] == sid and f["text"].startswith("War-room")),
+            "questionnaires": sum(1 for a in assessments if a["supplier_id"] == sid and a["status"] in ("submitted", "reviewed")),
+            "open_risks": len(own), "top_risk": {k: top[k] for k in ("area", "likelihood", "severity")} if top else None,
+            "open_measures": sum(1 for m in measures if m["supplier_id"] == sid and m["status"] in ("planned", "in_progress")),
+            "review": states.get(sid) or dd.review_status(None, 12, []),
+        })
+    return {"suppliers": rows, "settings": await audit_store.get_dd_settings(org)}
+
+
+@app.get("/api/v1/due-diligence/suppliers/{supplier_id}")
+async def due_diligence_supplier(supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    org = user.organization_id
+    supplier = await audit_store.get_supplier(org, supplier_id)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    risks = sorted(await audit_store.list_dd_risks(org, supplier_id), key=dd.priority_key)
+    facts = [f for f in await audit_store.dd_change_facts(org) if f["supplier_id"] == supplier_id]
+    states = await _dd_review_states(org)
+    return {"supplier": {k: supplier.get(k) for k in ("id", "name", "country_code", "sites", "spend_12m",
+                                                      "spend_main_currency", "is_active")},
+            "risks": risks, "measures": await audit_store.list_dd_measures(org, supplier_id),
+            "history": await audit_store.list_dd_events(org, supplier_id),
+            "facts": [{**f, "at": f["at"].isoformat()} for f in sorted(facts, key=lambda f: f["at"], reverse=True)],
+            "assessments": await audit_store.list_assessments(org, supplier_id),
+            "review": states.get(supplier_id) or dd.review_status(None, 12, [])}
+
+
+@app.post("/api/v1/due-diligence/risks")
+async def add_due_diligence_risk(body: DdRiskRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    if body.area not in dd.AREAS or body.source not in dd.SOURCES:
+        raise HTTPException(status_code=400, detail="Unknown risk area or source")
+    fields = body.model_dump(exclude={"supplier_id"})
+    fields.update(description=body.description.strip(), rating_reason=body.rating_reason.strip())
+    entry = (f"Risk recorded: {dd.AREAS[body.area]['label']} ({_dd_rating(body.likelihood, body.severity)}). "
+             f"Reason: {fields['rating_reason']}")
+    try:
+        risk = await audit_store.add_dd_risk(user.organization_id, body.supplier_id, fields, [("risk_added", entry)],
+                                             user.email)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    await _audit_event(user.organization_id, user.id, user.email, "due_diligence.risk_added", target=risk["id"],
+                       details={"supplier_id": body.supplier_id, "area": body.area, "likelihood": body.likelihood,
+                                "severity": body.severity}, resource_type="due_diligence")
+    return {"risk": risk}
+
+
+@app.patch("/api/v1/due-diligence/risks/{risk_id}")
+async def update_due_diligence_risk(risk_id: str, body: DdRiskUpdate, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    changes = body.model_dump(exclude_none=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="Nothing to change")
+    if changes.get("status") and changes["status"] not in dd.RISK_STATUSES:
+        raise HTTPException(status_code=400, detail="Unknown status")
+    current = next((r for r in await audit_store.list_dd_risks(user.organization_id) if r["id"] == risk_id), None)
+    if not current:
+        raise HTTPException(status_code=404, detail="Risk not found")
+    rerated = any(k in changes and changes[k] != current[k] for k in ("likelihood", "severity"))
+    if rerated and not changes.get("rating_reason"):
+        raise HTTPException(status_code=400, detail="Give the reason for the new rating")
+    entries = []
+    if rerated or "rating_reason" in changes:
+        entries.append(("risk_rated", f"Re-rated: {_dd_rating(changes.get('likelihood', current['likelihood']), changes.get('severity', current['severity']))}. "
+                                      f"Reason: {changes.get('rating_reason', current['rating_reason']).strip()}"))
+    if changes.get("status") and changes["status"] != current["status"]:
+        entries.append(("risk_status", f"Status: {current['status']} → {changes['status']}"))
+    if "description" in changes and changes["description"] != current["description"]:
+        entries.append(("risk_rated", "Description changed"))
+    risk = await audit_store.update_dd_risk(user.organization_id, risk_id, changes, entries, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "due_diligence.risk_updated", target=risk_id,
+                       details={"changes": sorted(changes)}, resource_type="due_diligence")
+    return {"risk": risk}
+
+
+@app.post("/api/v1/due-diligence/measures")
+async def add_due_diligence_measure(body: DdMeasureRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    if body.kind not in dd.MEASURE_KINDS:
+        raise HTTPException(status_code=400, detail="Unknown kind of measure")
+    fields = {"risk_id": body.risk_id or None, "kind": body.kind, "description": body.description.strip(),
+              "owner_email": await _dd_member_email(user.organization_id, body.owner_email), "due_date": body.due_date}
+    entry = f"Measure planned: {dd.MEASURE_KINDS[body.kind]}: {fields['description']}"
+    try:
+        measure = await audit_store.add_dd_measure(user.organization_id, body.supplier_id, fields,
+                                                   [("measure_added", entry)], user.email)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Risk not found" if str(exc) == "risk" else "Supplier not found")
+    await _audit_event(user.organization_id, user.id, user.email, "due_diligence.measure_added", target=measure["id"],
+                       details={"supplier_id": body.supplier_id, "kind": body.kind,
+                                "last_resort": body.kind in dd.LAST_RESORT}, resource_type="due_diligence")
+    return {"measure": measure}
+
+
+@app.patch("/api/v1/due-diligence/measures/{measure_id}")
+async def update_due_diligence_measure(measure_id: str, body: DdMeasureUpdate, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    changes = body.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="Nothing to change")
+    if changes.get("status") is not None and changes["status"] not in dd.MEASURE_STATUSES:
+        raise HTTPException(status_code=400, detail="Unknown status")
+    if changes.get("effectiveness") is not None and changes["effectiveness"] not in dd.EFFECTIVENESS:
+        raise HTTPException(status_code=400, detail="Unknown effectiveness")
+    for key in ("status", "effectiveness", "description"):
+        if key in changes and changes[key] is None:
+            raise HTTPException(status_code=400, detail=f"{key} cannot be empty")
+    if "owner_email" in changes:
+        changes["owner_email"] = await _dd_member_email(user.organization_id, changes["owner_email"])
+    current = next((m for m in await audit_store.list_dd_measures(user.organization_id) if m["id"] == measure_id), None)
+    if not current:
+        raise HTTPException(status_code=404, detail="Measure not found")
+    entries = []
+    if changes.get("status") and changes["status"] != current["status"]:
+        entries.append(("measure_status", f"Status: {current['status']} → {changes['status']}"))
+    if changes.get("effectiveness") and changes["effectiveness"] != current["effectiveness"] \
+            or changes.get("effectiveness_note"):
+        note = (changes.get("effectiveness_note") or "").strip()
+        entries.append(("measure_reviewed", f"Effectiveness: {changes.get('effectiveness', current['effectiveness'])}"
+                                            + (f". {note}" if note else "")))
+    if not entries:
+        entries.append(("measure_status", "Details changed: " + ", ".join(sorted(changes))))
+    measure = await audit_store.update_dd_measure(user.organization_id, measure_id, changes, entries, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "due_diligence.measure_updated", target=measure_id,
+                       details={"changes": sorted(changes)}, resource_type="due_diligence")
+    return {"measure": measure}
+
+
+@app.post("/api/v1/due-diligence/reviews")
+async def review_due_diligence(body: DdReviewRequest, token: str = Depends(security)):
+    """Record that a supplier's risk analysis was reviewed, with the conclusions drawn."""
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    try:
+        event = await audit_store.add_dd_review(user.organization_id, body.supplier_id, body.conclusion.strip(),
+                                                user.email)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    await _audit_event(user.organization_id, user.id, user.email, "due_diligence.analysis_reviewed",
+                       target=body.supplier_id, resource_type="due_diligence")
+    return {"review": event, "state": (await _dd_review_states(user.organization_id)).get(body.supplier_id)}
+
+
+@app.get("/api/v1/due-diligence/settings")
+async def get_due_diligence_settings(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return await audit_store.get_dd_settings(user.organization_id)
+
+
+@app.put("/api/v1/due-diligence/settings")
+async def set_due_diligence_settings(body: DdSettingsRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    _require_admin(user, "change the review interval")
+    before = await audit_store.get_dd_settings(user.organization_id)
+    saved = await audit_store.set_dd_settings(user.organization_id, body.review_months, user.email)
+    await _audit_event(user.organization_id, user.id, user.email, "due_diligence.settings_changed",
+                       details={"review_months": [before["review_months"], body.review_months]},
+                       resource_type="due_diligence")
+    return saved
+
+
+@app.get("/api/v1/due-diligence/export")
+async def export_due_diligence(year: int, format: str = "json", token: str = Depends(security)):
+    """The year's due diligence documentation (LkSG section 10(1)): the risks identified,
+    the measures taken, how their effectiveness was assessed and the conclusions drawn, with
+    the full history. JSON, or CSV of the history."""
+    import csv
+    import io
+    from fastapi.responses import Response
+    user = await verify_token(token.credentials)
+    if format not in ("json", "csv") or not 2000 <= year <= 2100:
+        raise HTTPException(status_code=400, detail="Give a year and json or csv")
+    org = user.organization_id
+    since, until = datetime(year, 1, 1, tzinfo=timezone.utc), datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+    events = await audit_store.list_dd_events(org, since=since, until=until)
+    names = {str(s["id"]): s.get("name") for s in (await audit_store.list_suppliers(org, limit=None))[0]}
+    touched_risks = {e["risk_id"] for e in events if e["risk_id"]}
+    touched_measures = {e["measure_id"] for e in events if e["measure_id"]}
+    await _audit_event(org, user.id, user.email, "due_diligence.exported", details={"year": year, "format": format},
+                       resource_type="due_diligence")
+    if format == "csv":
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["created_at_utc", "supplier", "kind", "text", "actor", "risk_id", "measure_id"])
+        for e in events:
+            row = [e["created_at"], names.get(e["supplier_id"], e["supplier_id"]), e["kind"], e["text"], e["actor"],
+                   e["risk_id"], e["measure_id"]]
+            writer.writerow(["'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else
+                             ("" if v is None else v) for v in row])
+        return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers={
+            "Content-Disposition": f'attachment; filename="scirm-due-diligence-{year}.csv"'})
+
+    def named(row: Dict[str, Any]) -> Dict[str, Any]:
+        return {**row, "supplier": names.get(row["supplier_id"], row["supplier_id"])}
+
+    risks = [named({**r, "area_label": dd.AREAS[r["area"]]["label"], "lksg": dd.AREAS[r["area"]]["lksg"],
+                    "csddd": dd.AREAS[r["area"]]["csddd"]})
+             for r in await audit_store.list_dd_risks(org) if r["id"] in touched_risks]
+    measures = [named({**m, "kind_label": dd.MEASURE_KINDS[m["kind"]]})
+                for m in await audit_store.list_dd_measures(org) if m["id"] in touched_measures]
+    body = {
+        "organization": await audit_store.organization_name(org), "year": year,
+        "generated_at": datetime.now(timezone.utc).isoformat(), "generated_by": user.email,
+        "risks_identified": risks, "measures": measures,
+        "effectiveness": [named(e) for e in events if e["kind"] == "measure_reviewed"],
+        "conclusions": [named(e) for e in events if e["kind"] == "analysis_reviewed"],
+        "history": [named(e) for e in events],
+        "note": "Supplier statements from questionnaires are claims, not findings. Ratings are made by people.",
+    }
+    return Response(json.dumps(body, indent=2, default=str), media_type="application/json", headers={
+        "Content-Disposition": f'attachment; filename="scirm-due-diligence-{year}.json"'})
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:

@@ -52,7 +52,7 @@ function SendForm({ templates, onSent }: { templates: AssessmentTemplate[]; onSe
   const { t } = useTranslation();
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [form, setForm] = useState({ supplier_id: '', template_id: 'builtin:continuity', recipient_email: '',
-    recipient_name: '', due_date: '', link_days: 30, send_email: true });
+    recipient_name: '', due_date: '', link_days: 30, send_email: true, request_reason: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -67,7 +67,7 @@ function SendForm({ templates, onSent }: { templates: AssessmentTemplate[]; onSe
     setBusy(true); setError('');
     try {
       onSent(await api.sendAssessment({ ...form, due_date: form.due_date || null }));
-      setForm((f) => ({ ...f, recipient_email: '', recipient_name: '' }));
+      setForm((f) => ({ ...f, recipient_email: '', recipient_name: '', request_reason: '' }));
     } catch (err) {
       setError(errorText(err, t('sa.sendFailed', 'The questionnaire could not be sent.')));
     } finally {
@@ -75,6 +75,7 @@ function SendForm({ templates, onSent }: { templates: AssessmentTemplate[]; onSe
     }
   };
   const set = (key: string, value: unknown) => setForm((f) => ({ ...f, [key]: value }));
+  const dueDiligence = !!templates.find((tp) => tp.id === form.template_id)?.due_diligence;
   return (
     <form onSubmit={submit} className="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
       <select required value={form.supplier_id} onChange={(e) => set('supplier_id', e.target.value)} className={input} aria-label={t('sa.supplier', 'Supplier')}>
@@ -97,6 +98,14 @@ function SendForm({ templates, onSent }: { templates: AssessmentTemplate[]; onSe
         </label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={form.send_email} onChange={(e) => set('send_email', e.target.checked)} />{t('sa.email', 'Email it')}</label>
       </div>
+      {dueDiligence && (
+        <div className="md:col-span-3">
+          <textarea required rows={2} maxLength={1000} value={form.request_reason} onChange={(e) => set('request_reason', e.target.value)}
+            placeholder={t('sa.reasonPlaceholder', 'Why is this information needed, and why can it not reasonably be obtained another way? (required)')}
+            className={`${input} w-full`} aria-label={t('sa.reason', 'Reason for asking')} />
+          <p className="text-xs text-gray-500">{t('sa.reasonHint', 'Due diligence information is asked from a supplier only where necessary (CSDDD Article 8(2a)). The reason is kept with the questionnaire; the supplier does not see it.')}</p>
+        </div>
+      )}
       {error && <p className="md:col-span-3 text-sm text-red-600">{error}</p>}
       <div className="md:col-span-3">
         <button type="submit" disabled={busy} className={`${button} bg-blue-600 text-white hover:bg-blue-700`}>{t('sa.send', 'Send questionnaire')}</button>
@@ -127,6 +136,7 @@ function Detail({ id, canWrite, onChanged, onLink }: { id: string; canWrite: boo
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{a.supplier_name}: {a.template_name}</h2>
           <p className="text-xs text-gray-500">{t('sa.sentTo', 'Sent to {{to}} by {{by}}, {{at}}', { to: a.recipient_email, by: a.sent_by || '-', at: utcDate(a.sent_at).toLocaleString() })}</p>
+          {a.request_reason && <p className="text-xs text-gray-500">{t('sa.askedBecause', 'Asked because: {{r}}', { r: a.request_reason })}</p>}
         </div>
         <span className={`text-xs px-2 py-1 rounded-full ${STATUS_STYLE[a.status]}`}>{STATUS_LABEL[a.status]}</span>
       </div>

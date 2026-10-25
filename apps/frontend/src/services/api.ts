@@ -399,6 +399,8 @@ export interface AssessmentQuestion {
   good?: 'yes' | 'no';
   /** 1 to 5, with good. */
   weight?: number;
+  /** The answer raises a flag to follow up but never counts toward a score (due diligence). */
+  flag_only?: boolean;
   options?: string[];
 }
 
@@ -408,6 +410,8 @@ export interface AssessmentTemplate {
   description: string;
   questions: AssessmentQuestion[];
   built_in?: boolean;
+  /** Sending it needs a reason (CSDDD Article 8(2a)). */
+  due_diligence?: boolean;
   created_by?: string | null;
 }
 
@@ -445,6 +449,8 @@ export interface SupplierAssessment {
   reviewed_at: string | null;
   sent_by: string | null;
   sent_at: string;
+  /** Why the information was asked for (due-diligence questionnaires). */
+  request_reason?: string | null;
   questions?: AssessmentQuestion[];
   answers?: Record<string, unknown>;
 }
@@ -455,6 +461,52 @@ export interface AssessmentSent {
   portal_url: string;
   emailed: boolean;
   note: string | null;
+}
+
+// Human rights and environmental due diligence (LkSG, CSDDD)
+export interface DdArea { key: string; label: string; lksg: string; csddd: string; group: 'human_rights' | 'environment' }
+export interface DdCatalog {
+  areas: DdArea[];
+  sources: Array<{ key: string; label: string }>;
+  likelihood: Record<string, string>;
+  severity: Record<string, string>;
+  risk_statuses: DdRiskStatus[];
+  measure_kinds: Array<{ key: string; label: string; last_resort: boolean }>;
+  measure_statuses: DdMeasureStatus[];
+  effectiveness: DdEffectiveness[];
+}
+export type DdRiskStatus = 'open' | 'mitigated' | 'closed';
+export type DdMeasureStatus = 'planned' | 'in_progress' | 'done' | 'cancelled';
+export type DdEffectiveness = 'not_reviewed' | 'effective' | 'partly_effective' | 'not_effective';
+export interface DdRisk {
+  id: string; supplier_id: string; area: string; description: string; likelihood: number; severity: number;
+  rating_reason: string; source: string; source_ref: string | null; status: DdRiskStatus;
+  assessed_by: string | null; assessed_at: string; created_at: string;
+}
+export interface DdMeasure {
+  id: string; supplier_id: string; risk_id: string | null; kind: string; description: string; owner_email: string | null;
+  due_date: string | null; status: DdMeasureStatus; effectiveness: DdEffectiveness; effectiveness_note: string | null;
+  created_by: string | null; created_at: string; updated_at: string;
+}
+export interface DdEvent {
+  id: string; supplier_id: string; risk_id: string | null; measure_id: string | null; kind: string; text: string;
+  actor: string | null; created_at: string;
+}
+export interface DdReview {
+  state: 'not_analysed' | 'current' | 'suggested' | 'due';
+  last_review: string | null; next_review: string | null; reasons: string[];
+}
+export interface DdOverviewRow {
+  supplier_id: string; name: string; country_code: string | null; site_countries: string[];
+  spend_12m: Record<string, string | number> | null; spend_main_currency: string | null; spend_rank: number | null;
+  incidents: number; questionnaires: number; open_risks: number;
+  top_risk: { area: string; likelihood: number; severity: number } | null; open_measures: number; review: DdReview;
+}
+export interface DdSupplierView {
+  supplier: { id: string; name: string; country_code: string | null; is_active?: boolean };
+  risks: DdRisk[]; measures: DdMeasure[]; history: DdEvent[];
+  facts: Array<{ supplier_id: string; at: string; text: string }>;
+  assessments: SupplierAssessment[]; review: DdReview;
 }
 
 export interface WatchlistItem {
@@ -940,7 +992,7 @@ export const api = {
   },
 
   async sendAssessment(body: { supplier_id: string; template_id: string; recipient_email: string; recipient_name?: string;
-    due_date?: string | null; link_days?: number; send_email?: boolean }): Promise<AssessmentSent> {
+    due_date?: string | null; link_days?: number; send_email?: boolean; request_reason?: string }): Promise<AssessmentSent> {
     return (await apiClient.post('/api/v1/assessments', body)).data;
   },
 
@@ -958,6 +1010,49 @@ export const api = {
 
   async reviewAssessment(id: string, note: string): Promise<SupplierAssessment> {
     return (await apiClient.post(`/api/v1/assessments/${encodeURIComponent(id)}/review`, { note })).data.assessment;
+  },
+
+  // Due diligence
+  async ddCatalog(): Promise<DdCatalog> {
+    return (await apiClient.get('/api/v1/due-diligence/catalog')).data;
+  },
+
+  async ddOverview(): Promise<{ suppliers: DdOverviewRow[]; settings: { review_months: number } }> {
+    return (await apiClient.get('/api/v1/due-diligence/overview')).data;
+  },
+
+  async ddSupplier(id: string): Promise<DdSupplierView> {
+    return (await apiClient.get(`/api/v1/due-diligence/suppliers/${encodeURIComponent(id)}`)).data;
+  },
+
+  async ddAddRisk(body: { supplier_id: string; area: string; description: string; likelihood: number; severity: number;
+    rating_reason: string; source: string; source_ref?: string | null }): Promise<DdRisk> {
+    return (await apiClient.post('/api/v1/due-diligence/risks', body)).data.risk;
+  },
+
+  async ddUpdateRisk(id: string, changes: Partial<Pick<DdRisk, 'description' | 'likelihood' | 'severity' | 'rating_reason' | 'status'>>): Promise<DdRisk> {
+    return (await apiClient.patch(`/api/v1/due-diligence/risks/${encodeURIComponent(id)}`, changes)).data.risk;
+  },
+
+  async ddAddMeasure(body: { supplier_id: string; risk_id?: string | null; kind: string; description: string;
+    owner_email?: string | null; due_date?: string | null }): Promise<DdMeasure> {
+    return (await apiClient.post('/api/v1/due-diligence/measures', body)).data.measure;
+  },
+
+  async ddUpdateMeasure(id: string, changes: Partial<Pick<DdMeasure, 'description' | 'owner_email' | 'due_date' | 'status' | 'effectiveness' | 'effectiveness_note'>>): Promise<DdMeasure> {
+    return (await apiClient.patch(`/api/v1/due-diligence/measures/${encodeURIComponent(id)}`, changes)).data.measure;
+  },
+
+  async ddReview(supplierId: string, conclusion: string): Promise<DdReview> {
+    return (await apiClient.post('/api/v1/due-diligence/reviews', { supplier_id: supplierId, conclusion })).data.state;
+  },
+
+  async ddSetReviewMonths(months: number): Promise<{ review_months: number }> {
+    return (await apiClient.put('/api/v1/due-diligence/settings', { review_months: months })).data;
+  },
+
+  async ddExport(year: number, format: 'json' | 'csv'): Promise<Blob> {
+    return (await apiClient.get('/api/v1/due-diligence/export', { params: { year, format }, responseType: 'blob' })).data;
   },
 
   // Regulatory watch

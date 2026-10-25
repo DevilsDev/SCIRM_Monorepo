@@ -27,6 +27,7 @@ nav:
       - Webhooks: webhooks.md
       - Scheduled reports: scheduled-reports.md
       - Supplier assessments: supplier-assessments.md
+      - Due diligence (LkSG, CSDDD): due-diligence.md
       - Regulatory watch: regulatory-watch.md
       - War room: war-room.md
       - AI control centre: ai-control-centre.md
