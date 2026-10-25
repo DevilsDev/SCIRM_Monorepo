@@ -37,7 +37,7 @@ from libs.assessments import questions as aq
 from libs.common import oidc, secret_box
 from libs.common.store_assessments import new_portal_token, portal_token_hash
 from libs.common.store_watchlist import DuplicateTerm
-from libs.common import actions, warroom
+from libs.common import actions, mcp_tools, warroom
 from libs.intel import matching, sources as sources_registry, watchlist
 from libs.integrations import reports, webhooks
 
@@ -217,6 +217,10 @@ async def api_key_auth(request: Request, call_next):
     unchanged; the key's id stands in for the user. Refusals are audited by prefix."""
     key = _presented_api_key(request)
     if key is None:
+        if request.url.path == "/mcp" or request.url.path.startswith("/mcp/"):
+            from fastapi.responses import JSONResponse
+            # The MCP server only answers API keys with the mcp scope (even listing its tools).
+            return JSONResponse(status_code=401, content={"detail": "An API key with the mcp scope is required"})
         return await call_next(request)
     from fastapi.responses import JSONResponse
     found = await audit_store.find_api_key(key) if is_api_key(key) else None
@@ -236,15 +240,20 @@ async def api_key_auth(request: Request, call_next):
     if not found or not found.get("live"):
         return await refuse(401, "Invalid, expired or revoked API key")
     scim = "scim" in (found.get("scopes") or [])
+    mcp_key = "mcp" in (found.get("scopes") or [])
     if scim:  # a SCIM token: user provisioning only
         if not (template or "").startswith("/scim/v2/"):
             return await refuse(403, "A SCIM token can only call /scim/v2.")
+    elif mcp_key:  # an MCP connection: the MCP server only
+        if template != "/mcp":
+            return await refuse(403, "An MCP key can only call /mcp.")
     elif (request.method, template) not in API_KEY_ROUTES:
         return await refuse(403, "API keys can only read suppliers, their public records, alerts, risks and the "
                                  "intelligence feed. See the API documentation.")
     token = create_access_token(data={
         "sub": str(found["id"]), "email": f"api-key:{found['name']} ({found['prefix']})", "name": found["name"],
-        "roles": ["scim"] if scim else ["viewer"], "org_id": str(found["organization_id"]), "api_key": True,
+        "roles": ["scim"] if scim else ["mcp"] if mcp_key else ["viewer"], "org_id": str(found["organization_id"]),
+        "api_key": True,
     }, expires_delta=timedelta(minutes=1))
     request.scope["headers"] = [(k, v) for k, v in request.scope["headers"] if k not in (b"authorization", b"x-api-key")]
     request.scope["headers"].append((b"authorization", f"Bearer {token}".encode()))
@@ -677,7 +686,7 @@ class ApiKeyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     expires_in_days: Optional[int] = Field(None, ge=1, le=730)
     # read: the public API; scim: user provisioning by an identity provider (/scim/v2 only).
-    scope: str = Field("read", pattern="^(read|scim)$")
+    scope: str = Field("read", pattern="^(read|scim|mcp)$")
 
 
 @app.get("/api/v1/org/api-keys")
@@ -1192,7 +1201,11 @@ async def delete_watchlist_item(item_id: str, token: str = Depends(security)):
 async def regulatory_watch(days: int = 180, source: Optional[str] = None, token: str = Depends(security)):
     """FDA and EMA records with activity in the last `days` that name a watched term, newest
     first. Public records matched by wording: check the source record."""
-    user = await verify_token(token.credentials)
+    return await _regulatory_watch(await verify_token(token.credentials), days, source)
+
+
+async def _regulatory_watch(user, days: int, source: Optional[str]):
+    """Shared with the MCP server."""
     if not 1 <= days <= 3650:
         raise HTTPException(status_code=400, detail="days must be between 1 and 3650")
     if source and source not in sources_registry.REGULATORY_SOURCES:
@@ -1619,6 +1632,110 @@ async def get_ai_run(run_id: str, token: str = Depends(security)):
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return {"run": run}
+
+
+# ---------------------------------------------------------------------------
+# MCP server (libs/common/mcp_tools.py) at /mcp, for API keys with the "mcp" scope. The API
+# key middleware has already swapped the key for a one-minute internal token with the role
+# "mcp"; each tool verifies that token. Reads run as the organization's read-only viewer,
+# changes go through propose_action and the action policy.
+# ---------------------------------------------------------------------------
+
+def _mcp_identity(ctx, roles: List[str]) -> "User":
+    from libs.common.models import User
+    auth = (ctx.headers or {}).get("authorization", "")
+    try:
+        payload = decode_token(auth[7:], TOKEN_TYPE_ACCESS) if auth.lower().startswith("bearer ") else {}
+    except HTTPException:
+        payload = {}
+    if "mcp" not in (payload.get("roles") or []):
+        raise mcp_tools.ToolRefused("These tools need an API key with the mcp scope.")
+    return User(id=payload["sub"], email=payload.get("email") or "api-key", name=payload.get("name") or "MCP client",
+                roles=roles, organization_id=payload["org_id"])
+
+
+async def _mcp_caller(ctx):
+    return _mcp_identity(ctx, ["viewer"])
+
+
+async def _mcp_log(agent, tool: str, args: Dict[str, Any], status: str, started: float, output: Dict[str, Any]) -> None:
+    await _record_run(agent, {"kind": "mcp_tool", "actor": agent.email, "actor_type": "api_key", "status": status,
+                              "method": tool, "degraded": status == "error",
+                              "input": {"tool": tool, "arguments": {k: (str(v)[:300] if isinstance(v, str) else v)
+                                                                    for k, v in args.items()}},
+                              "output": output}, started)
+
+
+async def _mcp_suppliers(agent, query: str, limit: int) -> Dict[str, Any]:
+    suppliers, _ = await audit_store.list_suppliers(agent.organization_id, limit=None)
+    wanted = query.strip().lower()
+    found = [s for s in suppliers if not wanted or wanted in (s.get("name") or "").lower()][:limit]
+    return {"suppliers": [{k: s.get(k) for k in ("id", "name", "sap_supplier_number", "country_code", "risk_tier",
+                                                 "spend_12m", "spend_main_currency", "spend_rank")} for s in found]}
+
+
+async def _mcp_supplier_records(agent, supplier_id: str) -> Dict[str, Any]:
+    return await _coordinator_get(agent, f"/suppliers/{quote(supplier_id, safe='')}/signals", {},
+                                  "Supplier records unavailable")
+
+
+async def _mcp_ask(agent, supplier_id: str, question: str) -> Dict[str, Any]:
+    return await _ask(agent, supplier_id, SupplierQuestion(question=question))
+
+
+async def _mcp_incidents(agent, status: Optional[str]) -> Dict[str, Any]:
+    if status and status not in INCIDENT_STATUSES:
+        raise mcp_tools.ToolRefused("status must be open, monitoring or resolved")
+    return {"incidents": await audit_store.list_incidents(agent.organization_id, status)}
+
+
+async def _mcp_incident(agent, incident_id: str) -> Dict[str, Any]:
+    return await _incident_view(agent.organization_id, incident_id)
+
+
+async def _mcp_propose(agent, action: str, params: Dict[str, Any], reason: str) -> Dict[str, Any]:
+    from libs.common.models import User
+    # Changes are made at most with an analyst's permissions, and only as the policy allows.
+    actor = User(id=agent.id, email=agent.email, name=agent.name, roles=["analyst"], organization_id=agent.organization_id)
+    if not (reason or "").strip():
+        raise mcp_tools.ToolRefused("Give a reason: the person who decides will see it.")
+    try:
+        proposal = await propose_action(actor, action, params or {}, reason)
+    except ActionRefused as exc:
+        raise mcp_tools.ToolRefused(str(exc))
+    except ValueError as exc:  # unknown action, or parameters the action's request model refuses
+        raise mcp_tools.ToolRefused(f"Invalid proposal: {str(exc)[:300]}")
+    outcome = {"pending": "Waiting for a person's approval in SCIRM (AI control centre).",
+               "executed": "Done (your organization allows agents to do this directly).",
+               "failed": "It was allowed but failed: see the result."}.get(proposal["status"], proposal["status"])
+    return {"proposal_id": proposal["id"], "status": proposal["status"], "message": outcome,
+            "result": proposal.get("result")}
+
+
+mcp_server = mcp_tools.build_server({
+    "caller": _mcp_caller, "log": _mcp_log, "suppliers": _mcp_suppliers, "supplier_records": _mcp_supplier_records,
+    "ask": _mcp_ask, "regulatory_watch": _regulatory_watch, "incidents": _mcp_incidents, "incident": _mcp_incident,
+    "propose": _mcp_propose})
+
+
+class _McpEndpoint:
+    """Streamable HTTP, stateless with JSON responses: a fresh session manager per request, so
+    nothing depends on app startup or on which replica answers. DNS-rebinding protection is
+    off: every request needs an API key in a header, which a rebinding page cannot send.
+    (A class instance, so Starlette treats it as an ASGI app at exactly /mcp.)"""
+
+    async def __call__(self, scope, receive, send):
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+        from mcp.server.transport_security import TransportSecuritySettings
+        manager = StreamableHTTPSessionManager(
+            app=mcp_server._lowlevel_server, json_response=True, stateless=True,
+            security_settings=TransportSecuritySettings(enable_dns_rebinding_protection=False))
+        async with manager.run():
+            await manager.handle_request(scope, receive, send)
+
+
+app.router.routes.append(__import__("starlette.routing", fromlist=["Route"]).Route(
+    "/mcp", endpoint=_McpEndpoint(), methods=["GET", "POST", "DELETE"]))
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:
