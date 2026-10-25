@@ -16,7 +16,7 @@ own functions as `handlers`, so this module never imports the gateway.
 import os
 import time
 from collections import defaultdict, deque
-from typing import Any, Awaitable, Callable, Deque, Dict, Optional
+from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
@@ -59,7 +59,7 @@ limiter = _Limiter()
 
 def build_server(handlers: Dict[str, Handler]) -> MCPServer:
     """handlers: caller(ctx) -> agent user; log(agent, tool, args, status, started, output) -> None;
-    suppliers, supplier_records, ask, regulatory_watch, incidents, incident, propose."""
+    suppliers, supplier_records, ask, regulatory_watch, incidents, incident, scenario, propose."""
     server = MCPServer("SCIRM", instructions=INSTRUCTIONS, version="1")
 
     async def run(ctx: Context, tool: str, args: Dict[str, Any], call: Callable[[Any], Awaitable[Any]],
@@ -123,6 +123,18 @@ def build_server(handlers: Dict[str, Handler]) -> MCPServer:
         """One war-room incident: affected suppliers, spend at stake per currency, tasks and timeline."""
         return await run(ctx, "get_incident", {"incident_id": incident_id},
                          lambda agent: handlers["incident"](agent, incident_id))
+
+    @server.tool(annotations=READ)
+    async def run_scenario(ctx: Context, scope: str = "all", duration_weeks: int = 8, country: str = "",
+                           supplier_ids: Optional[List[str]] = None, incident_id: str = "",
+                           signal_id: str = "") -> Dict[str, Any]:
+        """Purchase spend at risk if suppliers are out for `duration_weeks` (1-52), per currency, and the
+        mitigations that would reduce it most. `scope`: all, country (with `country`, two letters), suppliers
+        (with `supplier_ids`), incident (with `incident_id`) or signal (with `signal_id`, a public record).
+        Computed by SCIRM's code from SAP spend and the suppliers' own stock answers; quote the numbers as given."""
+        args = {"scope": scope, "duration_weeks": duration_weeks, "country": country,
+                "supplier_ids": supplier_ids or [], "incident_id": incident_id, "signal_id": signal_id}
+        return await run(ctx, "run_scenario", args, lambda agent: handlers["scenario"](agent, args))
 
     @server.tool(annotations=PROPOSE)
     async def propose_action(ctx: Context, action: str, params: Dict[str, Any], reason: str) -> Dict[str, Any]:

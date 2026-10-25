@@ -31,6 +31,7 @@ nav:
       - War room: war-room.md
       - AI control centre: ai-control-centre.md
       - MCP server (AI agents): mcp-server.md
+      - Scenario studio: scenario-studio.md
   - Development:
       - Branching: development/branching.md
   - Operations:

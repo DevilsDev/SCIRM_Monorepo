@@ -462,6 +462,19 @@ def test_ai_tables_are_tenant_scoped_and_the_run_log_is_append_only(db):
     assert isinstance(as_org(db["app"], db["a"], policy, (db["a"], "sometimes")), psycopg2.errors.CheckViolation)
 
 
+def test_saved_scenarios_are_tenant_scoped(db):
+    """Migration 030: forced RLS on saved scenario definitions."""
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'saved_scenarios'")
+        assert cur.fetchone() == (True, True)
+    insert = "INSERT INTO saved_scenarios (organization_id, name, definition) VALUES (%s, 'S', '{}')"
+    assert as_org(db["app"], db["a"], insert, (db["a"],)) == 1
+    assert isinstance(as_org(db["app"], db["b"], insert, (db["a"],)), psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM saved_scenarios") == [(0,)]
+    bad = "INSERT INTO saved_scenarios (organization_id, name, definition) VALUES (%s, 'S', '[]')"
+    assert isinstance(as_org(db["app"], db["a"], bad, (db["a"],)), psycopg2.errors.CheckViolation)
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

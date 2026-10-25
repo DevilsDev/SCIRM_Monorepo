@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api, Incident, IncidentDetail, IncidentSeverity, IncidentStatus } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
 import { utcDate } from '../services/time';
+import { formatMoney } from '../services/money';
 
 const input = 'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white';
 const button = 'px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50';
@@ -19,16 +20,7 @@ const STATUS_STYLE: Record<IncidentStatus, string> = {
 };
 const SEVERITIES: IncidentSeverity[] = ['low', 'medium', 'high', 'critical'];
 
-/** An amount in its own currency, e.g. "€1,000.50"; an unknown code is shown as "1000.50 XYZ". */
-export function formatMoney(amount: string, currency: string): string {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return `${amount} ${currency}`;
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
-  } catch {
-    return `${amount} ${currency}`;
-  }
-}
+export { formatMoney };
 
 function errorText(err: any, fallback: string): string {
   const detail = err?.response?.data?.detail;

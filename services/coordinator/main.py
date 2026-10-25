@@ -1263,7 +1263,7 @@ async def create_risk_event(event: Dict[str, Any], org_id: str = Depends(tenant_
                     "alert_type": "event_impact",
                     "severity": impact["impact_severity"],
                     "title": f"Impact from: {event.get('title', 'Unknown Event')}",
-                    "description": f"{impact['impacted_entity_name']} affected (Tier {impact['tier_distance']}, est. {impact['estimated_disruption_days']}d disruption)",
+                    "description": f"{impact['impacted_entity_name']} affected (tier {impact['tier_distance']})",
                     "status": "active",
                     "metadata": {"event_id": event_id, "impact_id": impact["id"]},
                     "created_at": datetime.utcnow().isoformat(),
