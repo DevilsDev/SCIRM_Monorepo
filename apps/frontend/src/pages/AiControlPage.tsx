@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { ActionMode, ActionPolicyEntry, ActionProposal, AiRun, api } from '../services/api';
 import { utcDate } from '../services/time';
+import SignaturePanel from '../components/SignaturePanel';
 
 const input = 'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white';
 const button = 'px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50';
@@ -77,6 +78,7 @@ function Approvals({ canDecide }: { canDecide: boolean }) {
               {p.result && (p.result as any).error ? ` · ${(p.result as any).error}` : ''}
             </p>
           )}
+          {p.status !== 'pending' && <SignaturePanel recordType="action_proposal" recordId={p.id} meanings={['approved', 'reviewed']} />}
         </div>
       ))}
     </div>

@@ -143,7 +143,10 @@ def pkce_pair() -> Tuple[str, str]:
 
 
 def authorization_url(doc: Dict[str, Any], client_id: str, redirect_uri: str, state: str, nonce: str,
-                      code_challenge: str, login_hint: Optional[str] = None) -> str:
+                      code_challenge: str, login_hint: Optional[str] = None, fresh_login: bool = False) -> str:
+    """fresh_login: the user must authenticate again now, even with a session at the
+    identity provider (prompt=login, max_age=0); used for electronic signatures, which then
+    check the ID token's auth_time."""
     params = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri,
               "scope": "openid email profile", "state": state, "nonce": nonce,
               "code_challenge": code_challenge, "code_challenge_method": "S256",
@@ -151,6 +154,8 @@ def authorization_url(doc: Dict[str, Any], client_id: str, redirect_uri: str, st
               "response_mode": "query"}
     if login_hint:
         params["login_hint"] = login_hint
+    if fresh_login:
+        params.update(prompt="login", max_age="0")
     endpoint = doc["authorization_endpoint"]
     return endpoint + ("&" if "?" in endpoint else "?") + urlencode(params)
 

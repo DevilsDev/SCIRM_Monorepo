@@ -6,6 +6,7 @@ import { api, Incident, IncidentDetail, IncidentSeverity, IncidentStatus } from 
 import SeverityBadge from '../components/SeverityBadge';
 import { utcDate } from '../services/time';
 import { formatMoney } from '../services/money';
+import SignaturePanel from '../components/SignaturePanel';
 
 const input = 'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white';
 const button = 'px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50';
@@ -134,6 +135,7 @@ function Detail({ id, members, canWrite, onChanged }: { id: string; members: str
           )}
         </div>
         {i.resolution && <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{t('wr.resolvedWith', 'Resolution: {{r}}', { r: i.resolution })}</p>}
+        <SignaturePanel key={i.id} recordType="incident" recordId={i.id} meanings={['approved', 'reviewed', 'responsible']} />
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </div>
 

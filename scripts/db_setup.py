@@ -69,6 +69,10 @@ def ensure_app_role(owner_url: str, role: str, password: str) -> None:
     cur.execute("SELECT to_regclass('public.ai_runs') IS NOT NULL")
     if cur.fetchone()[0]:
         cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON ai_runs FROM {}").format(ident))
+    # Electronic signatures can be added and read, never changed or removed (migration 031).
+    cur.execute("SELECT to_regclass('public.e_signatures') IS NOT NULL")
+    if cur.fetchone()[0]:
+        cur.execute(sql.SQL("REVOKE UPDATE, DELETE, TRUNCATE ON e_signatures FROM {}").format(ident))
     # Migrations are not for the application role.
     cur.execute(sql.SQL("REVOKE ALL ON alembic_version FROM {}").format(ident))
     # The only lookups allowed before a tenant is known (login, refresh, invitations: migration
