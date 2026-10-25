@@ -39,6 +39,8 @@ const NAMED: Record<string, string> = {
   'assessment.submitted': 'A supplier submitted a questionnaire',
   'assessment.reviewed': "Reviewed a supplier's answers",
   'incident.opened': 'Opened a war-room incident',
+  'signature.signed': 'Signed a record electronically',
+  'signature.failed': 'A signing attempt failed',
   'action.proposed': 'An AI agent proposed an action',
   'action.executed': 'Ran an action proposed by an AI agent',
   'action.failed': 'An action proposed by an AI agent failed',

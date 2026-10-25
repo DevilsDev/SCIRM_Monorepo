@@ -1875,6 +1875,240 @@ async def delete_saved_scenario(scenario_id: str, token: str = Depends(security)
     return {"deleted": True}
 
 
+# ---------------------------------------------------------------------------
+# Electronic signatures with the controls of 21 CFR Part 11 (docs/electronic-signatures.md).
+# The signer re-authenticates for every signing: password (and two-step code if set), or a
+# fresh login at the organization's identity provider for SSO accounts. The signature stores
+# the SHA-256 of the record's exact content when signed (11.70) and shows the signer's
+# printed name, the date and time and the meaning (11.50).
+# ---------------------------------------------------------------------------
+
+SIGN_MEANINGS = ("reviewed", "approved", "responsible")
+SIGN_TICKET_TYPE = "sign_ticket"
+SIGN_FAILURE_LIMIT, SIGN_FAILURE_WINDOW = 5, 900
+_sign_failures: Dict[str, List[float]] = {}
+
+
+class SignatureRequest(BaseModel):
+    record_type: str = Field(..., pattern="^(assessment|incident|action_proposal)$")
+    record_id: str = Field(..., max_length=64)
+    meaning: str = Field(..., pattern="^(reviewed|approved|responsible)$")
+    reason: str = Field("", max_length=1000)
+
+
+class PasswordSignatureRequest(SignatureRequest):
+    password: str = Field(..., min_length=1, max_length=MAX_PASSWORD_BYTES)
+    totp_code: Optional[str] = Field(None, max_length=10)
+
+
+class SsoSignatureRequest(SignatureRequest):
+    next: str = Field("/", max_length=300)
+
+
+async def _signed_content(user, record_type: str, record_id: str) -> Tuple[Dict[str, Any], str]:
+    """The record's exact content as it is now, and a one-line description. The signature
+    covers this content: any later change is visible as 'changed after signing'."""
+    org = user.organization_id
+    if record_type == "assessment":
+        a = await audit_store.get_assessment(org, record_id)
+        if not a:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+        if a["status"] not in ("submitted", "reviewed"):
+            raise HTTPException(status_code=409, detail="Only answered questionnaires can be signed")
+        content = {k: a.get(k) for k in ("id", "supplier_id", "supplier_name", "template_name", "status", "questions",
+                                         "answers", "score", "flags", "submitted_at", "submitted_by_email",
+                                         "review_note", "reviewed_by")}
+        return content, f"Supplier assessment: {a.get('supplier_name')}, {a.get('template_name')}"
+    if record_type == "incident":
+        view = await _incident_view(org, record_id)
+        i = view["incident"]
+        content = {**{k: i.get(k) for k in ("id", "title", "summary", "severity", "status", "owner_email", "resolution",
+                                            "resolved_at")},
+                   "suppliers": sorted(s["id"] for s in view["suppliers"]),
+                   "tasks": [[t["id"], t["title"], t["status"]] for t in view["tasks"]]}
+        return content, f"War-room incident: {i['title']} ({i['status']})"
+    p = await audit_store.get_proposal(org, record_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if p["status"] == "pending":
+        raise HTTPException(status_code=409, detail="Only a decided proposal can be signed")
+    content = {k: p.get(k) for k in ("id", "action", "params", "summary", "status", "proposed_by", "decided_by",
+                                     "decided_at", "result")}
+    label = actions.ACTIONS.get(p["action"], {}).get("label", p["action"])
+    return content, f"AI agent action: {label} ({p['status']})"
+
+
+def _content_hash(record_type: str, content: Dict[str, Any]) -> str:
+    import hashlib
+    canonical = json.dumps({"record_type": record_type, "content": content}, sort_keys=True, separators=(",", ":"),
+                           default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _signer(user) -> None:
+    if (user.email or "").startswith("api-key:"):
+        raise HTTPException(status_code=403, detail="Only a person can sign")
+
+
+def _too_many_failures(user_id: str) -> bool:
+    import time
+    now = time.monotonic()
+    recent = [t for t in _sign_failures.get(user_id, []) if now - t < SIGN_FAILURE_WINDOW]
+    _sign_failures[user_id] = recent
+    return len(recent) >= SIGN_FAILURE_LIMIT
+
+
+async def _record_signature(user, name: str, body: SignatureRequest, method: str,
+                            expected_hash: Optional[str] = None) -> Dict[str, Any]:
+    content, summary = await _signed_content(user, body.record_type, body.record_id)
+    digest = _content_hash(body.record_type, content)
+    if expected_hash is not None and digest != expected_hash:
+        raise HTTPException(status_code=409, detail="The record changed while you were signing. Review it and sign again.")
+    signature = await audit_store.add_signature(user.organization_id, {
+        "signer_id": user.id, "signer_name": name, "signer_email": user.email, "meaning": body.meaning,
+        "reason": body.reason.strip() or None, "record_type": body.record_type, "record_id": body.record_id,
+        "record_summary": summary, "record_hash": digest, "method": method})
+    await _audit_event(user.organization_id, user.id, user.email, "signature.signed", target=body.record_id,
+                       details={"record_type": body.record_type, "meaning": body.meaning, "method": method,
+                                "record": summary}, resource_type="signature")
+    return signature
+
+
+@app.get("/api/v1/signatures/method")
+async def signature_method(token: str = Depends(security)):
+    """How this person signs: with their password (and two-step code), or at the identity
+    provider (accounts that sign in through SSO)."""
+    user = await verify_token(token.credentials)
+    _signer(user)
+    if await _sso_enforced_for(user.organization_id, user.roles):
+        return {"method": "sso"}
+    found = await _find_user_by_id(user.id)
+    info = found[1] if found else {}
+    return {"method": "password_mfa" if _mfa_on(info) else "password"}
+
+
+@app.post("/api/v1/signatures")
+async def sign_with_password(body: PasswordSignatureRequest, token: str = Depends(security)):
+    """Sign a record: the password (and the two-step code, if set) every time."""
+    user = await verify_token(token.credentials)
+    _signer(user)
+    if await _sso_enforced_for(user.organization_id, user.roles):
+        raise HTTPException(status_code=409, detail="You sign in with single sign-on: sign at your identity provider.")
+    if _too_many_failures(user.id):
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Try again in 15 minutes.")
+    info = await _check_password(user.email, body.password)
+    ok = bool(info) and str(info.get("id")) == str(user.id)
+    if ok and _mfa_on(info):
+        ok = bool(body.totp_code) and verify_totp(info["mfa_secret"], body.totp_code)
+    if not ok:
+        import time
+        _sign_failures.setdefault(user.id, []).append(time.monotonic())
+        await _audit_event(user.organization_id, user.id, user.email, "signature.failed", target=body.record_id,
+                           details={"record_type": body.record_type, "reason": "wrong password or code"},
+                           resource_type="signature")
+        raise HTTPException(status_code=401, detail="The password or code is not correct")
+    signature = await _record_signature(user, info.get("name") or user.name, body,
+                                        "password_mfa" if _mfa_on(info) else "password")
+    return {"signature": signature}
+
+
+@app.post("/api/v1/signatures/sso/prepare")
+async def prepare_sso_signature(body: SsoSignatureRequest, token: str = Depends(security)):
+    """Start signing at the identity provider: a five-minute ticket for this person, record
+    and content; the browser then goes to start_url."""
+    user = await verify_token(token.credentials)
+    _signer(user)
+    if not PUBLIC_APP_URL or not PUBLIC_API_URL or not await audit_store.get_sso_config(user.organization_id):
+        raise HTTPException(status_code=409, detail="Single sign-on is not set up: sign with your password.")
+    content, _ = await _signed_content(user, body.record_type, body.record_id)
+    ticket = create_access_token(data={
+        "sub": user.id, "type": SIGN_TICKET_TYPE, "org": user.organization_id, "email": user.email, "name": user.name,
+        "record_type": body.record_type, "record_id": body.record_id, "meaning": body.meaning,
+        "reason": body.reason.strip(), "hash": _content_hash(body.record_type, content), "next": _safe_next(body.next)},
+        expires_delta=timedelta(minutes=5))
+    return {"start_url": f"{PUBLIC_API_URL}/api/v1/signatures/sso/start?{urlencode({'ticket': ticket})}"}
+
+
+@app.get("/api/v1/signatures/sso/start")
+async def start_sso_signature(ticket: str):
+    """Off to the identity provider for a fresh login (prompt=login, max_age=0)."""
+    from fastapi.responses import RedirectResponse
+    import time
+    payload = decode_token(ticket, SIGN_TICKET_TYPE)
+    org = str(payload["org"])
+    config = await audit_store.get_sso_config(org)
+    if not config:
+        raise HTTPException(status_code=409, detail="Single sign-on is not set up")
+    doc = await oidc.discover(config["issuer"])
+    verifier, challenge = oidc.pkce_pair()
+    state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+    cookie = create_access_token(data={
+        "sub": "sso", "type": SSO_STATE_TYPE, "org": org, "state": state, "nonce": nonce, "verifier": verifier,
+        "purpose": "sign", "started": int(time.time()), "signer": payload["sub"], "signer_email": payload["email"],
+        "signer_name": payload["name"], "record_type": payload["record_type"], "record_id": payload["record_id"],
+        "meaning": payload["meaning"], "reason": payload["reason"], "hash": payload["hash"], "next": payload["next"]},
+        expires_delta=timedelta(minutes=10))
+    response = RedirectResponse(oidc.authorization_url(doc, config["client_id"], _sso_redirect_uri(), state, nonce,
+                                                       challenge, login_hint=payload["email"], fresh_login=True),
+                                status_code=302)
+    response.set_cookie(SSO_COOKIE, cookie, max_age=600, httponly=True, secure=not IS_DEV, samesite="lax",
+                        path=SSO_COOKIE_PATH)
+    return response
+
+
+async def _finish_sso_signature(payload: Dict[str, Any], org: str, issuer: str, claims: Dict[str, Any]):
+    """The SSO callback for a signing: the same person, a fresh login, an unchanged record."""
+    from fastapi.responses import RedirectResponse
+    from libs.common.models import User
+    import time
+    target = f"{PUBLIC_APP_URL}{payload.get('next') or '/'}"
+
+    def back(result: str):
+        response = RedirectResponse(f"{target}#signature={result}", status_code=302)
+        response.delete_cookie(SSO_COOKIE, path=SSO_COOKIE_PATH)
+        return response
+
+    member = await audit_store.sso_member(org, issuer=issuer, subject=str(claims["sub"]))
+    signer = str(payload["signer"])
+    if not member or str(member["id"]) != signer or not member["is_active"]:
+        await _audit_event(org, signer, payload.get("signer_email"), "signature.failed", target=payload["record_id"],
+                           details={"record_type": payload["record_type"], "reason": "different_person"},
+                           resource_type="signature")
+        return back("different_person")
+    auth_time = claims.get("auth_time")
+    if not isinstance(auth_time, (int, float)) or auth_time < int(payload["started"]) - 5 or auth_time > time.time() + 60:
+        await _audit_event(org, signer, payload.get("signer_email"), "signature.failed", target=payload["record_id"],
+                           details={"record_type": payload["record_type"], "reason": "no_fresh_login"},
+                           resource_type="signature")
+        return back("no_fresh_login")
+    user = User(id=signer, email=payload["signer_email"], name=payload["signer_name"], roles=[], organization_id=org)
+    body = SignatureRequest(record_type=payload["record_type"], record_id=payload["record_id"],
+                            meaning=payload["meaning"], reason=payload.get("reason") or "")
+    try:
+        await _record_signature(user, payload["signer_name"], body, "sso_reauth", expected_hash=payload["hash"])
+    except HTTPException as exc:
+        return back("record_changed" if exc.status_code == 409 else "failed")
+    return back("signed")
+
+
+@app.get("/api/v1/signatures")
+async def list_record_signatures(record_type: str, record_id: str, token: str = Depends(security)):
+    """A record's signatures, oldest first, each saying whether the record is still exactly
+    as it was when signed."""
+    user = await verify_token(token.credentials)
+    if record_type not in ("assessment", "incident", "action_proposal"):
+        raise HTTPException(status_code=400, detail="Unknown record type")
+    signatures = await audit_store.list_signatures(user.organization_id, record_type, record_id)
+    current = None
+    if signatures:
+        try:
+            content, _ = await _signed_content(user, record_type, record_id)
+            current = _content_hash(record_type, content)
+        except HTTPException:
+            current = None
+    return {"signatures": [{**s, "intact": current is not None and s["record_hash"] == current} for s in signatures]}
+
+
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:
     """(assessment id, organization, token hash) for the X-Portal-Token header. The portal
     never reads Authorization: a signed-in session in the same browser changes nothing."""
@@ -3280,6 +3514,17 @@ async def sso_start(email: str, binding: str = "", next: Optional[str] = None):
     return response
 
 
+def _sso_fail(payload: Dict[str, Any], reason: str):
+    """A failed SSO round trip: back to the sign-in page, or for a signing, back to the page
+    the person was signing on."""
+    from fastapi.responses import RedirectResponse
+    if payload.get("purpose") == "sign":
+        response = RedirectResponse(f"{PUBLIC_APP_URL}{payload.get('next') or '/'}#signature=failed", status_code=302)
+        response.delete_cookie(SSO_COOKIE, path=SSO_COOKIE_PATH)
+        return response
+    return _to_login(reason)
+
+
 @app.get("/api/v1/auth/sso/callback")
 async def sso_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None,
                        error: Optional[str] = None):
@@ -3298,14 +3543,14 @@ async def sso_callback(request: Request, code: Optional[str] = None, state: Opti
     org = str(payload["org"])  # from the signed cookie, never from the query
     if error:
         await _audit_sso_failure(org, None, f"provider_{str(error)[:40]}")
-        return _to_login("denied")
+        return _sso_fail(payload, "denied")
     if not state or not code or not secrets.compare_digest(str(state), str(payload.get("state", ""))):
         await _audit_sso_failure(org, None, "bad_state")
-        return _to_login("failed")
+        return _sso_fail(payload, "failed")
     config = await audit_store.get_sso_config(org, with_secret=True)
     if not config:
         await _audit_sso_failure(org, None, "not_configured")
-        return _to_login("unavailable")
+        return _sso_fail(payload, "unavailable")
     try:
         doc = await oidc.discover(config["issuer"])
         tokens = await oidc.exchange_code(doc, config["client_id"], config["client_secret"], code,
@@ -3315,21 +3560,23 @@ async def sso_callback(request: Request, code: Optional[str] = None, state: Opti
         claims = await oidc.verify_id_token(tokens["id_token"], doc, config["client_id"], payload["nonce"])
     except oidc.OidcError as exc:
         await _audit_sso_failure(org, None, exc.reason)
-        return _to_login("failed")
+        return _sso_fail(payload, "failed")
     issuer, subject = doc["issuer"], str(claims["sub"])
+    if payload.get("purpose") == "sign":  # an electronic signature, not a sign-in
+        return await _finish_sso_signature(payload, org, issuer, claims)
     member = await audit_store.sso_member(org, issuer=issuer, subject=subject)
     if member is None:  # first SSO sign-in: link by the verified email, once
         email = oidc.email_from(claims)
         member = await audit_store.sso_member(org, email=email) if email else None
         if member is None:
             await _audit_sso_failure(org, email, "no_account" if email else "no_verified_email")
-            return _to_login("no_account")
+            return _sso_fail(payload, "no_account")
         if not await audit_store.link_sso(org, member["id"], issuer, subject):
             await _audit_sso_failure(org, member["email"], "subject_mismatch")
-            return _to_login("failed")
+            return _sso_fail(payload, "failed")
     if not member["is_active"]:
         await _audit_sso_failure(org, member["email"], "inactive")
-        return _to_login("no_account")
+        return _sso_fail(payload, "no_account")
     import hashlib
     handoff = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(seconds=SSO_HANDOFF_SECONDS)).isoformat()

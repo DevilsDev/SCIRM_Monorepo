@@ -32,6 +32,7 @@ nav:
       - AI control centre: ai-control-centre.md
       - MCP server (AI agents): mcp-server.md
       - Scenario studio: scenario-studio.md
+      - Electronic signatures: electronic-signatures.md
   - Development:
       - Branching: development/branching.md
   - Operations:

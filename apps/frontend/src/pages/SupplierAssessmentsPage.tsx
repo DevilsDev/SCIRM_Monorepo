@@ -6,6 +6,7 @@ import {
   SupplierAssessment,
 } from '../services/api';
 import { utcDate } from '../services/time';
+import SignaturePanel from '../components/SignaturePanel';
 
 const input = 'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white';
 const button = 'px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50';
@@ -170,6 +171,7 @@ function Detail({ id, canWrite, onChanged, onLink }: { id: string; canWrite: boo
           </table>
         </div>
       )}
+      {(a.status === 'submitted' || a.status === 'reviewed') && <SignaturePanel key={a.id} recordType="assessment" recordId={a.id} meanings={['reviewed', 'approved']} />}
       {a.review_note && <p className="mt-4 text-sm text-gray-700 dark:text-gray-300">{t('sa.reviewNote', 'Review note ({{by}}): {{note}}', { by: a.reviewed_by, note: a.review_note })}</p>}
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       {canWrite && a.status === 'submitted' && (

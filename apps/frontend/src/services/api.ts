@@ -590,6 +590,26 @@ export interface ScenarioResult {
 
 export interface SavedScenario { id: string; name: string; definition: ScenarioDefinition; created_by: string | null; created_at: string }
 
+export type SignableRecord = 'assessment' | 'incident' | 'action_proposal';
+export type SignatureMeaning = 'reviewed' | 'approved' | 'responsible';
+
+export interface ESignature {
+  id: string;
+  signer_id: string;
+  signer_name: string;
+  signer_email: string;
+  meaning: SignatureMeaning;
+  reason: string | null;
+  record_type: SignableRecord;
+  record_id: string;
+  record_summary: string;
+  record_hash: string;
+  method: 'password' | 'password_mfa' | 'sso_reauth';
+  signed_at: string;
+  /** The record is exactly as it was when signed. */
+  intact?: boolean;
+}
+
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
@@ -1043,6 +1063,25 @@ export const api = {
 
   async deleteSavedScenario(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/scenario-studio/saved/${encodeURIComponent(id)}`);
+  },
+
+  // Electronic signatures
+  async signatureMethod(): Promise<{ method: 'password' | 'password_mfa' | 'sso' }> {
+    return (await apiClient.get('/api/v1/signatures/method')).data;
+  },
+
+  async listSignatures(recordType: SignableRecord, recordId: string): Promise<ESignature[]> {
+    return (await apiClient.get('/api/v1/signatures', { params: { record_type: recordType, record_id: recordId } })).data.signatures;
+  },
+
+  async signWithPassword(body: { record_type: SignableRecord; record_id: string; meaning: SignatureMeaning; reason?: string;
+    password: string; totp_code?: string }): Promise<ESignature> {
+    return (await apiClient.post('/api/v1/signatures', body)).data.signature;
+  },
+
+  async prepareSsoSignature(body: { record_type: SignableRecord; record_id: string; meaning: SignatureMeaning; reason?: string;
+    next: string }): Promise<string> {
+    return (await apiClient.post('/api/v1/signatures/sso/prepare', body)).data.start_url;
   },
 
   async supplierSubtier(supplierId: string): Promise<SubtierLink[]> {

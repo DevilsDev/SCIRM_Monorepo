@@ -319,3 +319,79 @@ class TestEnforcement:
         finally:
             client.delete("/api/v1/org/sso", headers=bearer(sarah["access_token"]))
         assert login(member, "a-good-password").status_code == 200
+
+
+class TestSigning:
+    """Electronic signatures by SSO accounts: a fresh login at the identity provider
+    (prompt=login, max_age=0, a recent auth_time), by the same person, on unchanged content."""
+
+    def tokens(self, client, idp, email):
+        value, digest = binding_pair()
+        callback, _ = sign_in(client, idp, email, binding=(value, digest))
+        exchanged = client.post("/api/v1/auth/sso/exchange", json={"code": handoff(callback), "binding": value})
+        assert exchanged.status_code == 200, exchanged.text
+        return exchanged.json()
+
+    def sign(self, client, idp, tokens, email, record_id, *, sub=None, auth_time=None, before_login=None):
+        prepared = client.post("/api/v1/signatures/sso/prepare", headers=bearer(tokens["access_token"]), json={
+            "record_type": "incident", "record_id": record_id, "meaning": "approved", "next": "/war-room"})
+        assert prepared.status_code == 200, prepared.text
+        start = urlsplit(prepared.json()["start_url"])
+        redirected = client.get(f"{start.path}?{start.query}", follow_redirects=False)
+        assert redirected.status_code == 302
+        q = {k: v[0] for k, v in parse_qs(urlsplit(redirected.headers["location"]).query).items()}
+        assert q["prompt"] == "login" and q["max_age"] == "0" and q["login_hint"] == email
+        if before_login:
+            before_login()
+        claims = {**idp.claims(sub or f"idp-{email}", email, q["nonce"]),
+                  "auth_time": int(time.time()) if auth_time is None else auth_time}
+        idp.codes["code-sign"] = {"challenge": q["code_challenge"], "id_token": idp.sign(claims)}
+        callback = client.get("/api/v1/auth/sso/callback", params={"code": "code-sign", "state": q["state"]},
+                              follow_redirects=False)
+        assert callback.status_code == 302
+        return callback.headers["location"]
+
+    def incident(self, client, tokens):
+        opened = client.post("/api/v1/incidents", json={"title": "Signed at the IdP"}, headers=bearer(tokens["access_token"]))
+        return opened.json()["incident"]["id"]
+
+    def signatures(self, client, tokens, record_id):
+        return client.get("/api/v1/signatures", params={"record_type": "incident", "record_id": record_id},
+                          headers=bearer(tokens["access_token"])).json()["signatures"]
+
+    def test_a_fresh_login_signs(self, client, idp, configured, member):
+        tokens = self.tokens(client, idp, member)
+        record = self.incident(client, tokens)
+        location = self.sign(client, idp, tokens, member, record)
+        assert location.endswith("/war-room#signature=signed")
+        [signature] = self.signatures(client, tokens, record)
+        assert signature["method"] == "sso_reauth" and signature["signer_email"] == member and signature["intact"]
+
+    def test_a_stale_login_does_not_sign(self, client, idp, configured, member):
+        tokens = self.tokens(client, idp, member)
+        record = self.incident(client, tokens)
+        location = self.sign(client, idp, tokens, member, record, auth_time=int(time.time()) - 3600)
+        assert location.endswith("#signature=no_fresh_login") and self.signatures(client, tokens, record) == []
+        missing = self.sign(client, idp, tokens, member, record, auth_time="yesterday")
+        assert missing.endswith("#signature=no_fresh_login")
+
+    def test_someone_else_at_the_identity_provider_does_not_sign(self, client, idp, configured, member, sarah):
+        other = f"sso-other-{uuid.uuid4().hex[:6]}@example.com"
+        invited = client.post("/api/v1/org/invitations", json={"email": other, "roles": ["analyst"]},
+                              headers=bearer(sarah["access_token"]))
+        client.post("/api/v1/invitations/accept", json={"token": invited.json()["invite_url"].split("#", 1)[1],
+                                                        "name": "O", "password": "a-good-password"})
+        self.tokens(client, idp, other)  # links the other person's identity-provider subject
+        tokens = self.tokens(client, idp, member)
+        record = self.incident(client, tokens)
+        location = self.sign(client, idp, tokens, member, record, sub=f"idp-{other}")
+        assert location.endswith("#signature=different_person") and self.signatures(client, tokens, record) == []
+
+    def test_a_record_that_changes_while_signing_is_not_signed(self, client, idp, configured, member):
+        tokens = self.tokens(client, idp, member)
+        record = self.incident(client, tokens)
+
+        def change():
+            client.patch(f"/api/v1/incidents/{record}", json={"status": "monitoring"}, headers=bearer(tokens["access_token"]))
+        location = self.sign(client, idp, tokens, member, record, before_login=change)
+        assert location.endswith("#signature=record_changed") and self.signatures(client, tokens, record) == []

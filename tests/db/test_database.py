@@ -475,6 +475,32 @@ def test_saved_scenarios_are_tenant_scoped(db):
     assert isinstance(as_org(db["app"], db["a"], bad, (db["a"],)), psycopg2.errors.CheckViolation)
 
 
+def test_signatures_are_tenant_scoped_and_can_never_be_changed_or_removed(db):
+    """Migration 031: forced RLS; the application can add and read signatures, not change or
+    delete them; nothing cascades to them, and their signer cannot be deleted."""
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'e_signatures'")
+        assert cur.fetchone() == (True, True)
+    [(user,)] = as_org(db["app"], db["a"], (
+        "INSERT INTO users (organization_id, email, name, hashed_password, roles) "
+        "VALUES (%s, %s, 'Signer', 'x', '{admin}') RETURNING id::text"), (db["a"], f"signer-{uuid.uuid4().hex[:6]}@a.test"))
+    insert = ("INSERT INTO e_signatures (organization_id, signer_id, signer_name, signer_email, meaning, record_type, "
+              "record_id, record_summary, record_hash, method) VALUES (%s, %s, 'Signer', 's@a.test', %s, 'incident', "
+              "'i-1', 'Incident', %s, 'password')")
+    assert as_org(db["app"], db["a"], insert, (db["a"], user, "approved", "a" * 64)) == 1
+    assert isinstance(as_org(db["app"], db["a"], insert, (db["a"], user, "liked", "a" * 64)), psycopg2.errors.CheckViolation)
+    assert isinstance(as_org(db["app"], db["a"], insert, (db["a"], user, "approved", "not-a-hash")),
+                      psycopg2.errors.CheckViolation)
+    assert isinstance(as_org(db["app"], db["b"], insert, (db["a"], user, "approved", "b" * 64)),
+                      psycopg2.errors.InsufficientPrivilege)
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM e_signatures") == [(0,)]
+    for statement in ("UPDATE e_signatures SET meaning = 'reviewed'", "DELETE FROM e_signatures", "TRUNCATE e_signatures"):
+        assert isinstance(as_org(db["app"], db["a"], statement), psycopg2.errors.InsufficientPrivilege), statement
+    with pytest.raises(psycopg2.errors.ForeignKeyViolation):  # the signer cannot disappear from under a signature
+        with db["owner"].cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id = %s", (user,))
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])
