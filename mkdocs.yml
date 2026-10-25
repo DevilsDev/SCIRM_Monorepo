@@ -30,6 +30,7 @@ nav:
       - Regulatory watch: regulatory-watch.md
       - War room: war-room.md
       - AI control centre: ai-control-centre.md
+      - MCP server (AI agents): mcp-server.md
   - Development:
       - Branching: development/branching.md
   - Operations:

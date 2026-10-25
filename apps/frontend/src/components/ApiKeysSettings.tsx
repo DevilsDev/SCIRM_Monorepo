@@ -28,7 +28,7 @@ export default function ApiKeysSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(() => api.listApiKeys().then((r) => setKeys(r.api_keys.filter((k) => !k.scopes.includes('scim'))))
+  const load = useCallback(() => api.listApiKeys().then((r) => setKeys(r.api_keys.filter((k) => k.scopes.includes('read'))))
     .catch((err) => setError(errorText(err, t('apiKeys.loadFailed', 'Could not load the API keys.')))), [t]);
   useEffect(() => { load(); }, [load]);
 

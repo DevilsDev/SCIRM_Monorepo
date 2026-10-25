@@ -7,6 +7,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
  *  bindingHash is the SHA-256 of a value kept in this tab (see services/ssoBinding.ts). */
 /** The SCIM 2.0 base URL to enter at an identity provider. */
 export const SCIM_BASE_URL = `${API_BASE_URL}/scim/v2`;
+/** The MCP server's URL, for MCP clients (an AI agent such as Claude). */
+export const MCP_URL = `${API_BASE_URL}/mcp`;
 
 export function ssoStartUrl(email: string, next: string, bindingHash: string): string {
   return `${API_BASE_URL}/api/v1/auth/sso/start?${new URLSearchParams({ email, next, binding: bindingHash })}`;
@@ -808,7 +810,7 @@ export const api = {
   },
 
   /** The key itself is returned only here, once. */
-  async createApiKey(name: string, expiresInDays?: number, scope: 'read' | 'scim' = 'read'): Promise<{ api_key: ApiKey; key: string }> {
+  async createApiKey(name: string, expiresInDays?: number, scope: 'read' | 'scim' | 'mcp' = 'read'): Promise<{ api_key: ApiKey; key: string }> {
     return (await apiClient.post('/api/v1/org/api-keys', { name, expires_in_days: expiresInDays ?? null, scope })).data;
   },
 

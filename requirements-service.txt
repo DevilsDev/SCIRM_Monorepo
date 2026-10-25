@@ -2,6 +2,8 @@
 # Pinned; the heavy ML stack in requirements.txt is not needed by any service.
 fastapi==0.146.0
 starlette==1.9.0
+# MCP server (libs/common/mcp_tools.py), Streamable HTTP
+mcp==2.3.0
 uvicorn==0.34.0
 httpx==0.28.1
 pydantic==2.14.1

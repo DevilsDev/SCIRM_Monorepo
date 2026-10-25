@@ -340,6 +340,9 @@ class TestApiKeys:
         assert as_org(db["app"], db["a"], insert, (db["a"], "2" * 64, "{scim}")) == 1  # migration 024
         both = as_org(db["app"], db["a"], insert, (db["a"], "3" * 64, "{read,scim}"))
         assert isinstance(both, psycopg2.errors.CheckViolation)  # one scope per key
+        assert as_org(db["app"], db["a"], insert, (db["a"], "4" * 64, "{mcp}")) == 1  # migration 029
+        assert isinstance(as_org(db["app"], db["a"], insert, (db["a"], "5" * 64, "{mcp,read}")),
+                          psycopg2.errors.CheckViolation)
 
 
 def test_webhook_and_report_tables_are_tenant_scoped_with_forced_rls(db):

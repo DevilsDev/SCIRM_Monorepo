@@ -21,6 +21,9 @@ A request with a key that matches no key at all (mistyped or made up) cannot be 
 an organization, so it is refused (`401`) without appearing in anyone's audit log.
 Successful reads are not recorded, like other reads.
 
+Other kinds of key: a SCIM token ([user provisioning](scim.md)) and an MCP key
+([AI agents](mcp-server.md)), each limited to its own part of the API.
+
 ## Calling the API
 
 Send the key as a bearer token, or in `X-API-Key`:

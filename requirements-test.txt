@@ -3,6 +3,8 @@
 # langchain) is not needed to test the gateway and services.
 fastapi==0.146.0
 starlette==1.9.0
+# MCP server (libs/common/mcp_tools.py), Streamable HTTP
+mcp==2.3.0
 httpx==0.28.1
 pydantic==2.14.1
 PyJWT==2.15.1
