@@ -18,6 +18,7 @@ import {
   ClipboardDocumentCheckIcon,
   EyeIcon,
   FireIcon,
+  AdjustmentsHorizontalIcon,
   SparklesIcon,
   ClipboardDocumentListIcon,
   PuzzlePieceIcon,
@@ -66,6 +67,7 @@ const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem
       { to: '/intelligence', tKey: 'nav.intelFeed', fallback: 'Intel Feed', icon: NewspaperIcon },
       { to: '/regulatory-watch', tKey: 'nav.regulatoryWatch', fallback: 'Regulatory watch', icon: EyeIcon },
       { to: '/war-room', tKey: 'nav.warRoom', fallback: 'War room', icon: FireIcon },
+      { to: '/scenario-studio', tKey: 'nav.scenarioStudio', fallback: 'Scenario studio', icon: AdjustmentsHorizontalIcon },
     ],
   },
   {

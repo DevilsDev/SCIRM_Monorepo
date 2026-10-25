@@ -60,7 +60,7 @@ class TestAccess:
         assert listed.status_code == 200
         tools = {t["name"]: t for t in listed.json()["result"]["tools"]}
         assert set(tools) == {"search_suppliers", "supplier_records", "ask", "regulatory_watch", "list_incidents",
-                              "get_incident", "propose_action"}
+                              "get_incident", "run_scenario", "propose_action"}
         assert tools["search_suppliers"]["annotations"]["readOnlyHint"] is True
         assert tools["propose_action"]["annotations"]["readOnlyHint"] is False
         init = rpc(client, key, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -78,6 +78,19 @@ class TestAccess:
         assert "error" in tool(client, key, "get_incident", incident_id=str(uuid.uuid4()))
         records = tool(client, key, "supplier_records", supplier_id=other)
         assert "error" in records  # another organization's supplier is not found
+
+
+class TestScenarioTool:
+    def test_an_agent_gets_spend_at_risk_computed_by_code(self, client, apps, new_team):
+        team = new_team(("admin",))
+        org = org_of(team["admin"])
+        asyncio.run(apps["gateway"].audit_store.create_supplier(org, {
+            "name": "Chennai API", "supplier_code": f"MS-{uuid.uuid4().hex[:6]}", "supplier_type": "manufacturer",
+            "country_code": "IN", "spend_12m": {"EUR": "5200"}, "spend_main_currency": "EUR"}))
+        key = mcp_key(client, team["admin"])
+        result = tool(client, key, "run_scenario", scope="country", country="IN", duration_weeks=4)
+        assert result["at_risk"] == {"EUR": "400.00"} and result["suppliers_without_coverage_data"] == 1
+        assert "Invalid scenario" in tool(client, key, "run_scenario", duration_weeks=99)["error"]
 
 
 class TestTools:

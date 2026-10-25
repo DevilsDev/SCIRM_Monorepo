@@ -38,6 +38,7 @@ from libs.common import oidc, secret_box
 from libs.common.store_assessments import new_portal_token, portal_token_hash
 from libs.common.store_watchlist import DuplicateTerm
 from libs.common import actions, mcp_tools, warroom
+from libs.scenarios import engine as scenario_engine
 from libs.intel import matching, sources as sources_registry, watchlist
 from libs.integrations import reports, webhooks
 
@@ -1693,6 +1694,17 @@ async def _mcp_incident(agent, incident_id: str) -> Dict[str, Any]:
     return await _incident_view(agent.organization_id, incident_id)
 
 
+async def _mcp_scenario(agent, args: Dict[str, Any]) -> Dict[str, Any]:
+    scope = {"type": args["scope"] or "all", "supplier_ids": args.get("supplier_ids") or [],
+             "country": args.get("country") or None, "incident_id": args.get("incident_id") or None,
+             "signal_id": args.get("signal_id") or None}
+    try:
+        definition = ScenarioDefinition(scope=ScenarioScope(**scope), duration_weeks=args["duration_weeks"])
+    except ValueError as exc:
+        raise mcp_tools.ToolRefused(f"Invalid scenario: {str(exc)[:300]}")
+    return await _run_scenario(agent, definition)
+
+
 async def _mcp_propose(agent, action: str, params: Dict[str, Any], reason: str) -> Dict[str, Any]:
     from libs.common.models import User
     # Changes are made at most with an analyst's permissions, and only as the policy allows.
@@ -1715,7 +1727,7 @@ async def _mcp_propose(agent, action: str, params: Dict[str, Any], reason: str) 
 mcp_server = mcp_tools.build_server({
     "caller": _mcp_caller, "log": _mcp_log, "suppliers": _mcp_suppliers, "supplier_records": _mcp_supplier_records,
     "ask": _mcp_ask, "regulatory_watch": _regulatory_watch, "incidents": _mcp_incidents, "incident": _mcp_incident,
-    "propose": _mcp_propose})
+    "scenario": lambda agent, args: _mcp_scenario(agent, args), "propose": _mcp_propose})
 
 
 class _McpEndpoint:
@@ -1736,6 +1748,131 @@ class _McpEndpoint:
 
 app.router.routes.append(__import__("starlette.routing", fromlist=["Route"]).Route(
     "/mcp", endpoint=_McpEndpoint(), methods=["GET", "POST", "DELETE"]))
+
+
+# ---------------------------------------------------------------------------
+# Scenario studio and resilience planner (libs/scenarios/engine.py): purchase spend at risk
+# when suppliers are out, from real SAP spend and the suppliers' own stock answers. Under
+# /api/v1/scenario-studio: /api/v1/scenarios is the old sample simulator (sample-gated).
+# ---------------------------------------------------------------------------
+
+class ScenarioScope(BaseModel):
+    type: str = Field("all", pattern="^(all|suppliers|country|signal|incident)$")
+    supplier_ids: List[str] = Field(default_factory=list, max_length=500)
+    country: Optional[str] = Field(None, pattern=r"^[A-Za-z]{2}$")
+    signal_id: Optional[str] = Field(None, max_length=64)
+    incident_id: Optional[str] = Field(None, max_length=64)
+
+
+class ScenarioDefinition(BaseModel):
+    scope: ScenarioScope = Field(default_factory=ScenarioScope)
+    duration_weeks: int = Field(8, ge=1, le=52)
+    stock_target_weeks: Optional[int] = Field(None, ge=0, le=52)
+    second_source_share: float = Field(0.5, ge=0.05, le=1.0)
+
+
+class SavedScenarioRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    definition: ScenarioDefinition
+
+
+async def _scenario_suppliers(user, scope: ScenarioScope) -> Tuple[List[Dict[str, Any]], str]:
+    """The suppliers a scenario takes out, and a sentence saying which."""
+    org = user.organization_id
+    everyone = [s for s in (await audit_store.list_suppliers(org, limit=None))[0] if s.get("is_active", True)]
+    by_id = {str(s["id"]): s for s in everyone}
+    if scope.type == "all":
+        return everyone, "All active suppliers"
+    if scope.type == "suppliers":
+        missing = [i for i in scope.supplier_ids if i not in by_id]
+        if missing or not scope.supplier_ids:
+            raise HTTPException(status_code=404 if missing else 400, detail="Pick suppliers of your organization")
+        return [by_id[i] for i in scope.supplier_ids], f"{len(scope.supplier_ids)} chosen supplier(s)"
+    if scope.type == "country":
+        if not scope.country:
+            raise HTTPException(status_code=400, detail="Give a two-letter country code")
+        code = scope.country.upper()
+        hit = [s for s in everyone if (s.get("country_code") or "").upper() == code
+               or any((site.get("country") or "").upper() == code for site in s.get("sites") or [] if isinstance(site, dict))]
+        return hit, f"Suppliers based in, or with a site in, {code}"
+    if scope.type == "signal":
+        signal = await audit_store.get_public_signal(scope.signal_id or "")
+        if not signal:
+            raise HTTPException(status_code=404, detail="Record not found")
+        hit = [by_id[sid] for sid, found in matching.match_all(everyone, [signal]).items()
+               if any(m["kind"] == "exposure" or m["confidence"] >= webhooks.MIN_CONFIDENCE for m in found)]
+        return hit, f"Suppliers matched by: {signal.get('title')}"
+    view = await _incident_view(org, scope.incident_id or "")
+    ids = [s["id"] for s in view["suppliers"]]
+    return [by_id[i] for i in ids if i in by_id], f"Suppliers linked to the incident: {view['incident']['title']}"
+
+
+async def _supplier_coverage(org: str, supplier_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Safety-stock weeks and single-source answers from each supplier's latest submitted
+    assessment (supplier-provided). Suppliers without such an answer are left out."""
+    wanted, out = set(supplier_ids), {}
+    for summary in await audit_store.list_assessments(org):  # newest first
+        sid = summary["supplier_id"]
+        if sid not in wanted or sid in out or summary["status"] not in ("submitted", "reviewed"):
+            continue
+        answers = ((await audit_store.get_assessment(org, summary["id"])) or {}).get("answers") or {}
+        weeks = answers.get("safety_stock_weeks")
+        if not isinstance(weeks, (int, float)):
+            continue
+        single = (answers.get("single_source") == "yes" or answers.get("single_site") == "yes") \
+            if ("single_source" in answers or "single_site" in answers) else None
+        out[sid] = {"weeks": max(0.0, float(weeks)), "single_source": single,
+                    "source": f"supplier-provided: {summary['template_name']}, submitted {str(summary['submitted_at'])[:10]}"}
+    return out
+
+
+async def _run_scenario(user, definition: ScenarioDefinition) -> Dict[str, Any]:
+    suppliers, described = await _scenario_suppliers(user, definition.scope)
+    everyone = (await audit_store.list_suppliers(user.organization_id, limit=None))[0]
+    coverage = await _supplier_coverage(user.organization_id, [str(s["id"]) for s in suppliers])
+    result = scenario_engine.run(suppliers, definition.duration_weeks, coverage, scenario_engine.main_currency(everyone),
+                                 definition.stock_target_weeks, definition.second_source_share)
+    return {"scope": described, "definition": definition.model_dump(), **result}
+
+
+@app.post("/api/v1/scenario-studio/run")
+async def run_scenario(body: ScenarioDefinition, token: str = Depends(security)):
+    """Spend at risk if these suppliers are out for N weeks, and the mitigations that would
+    reduce it most. Computed by code from current data; nothing is stored."""
+    return await _run_scenario(await verify_token(token.credentials), body)
+
+
+@app.get("/api/v1/scenario-studio/saved")
+async def list_saved_scenarios(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return {"scenarios": await audit_store.list_saved_scenarios(user.organization_id)}
+
+
+@app.post("/api/v1/scenario-studio/saved")
+async def save_scenario(body: SavedScenarioRequest, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    await _scenario_suppliers(user, body.definition.scope)  # a scenario that cannot run is not saved
+    row = await audit_store.save_scenario(user.organization_id, body.name.strip(), body.definition.model_dump(), user.email)
+    return {"scenario": row}
+
+
+@app.get("/api/v1/scenario-studio/saved/{scenario_id}/run")
+async def run_saved_scenario(scenario_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    saved = await audit_store.get_saved_scenario(user.organization_id, scenario_id)
+    if not saved:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return {"scenario": saved, "result": await _run_scenario(user, ScenarioDefinition(**saved["definition"]))}
+
+
+@app.delete("/api/v1/scenario-studio/saved/{scenario_id}")
+async def delete_saved_scenario(scenario_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    if not await audit_store.delete_saved_scenario(user.organization_id, scenario_id):
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return {"deleted": True}
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:

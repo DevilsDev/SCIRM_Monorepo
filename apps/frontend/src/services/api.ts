@@ -554,6 +554,42 @@ export interface AiRun {
   created_at: string;
 }
 
+export interface ScenarioDefinition {
+  scope: { type: 'all' | 'suppliers' | 'country' | 'signal' | 'incident'; supplier_ids?: string[]; country?: string;
+    signal_id?: string; incident_id?: string };
+  duration_weeks: number;
+  stock_target_weeks?: number | null;
+  second_source_share?: number;
+}
+
+export interface ScenarioSupplierRow {
+  supplier_id: string; name: string; country_code: string | null; spend_12m: Record<string, string>;
+  coverage_weeks: number | null; coverage_source: string; single_source: boolean | null; uncovered_weeks: number;
+  interrupted: Record<string, string>; at_risk: Record<string, string>;
+}
+
+export interface ScenarioMitigation {
+  supplier_id: string; name: string; kind: 'safety_stock' | 'second_source'; description: string;
+  reduction: Record<string, string>;
+}
+
+export interface ScenarioResult {
+  scope: string;
+  definition: ScenarioDefinition;
+  duration_weeks: number;
+  main_currency: string | null;
+  supplier_count: number;
+  suppliers_without_coverage_data: number;
+  /** Per currency; never converted or added across currencies. */
+  interrupted: Record<string, string>;
+  at_risk: Record<string, string>;
+  suppliers: { ranked: ScenarioSupplierRow[]; other_currencies: ScenarioSupplierRow[] };
+  plan: { ranked: ScenarioMitigation[]; other_currencies: ScenarioMitigation[] };
+  assumptions: string[];
+}
+
+export interface SavedScenario { id: string; name: string; definition: ScenarioDefinition; created_by: string | null; created_at: string }
+
 export type AuditCategory = 'sign_in' | 'access' | 'integrations' | 'changes';
 
 export interface AuditFilters {
@@ -986,6 +1022,27 @@ export const api = {
 
   async getAiRun(id: string): Promise<AiRun> {
     return (await apiClient.get(`/api/v1/ai/runs/${encodeURIComponent(id)}`)).data.run;
+  },
+
+  // Scenario studio
+  async runScenario(definition: ScenarioDefinition): Promise<ScenarioResult> {
+    return (await apiClient.post('/api/v1/scenario-studio/run', definition)).data;
+  },
+
+  async listSavedScenarios(): Promise<SavedScenario[]> {
+    return (await apiClient.get('/api/v1/scenario-studio/saved')).data.scenarios;
+  },
+
+  async saveScenario(name: string, definition: ScenarioDefinition): Promise<SavedScenario> {
+    return (await apiClient.post('/api/v1/scenario-studio/saved', { name, definition })).data.scenario;
+  },
+
+  async runSavedScenario(id: string): Promise<{ scenario: SavedScenario; result: ScenarioResult }> {
+    return (await apiClient.get(`/api/v1/scenario-studio/saved/${encodeURIComponent(id)}/run`)).data;
+  },
+
+  async deleteSavedScenario(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/scenario-studio/saved/${encodeURIComponent(id)}`);
   },
 
   async supplierSubtier(supplierId: string): Promise<SubtierLink[]> {

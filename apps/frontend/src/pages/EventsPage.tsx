@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { api } from '../services/api';
 import SeverityBadge from '../components/SeverityBadge';
+import { formatTotals, sumByCurrency } from '../services/money';
 import { Modal } from '../components/ui';
 import EventForm from '../components/forms/EventForm';
 import { useToast } from '../components/Toast';
@@ -22,7 +23,8 @@ interface EventImpact {
   impacted_entity_name: string;
   impact_severity: string;
   estimated_disruption_days: number;
-  estimated_financial_impact: number;
+  /** The supplier's 12-month spend per currency (SAP spend import), when known. */
+  spend_12m?: Record<string, string> | null;
   tier_distance: number;
 }
 
@@ -62,7 +64,7 @@ export default function EventsPage() {
     }
   };
 
-  const totalFinancialImpact = impacts.reduce((s, i) => s + (i.estimated_financial_impact || 0), 0);
+  const spendAtStake = sumByCurrency(impacts.map((i) => i.spend_12m));
 
   return (
     <div className="space-y-6">
@@ -136,8 +138,8 @@ export default function EventsPage() {
                     <p className="text-xs text-red-600">{t('events.entitiesImpacted', 'Entities Impacted')}</p>
                   </div>
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-orange-700">${(totalFinancialImpact / 1000).toFixed(0)}k</p>
-                    <p className="text-xs text-orange-600">{t('events.estFinancialImpact', 'Est. Financial Impact')}</p>
+                    <p className="text-lg font-bold text-orange-700">{formatTotals(spendAtStake, t('events.noSpend', 'no spend data'))}</p>
+                    <p className="text-xs text-orange-600">{t('events.spendAtStake', '12-month spend with these suppliers (per currency)')}</p>
                   </div>
                 </div>
                 {impacts.map((impact, i) => (
@@ -145,11 +147,11 @@ export default function EventsPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{impact.impacted_entity_name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Tier {impact.tier_distance} — {impact.estimated_disruption_days}d disruption</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{t('events.tier', 'Tier {{n}}', { n: impact.tier_distance })}</p>
                       </div>
                       <div className="text-right">
                         <SeverityBadge severity={impact.impact_severity} />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">${(impact.estimated_financial_impact / 1000).toFixed(0)}k</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formatTotals(sumByCurrency([impact.spend_12m]))}</p>
                       </div>
                     </div>
                   </div>

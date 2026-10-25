@@ -64,12 +64,9 @@ def propagate_impact(
         if tier > max_tier:
             continue
 
-        # Calculate financial impact based on supplier risk score and tier
+        # No invented money or days: the supplier's real 12-month spend (per currency, from the
+        # SAP spend import) is carried along; scenarios (libs/scenarios) compute spend at risk.
         info = supplier_info.get(current_id, {})
-        risk_score = info.get("risk_score", 50)
-        financial_multiplier = risk_score / 100 * severity_score
-        estimated_financial = financial_multiplier * 100000  # Base $100k per unit
-        disruption_days = int(15 * severity_score * (1 + tier * 0.5))
 
         impacts.append({
             "id": str(uuid.uuid4()),
@@ -79,8 +76,9 @@ def propagate_impact(
             "impacted_entity_name": info.get("name", f"Supplier {current_id[:8]}"),
             "impact_severity": severity_from_score(severity_score),
             "severity_score": round(severity_score, 3),
-            "estimated_disruption_days": disruption_days,
-            "estimated_financial_impact": round(estimated_financial, 2),
+            "estimated_disruption_days": None,
+            "estimated_financial_impact": None,
+            "spend_12m": info.get("spend_12m") or None,
             "impact_path": path,
             "tier_distance": tier,
         })

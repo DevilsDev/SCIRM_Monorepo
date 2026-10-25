@@ -27,6 +27,7 @@ minute (`MCP_CALLS_PER_MINUTE`).
 | `ask` | A cited answer about one supplier, as in SCIRM (unverifiable sentences are removed) |
 | `regulatory_watch` | FDA and EMA records naming a substance or product on your watchlist |
 | `list_incidents`, `get_incident` | War-room incidents, with suppliers, spend at stake, tasks and timeline |
+| `run_scenario` | [Spend at risk](scenario-studio.md) if suppliers are out for N weeks, and the resilience plan |
 | `propose_action` | Propose a change (see below) |
 
 The read tools are marked read-only. They see exactly what a read-only member of your
