@@ -3243,7 +3243,7 @@ async def _coordinator_write(user, method: str, path: str, body: Optional[Dict[s
             response.raise_for_status()
             return response.json()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code in (400, 404):
+        if e.response.status_code in (400, 404, 503):
             raise HTTPException(status_code=e.response.status_code, detail=e.response.json().get("detail"))
         if e.response.status_code == 422:
             raise HTTPException(status_code=400, detail="Invalid site")
@@ -3266,6 +3266,67 @@ async def remove_supplier_site(supplier_id: str, site_id: str, token: str = Depe
     require_write_access(user)
     return await _coordinator_write(user, "DELETE",
                                     f"/suppliers/{quote(supplier_id, safe='')}/sites/{quote(site_id, safe='')}")
+
+
+# --- ownership (GLEIF) -------------------------------------------------------
+# Searching sends the supplier name (and country) to GLEIF, so only roles that can link a
+# supplier may search. A person confirms each link; it is audited with the LEI.
+
+class OwnershipBody(BaseModel):
+    lei: str = Field(..., min_length=20, max_length=20)
+
+
+@app.get("/api/v1/ownership")
+async def ownership_overview(token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return await _coordinator_get(user, "/ownership", {}, "Ownership unavailable")
+
+
+@app.get("/api/v1/ownership/search")
+async def ownership_search(name: str, country: Optional[str] = None, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    if not 2 <= len(name.strip()) <= 200:
+        raise HTTPException(status_code=400, detail="Give a name of 2 to 200 characters")
+    return await _coordinator_get(user, "/ownership/search", {"name": name.strip(), "country": country},
+                                  "GLEIF search unavailable")
+
+
+@app.get("/api/v1/suppliers/{supplier_id}/ownership")
+async def supplier_ownership(supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return await _coordinator_get(user, f"/suppliers/{quote(supplier_id, safe='')}/ownership", {},
+                                  "Ownership unavailable")
+
+
+@app.put("/api/v1/suppliers/{supplier_id}/ownership")
+async def link_supplier_ownership(supplier_id: str, body: OwnershipBody, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    result = await _coordinator_write(user, "PUT", f"/suppliers/{quote(supplier_id, safe='')}/ownership",
+                                      {"lei": body.lei, "confirmed_by": user.email})
+    entity = (result["link"]["snapshot"] or {}).get("entity") or {}
+    await _audit_event(user.organization_id, user.id, user.email, "ownership.linked", target=supplier_id,
+                       details={"lei": result["link"]["lei"], "legal_name": entity.get("legal_name")},
+                       resource_type="supplier")
+    return result
+
+
+@app.post("/api/v1/suppliers/{supplier_id}/ownership/refresh")
+async def refresh_supplier_ownership(supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    return await _coordinator_write(user, "POST", f"/suppliers/{quote(supplier_id, safe='')}/ownership/refresh")
+
+
+@app.delete("/api/v1/suppliers/{supplier_id}/ownership")
+async def unlink_supplier_ownership(supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    require_write_access(user)
+    result = await _coordinator_write(user, "DELETE", f"/suppliers/{quote(supplier_id, safe='')}/ownership")
+    await _audit_event(user.organization_id, user.id, user.email, "ownership.unlinked", target=supplier_id,
+                       resource_type="supplier")
+    return result
 
 
 class SupplierQuestion(BaseModel):

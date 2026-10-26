@@ -533,6 +533,26 @@ def test_due_diligence_records_are_tenant_scoped_kept_and_block_supplier_deletio
                       psycopg2.errors.ForeignKeyViolation)
 
 
+def test_supplier_ownership_is_tenant_scoped_and_checked(db):
+    """Migration 033: forced RLS; an LEI must be well formed; a link can only point at the
+    organization's own supplier, and goes when the supplier does."""
+    with db["owner"].cursor() as cur:
+        cur.execute("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'supplier_ownership'")
+        assert cur.fetchone() == (True, True)
+    [(supplier,)] = as_org(db["app"], db["a"], (
+        "INSERT INTO suppliers (organization_id, supplier_code, name) VALUES (%s, %s, 'Owned Ltd') RETURNING id::text"),
+        (db["a"], f"OWN-{uuid.uuid4().hex[:6]}"))
+    link_sql = ("INSERT INTO supplier_ownership (supplier_id, organization_id, lei, snapshot, confirmed_by) "
+                "VALUES (%s, %s, %s, '{}'::jsonb, 'a@example.com')")
+    assert isinstance(as_org(db["app"], db["a"], link_sql, (supplier, db["a"], "not-an-lei")), psycopg2.errors.CheckViolation)
+    assert isinstance(as_org(db["app"], db["b"], link_sql, (supplier, db["b"], "213800IK89OTMDYZTD06")),
+                      psycopg2.errors.InsufficientPrivilege)  # another organization's supplier
+    assert as_org(db["app"], db["a"], link_sql, (supplier, db["a"], "213800IK89OTMDYZTD06")) == 1
+    assert as_org(db["app"], db["b"], "SELECT count(*) FROM supplier_ownership") == [(0,)]
+    assert as_org(db["app"], db["a"], "DELETE FROM suppliers WHERE id = %s", (supplier,)) == 1
+    assert as_org(db["app"], db["a"], "SELECT count(*) FROM supplier_ownership WHERE supplier_id = %s", (supplier,)) == [(0,)]
+
+
 def test_migrations_downgrade_and_reapply(db):
     """The whole chain must round-trip, so a bad release can be rolled back."""
     env = dict(os.environ, DATABASE_URL=db["urls"]["owner"])

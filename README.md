@@ -327,5 +327,6 @@ and the workflow file explains how to enable publishing.
 The city gazetteer in `libs/intel/data/cities.tsv.gz` is derived from
 [GeoNames](https://www.geonames.org) and licensed CC BY 4.0. The water risk lookup in
 `libs/intel/data/water_risk_*.gz` is derived from [WRI Aqueduct 4.0](https://www.wri.org/aqueduct)
-and licensed CC BY 4.0 (Kuzma et al. 2023, doi.org/10.46830/writn.23.00061). Public records come from the
+and licensed CC BY 4.0 (Kuzma et al. 2023, doi.org/10.46830/writn.23.00061). Supplier ownership comes
+from the [GLEIF Global LEI Index](https://search.gleif.org/) (CC0 1.0). Public records come from the
 U.S. FDA (openFDA and fda.gov) and [GDACS](https://www.gdacs.org).

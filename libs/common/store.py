@@ -27,6 +27,7 @@ from libs.common.store_ai import MemoryAI, PostgresAI
 from libs.common.store_scenarios import MemoryScenarios, PostgresScenarios
 from libs.common.store_signatures import MemorySignatures, PostgresSignatures
 from libs.common.store_due_diligence import MemoryDueDiligence, PostgresDueDiligence
+from libs.common.store_ownership import MemoryOwnership, PostgresOwnership
 
 SEVERITIES = ("low", "medium", "high", "critical")
 
@@ -246,7 +247,7 @@ DEMO_ORGS = [
 # ===========================================================================
 
 class MemoryStore(MemoryAssessments, MemoryWatchlist, MemoryWarRoom, MemoryAI, MemoryScenarios, MemorySignatures,
-                  MemoryDueDiligence):
+                  MemoryDueDiligence, MemoryOwnership):
     def __init__(self, seed_demo: bool = True):
         self.tasks: Dict[str, Dict[str, Any]] = {}
         self.manual_risks: Dict[str, Dict[str, Any]] = {}
@@ -1294,7 +1295,7 @@ def _audit_matches(entry: Dict[str, Any], filters: Dict[str, Any]) -> bool:
 
 
 class PostgresStore(PostgresAssessments, PostgresWatchlist, PostgresWarRoom, PostgresAI, PostgresScenarios, PostgresSignatures,
-                    PostgresDueDiligence):
+                    PostgresDueDiligence, PostgresOwnership):
     def __init__(self, database_url: str):
         from sqlalchemy.ext.asyncio import create_async_engine
         if database_url.startswith("postgresql://"):

@@ -527,6 +527,37 @@ export interface WaterOverview {
   source: WaterSource;
 }
 
+// Ownership from the Global LEI Index (GLEIF, CC0). A parent level is a reported parent,
+// a reported exception (GLEIF's reason), or not reported (unknown).
+export interface LeiEntity {
+  lei: string; legal_name: string | null;
+  legal_address: { city: string | null; country: string | null; region: string | null };
+  headquarters: { city: string | null; country: string | null; region: string | null };
+  legal_form: string | null; entity_status: string | null; registration_status: string | null;
+  last_update: string | null; next_renewal: string | null; corroboration: string | null; url: string;
+}
+export type ParentLevel =
+  | ({ kind: 'parent' } & LeiEntity)
+  | { kind: 'exception'; reason: string; explanation: string }
+  | { kind: 'not_reported'; explanation: string };
+export interface OwnershipSnapshot {
+  entity: LeiEntity; direct_parent: ParentLevel; ultimate_parent: ParentLevel; fetched_at: string; golden_copy: string | null;
+}
+export interface OwnershipLink {
+  supplier_id: string; lei: string; snapshot: OwnershipSnapshot; confirmed_by: string; confirmed_at: string; refreshed_at: string;
+}
+export interface GleifSource { name: string; url: string; licence: string; licence_url: string; note: string }
+export interface SharedOwner {
+  owner_lei: string; owner_name: string | null; owner_country: string | null; owner_url: string | null;
+  suppliers: Array<{ supplier_id: string; supplier: string; lei: string; relation: 'owned' | 'is the owner' }>;
+}
+export interface OwnershipOverview {
+  links: Array<OwnershipLink & { supplier: string; is_active: boolean }>;
+  shared_owners: SharedOwner[];
+  unlinked: Array<{ supplier_id: string; name: string; country_code: string | null }>;
+  source: GleifSource;
+}
+
 export interface DdOverviewRow {
   supplier_id: string; name: string; country_code: string | null; site_countries: string[];
   spend_12m: Record<string, string | number> | null; spend_main_currency: string | null; spend_rank: number | null;
@@ -1101,6 +1132,32 @@ export const api = {
 
   async waterExport(): Promise<Blob> {
     return (await apiClient.get('/api/v1/water-risk', { params: { format: 'csv' }, responseType: 'blob' })).data;
+  },
+
+  // Ownership (GLEIF)
+  async ownershipOverview(): Promise<OwnershipOverview> {
+    return (await apiClient.get('/api/v1/ownership')).data;
+  },
+
+  async ownershipSearch(name: string, country?: string): Promise<{ candidates: LeiEntity[]; source: GleifSource }> {
+    return (await apiClient.get('/api/v1/ownership/search', { params: { name, country: country || undefined } })).data;
+  },
+
+  async supplierOwnership(id: string): Promise<{ supplier: { id: string; name: string; country_code: string | null };
+    link: OwnershipLink | null; source: GleifSource }> {
+    return (await apiClient.get(`/api/v1/suppliers/${encodeURIComponent(id)}/ownership`)).data;
+  },
+
+  async linkOwnership(id: string, lei: string): Promise<OwnershipLink> {
+    return (await apiClient.put(`/api/v1/suppliers/${encodeURIComponent(id)}/ownership`, { lei })).data.link;
+  },
+
+  async refreshOwnership(id: string): Promise<OwnershipLink> {
+    return (await apiClient.post(`/api/v1/suppliers/${encodeURIComponent(id)}/ownership/refresh`)).data.link;
+  },
+
+  async unlinkOwnership(id: string): Promise<void> {
+    await apiClient.delete(`/api/v1/suppliers/${encodeURIComponent(id)}/ownership`);
   },
 
   // Regulatory watch
