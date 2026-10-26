@@ -2,7 +2,7 @@
 
 **Status**: Accepted  
 **Date**: 2025-08-21  
-**Categories**: Architecture, AI & ML, Performance & Scalability  
+**Categories**: Architecture, Performance & Scalability  
 **DRI**: @Architect  
 
 ---
@@ -115,7 +115,7 @@ Implement a multi-agent swarm architecture with five specialized agents:
 ## Related ADRs
 
 - [ADR-002: RAG Implementation Strategy](./ADR-002-rag-implementation-strategy.md)
-- [ADR-003: Agent Communication Protocol](./ADR-003-agent-communication-protocol.md)
+- Agent Communication Protocol (planned ADR, not written yet)
 
 ---
 

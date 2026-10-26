@@ -1,0 +1,666 @@
+# Staging manifests for the agent services that had none. Generated from one
+# definition so they stay consistent: non-root (uid 10001, the image user), read-only
+# root filesystem, no privilege escalation, all capabilities dropped, and the
+# service-to-service key (ENVIRONMENT=staging makes services require it).
+#
+# ingestion and discovery call Amazon Bedrock (EU) and use the scirm-bedrock service
+# account, which carries the IAM role (service-accounts.yml). No AWS keys are stored.
+# risk-scorer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-scorer
+  namespace: scirm-staging
+  labels:
+    app: risk-scorer
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: risk-scorer
+  template:
+    metadata:
+      labels:
+        app: risk-scorer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-service-account
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: risk-scorer
+        image: ghcr.io/devilsdev/scirm_monorepo/risk-scorer:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: risk-scorer
+  namespace: scirm-staging
+spec:
+  selector:
+    app: risk-scorer
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+# discovery
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery
+  namespace: scirm-staging
+  labels:
+    app: discovery
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: discovery
+  template:
+    metadata:
+      labels:
+        app: discovery
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-bedrock
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: discovery
+        image: ghcr.io/devilsdev/scirm_monorepo/discovery:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: LLM_PROVIDER
+          value: "bedrock"
+        - name: LLM_EU_ONLY
+          value: "true"
+        - name: BEDROCK_REGION
+          value: "eu-central-1"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery
+  namespace: scirm-staging
+spec:
+  selector:
+    app: discovery
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+# ingestion
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion
+  namespace: scirm-staging
+  labels:
+    app: ingestion
+    environment: staging
+spec:
+  replicas: 1  # One replica: it runs the scheduled ingestion loop.
+  selector:
+    matchLabels:
+      app: ingestion
+  template:
+    metadata:
+      labels:
+        app: ingestion
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-bedrock
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: ingestion
+        image: ghcr.io/devilsdev/scirm_monorepo/ingestion:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: STORE_BACKEND
+          value: "postgres"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: database-url
+        - name: INGESTION_AUTO
+          value: "true"
+        - name: INGESTION_INTERVAL_MINUTES
+          value: "60"
+        - name: LLM_PROVIDER
+          value: "bedrock"
+        - name: LLM_EU_ONLY
+          value: "true"
+        - name: BEDROCK_REGION
+          value: "eu-central-1"
+        - name: BEDROCK_MODEL_ID
+          value: "eu.anthropic.claude-sonnet-5-5"
+        - name: EMBEDDINGS_PROVIDER
+          value: "bedrock"
+        - name: EMBED_MODEL_ID
+          value: "eu.cohere.embed-v4:0"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingestion
+  namespace: scirm-staging
+spec:
+  selector:
+    app: ingestion
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+# chat
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat
+  namespace: scirm-staging
+  labels:
+    app: chat
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chat
+  template:
+    metadata:
+      labels:
+        app: chat
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-service-account
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: chat
+        image: ghcr.io/devilsdev/scirm_monorepo/chat:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: COORDINATOR_SERVICE_URL
+          value: "http://coordinator:8000"
+        - name: RISK_SCORER_SERVICE_URL
+          value: "http://risk-scorer:8000"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat
+  namespace: scirm-staging
+spec:
+  selector:
+    app: chat
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+# simulator
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulator
+  namespace: scirm-staging
+  labels:
+    app: simulator
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: simulator
+  template:
+    metadata:
+      labels:
+        app: simulator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-service-account
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: simulator
+        image: ghcr.io/devilsdev/scirm_monorepo/simulator:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: COORDINATOR_SERVICE_URL
+          value: "http://coordinator:8000"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simulator
+  namespace: scirm-staging
+spec:
+  selector:
+    app: simulator
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+# procurement
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: procurement
+  namespace: scirm-staging
+  labels:
+    app: procurement
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: procurement
+  template:
+    metadata:
+      labels:
+        app: procurement
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-service-account
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: procurement
+        image: ghcr.io/devilsdev/scirm_monorepo/procurement:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: PROCUREMENT_MODE
+          value: "advisory"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: procurement
+  namespace: scirm-staging
+spec:
+  selector:
+    app: procurement
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+# component-tracker
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: component-tracker
+  namespace: scirm-staging
+  labels:
+    app: component-tracker
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: component-tracker
+  template:
+    metadata:
+      labels:
+        app: component-tracker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: scirm-service-account
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: component-tracker
+        image: ghcr.io/devilsdev/scirm_monorepo/component-tracker:latest  # deploy.yml pins the release tag
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: component-tracker
+  namespace: scirm-staging
+spec:
+  selector:
+    app: component-tracker
+  ports:
+  - port: 8000
+    targetPort: 8000

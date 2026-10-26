@@ -280,7 +280,15 @@ jobs:
 
       - name: Pass workflow_dispatch input to script (if any)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.week_ending != '' }}
-        run: echo "INPUT_WEEK_ENDING=${{ github.event.inputs.week_ending }}" >> "$GITHUB_ENV"
+        # Pass the input through env (never interpolate it into the script) and accept only a date.
+        env:
+          WEEK_ENDING_INPUT: ${{ github.event.inputs.week_ending }}
+        run: |
+          if [[ ! "$WEEK_ENDING_INPUT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "::error::week_ending must be YYYY-MM-DD"
+            exit 1
+          fi
+          echo "INPUT_WEEK_ENDING=$WEEK_ENDING_INPUT" >> "$GITHUB_ENV"
 
       - name: Generate weekly digest
         run: |

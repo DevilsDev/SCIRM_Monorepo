@@ -1,0 +1,80 @@
+{
+ "meta": {
+  "total_records": 4,
+  "timestamp": "2026-10-24T06:00:35Z"
+ },
+ "data": [
+  {
+   "category": "Human",
+   "name_of_medicine": "Clozapine",
+   "procedure_number": "",
+   "active_substances": "clozapine",
+   "dhpc_type": "Safety signal",
+   "regulatory_outcome": "Variation",
+   "referral_name": "",
+   "atc_code_human": "",
+   "atcvet_code_veterinary": "",
+   "therapeutic_area_mesh": "",
+   "species": "",
+   "other_related_medicines_nationally_authorised": "",
+   "dissemination_date": "08/09/2025",
+   "first_published_date": "09/09/2025",
+   "last_updated_date": "",
+   "dhpc_url": "https://www.ema.europa.eu/en/medicines/dhpc/clozapine"
+  },
+  {
+   "category": "Human",
+   "name_of_medicine": "Jentadueto",
+   "procedure_number": "",
+   "active_substances": "linagliptin;metformin hydrochloride",
+   "dhpc_type": "Quality defect",
+   "regulatory_outcome": "",
+   "referral_name": "",
+   "atc_code_human": "A10BD11",
+   "atcvet_code_veterinary": "",
+   "therapeutic_area_mesh": "Diabetes Mellitus, Type 2",
+   "species": "",
+   "other_related_medicines_nationally_authorised": "",
+   "dissemination_date": "20/08/2026",
+   "first_published_date": "20/08/2026",
+   "last_updated_date": "",
+   "dhpc_url": "https://www.ema.europa.eu/en/medicines/dhpc/jentadueto"
+  },
+  {
+   "category": "Human",
+   "name_of_medicine": "Cyanokit",
+   "procedure_number": "",
+   "active_substances": "hydroxocobalamin",
+   "dhpc_type": "Medicine shortage;Quality defect",
+   "regulatory_outcome": "",
+   "referral_name": "",
+   "atc_code_human": "V03AB33",
+   "atcvet_code_veterinary": "",
+   "therapeutic_area_mesh": "Poisoning",
+   "species": "",
+   "other_related_medicines_nationally_authorised": "",
+   "dissemination_date": "09/12/2024",
+   "first_published_date": "09/12/2024",
+   "last_updated_date": "",
+   "dhpc_url": "https://www.ema.europa.eu/en/medicines/dhpc/cyanokit"
+  },
+  {
+   "category": "Veterinary",
+   "name_of_medicine": "Kexxtone",
+   "procedure_number": "EMEA/V/C/002235",
+   "active_substances": "monensin (as monensin sodium)",
+   "dhpc_type": "Quality defect",
+   "regulatory_outcome": "Suspension",
+   "referral_name": "Kexxtone 32.4 g continuous-release intraruminal device for cattle",
+   "atc_code_human": "",
+   "atcvet_code_veterinary": "QA16QA06",
+   "therapeutic_area_mesh": "",
+   "species": "Cattle",
+   "other_related_medicines_nationally_authorised": "",
+   "dissemination_date": "05/06/2024",
+   "first_published_date": "05/06/2024",
+   "last_updated_date": "11/12/2024",
+   "dhpc_url": "https://www.ema.europa.eu/en/medicines/dhpc/kexxtone"
+  }
+ ]
+}

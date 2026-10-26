@@ -1,0 +1,45 @@
+# Opt-in: publish agent service ports on 127.0.0.1 for debugging. Never in shared environments.
+# docker compose -f docker-compose.dev.yml -f docker-compose.debug-ports.yml up
+services:
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+  weaviate:
+    ports:
+      - "127.0.0.1:8080:8080"
+  coordinator:
+    ports:
+      - "127.0.0.1:8001:8000"
+  planner:
+    ports:
+      - "127.0.0.1:8002:8000"
+  researcher:
+    ports:
+      - "127.0.0.1:8003:8000"
+  executor:
+    ports:
+      - "127.0.0.1:8004:8000"
+  reviewer:
+    ports:
+      - "127.0.0.1:8005:8000"
+  risk-scorer:
+    ports:
+      - "127.0.0.1:8006:8000"
+  discovery:
+    ports:
+      - "127.0.0.1:8007:8000"
+  ingestion:
+    ports:
+      - "127.0.0.1:8008:8000"
+  chat:
+    ports:
+      - "127.0.0.1:8009:8000"
+  simulator:
+    ports:
+      - "127.0.0.1:8010:8000"
+  procurement:
+    ports:
+      - "127.0.0.1:8011:8000"
+  component-tracker:
+    ports:
+      - "127.0.0.1:8012:8000"

@@ -1,0 +1,192 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../components/Toast';
+import Toggle from '../components/Toggle';
+import TeamSettings from '../components/TeamSettings';
+import PilotMetrics from '../components/PilotMetrics';
+import MfaSettings from '../components/MfaSettings';
+import { Link } from 'react-router-dom';
+
+const LANGUAGES = [
+  { code: 'en', label: 'English' }, { code: 'es', label: 'Espanol' },
+  { code: 'fr', label: 'Francais' }, { code: 'de', label: 'Deutsch' },
+  { code: 'pt', label: 'Portugues' }, { code: 'zh', label: '中文' },
+  { code: 'ja', label: '日本語' }, { code: 'ko', label: '한국어' },
+  { code: 'ar', label: 'العربية' }, { code: 'hi', label: 'हिन्दी' },
+  { code: 'it', label: 'Italiano' }, { code: 'nl', label: 'Nederlands' },
+];
+
+export default function SettingsPage() {
+  const { user, changePassword } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { addToast } = useToast();
+  const { t, i18n } = useTranslation();
+
+  const [language, setLanguage] = useState(() => i18n.language || 'en');
+
+  // Password change
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const handleLanguageChange = (code: string) => {
+    setLanguage(code);
+    i18n.changeLanguage(code);
+    addToast('success', t('settings.languageUpdated', 'Language updated'), t('settings.languageSetTo', 'Language set to {{language}}', { language: LANGUAGES.find((l) => l.code === code)?.label }));
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordError('');
+    if (newPassword.length < 8) {
+      setPasswordError(t('auth.passwordTooShort', 'Password must be at least 8 characters'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t('auth.passwordMismatch', 'Passwords do not match'));
+      return;
+    }
+    try {
+      await changePassword(currentPassword, newPassword);
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.detail || t('settings.passwordFailed', 'The password could not be changed.'));
+      return;
+    }
+    addToast('success', t('settings.changePassword', 'Change Password'),
+      t('settings.passwordUpdated', 'Your password has been changed. Other sessions are signed out.'));
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('settings.title', 'Settings')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('settings.subtitle', 'Manage your account, preferences, and notifications')}</p>
+      </div>
+
+      {/* Profile */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.profile', 'Profile')}</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.name', 'Name')}</label>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.name || 'N/A'}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.email', 'Email')}</label>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.email || 'N/A'}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.roles', 'Roles')}</label>
+            <div className="flex gap-1">
+              {user?.roles?.map((role) => (
+                <span key={role} className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full capitalize">{role}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <MfaSettings />
+
+      <TeamSettings />
+
+      {user?.roles?.includes('admin') && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {t('settings.integrationsMoved', 'SAP, API keys and webhooks are under')}{' '}
+          <Link to="/integrations" className="text-blue-600 hover:underline">{t('nav.integrations', 'Integrations')}</Link>.
+        </p>
+      )}
+
+      {user?.roles?.some((r) => r === 'admin' || r === 'auditor') && <PilotMetrics />}
+
+      {/* Appearance */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.appearance', 'Appearance')}</h2>
+        <Toggle
+          enabled={theme === 'dark'}
+          onChange={toggleTheme}
+          label={t('settings.darkMode', 'Dark Mode')}
+          description={t('settings.darkModeDesc', 'Switch between light and dark theme')}
+        />
+      </div>
+
+      {/* Language */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.language', 'Language')}</h2>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => handleLanguageChange(lang.code)}
+              className={`p-2 rounded-lg text-sm font-medium border transition-colors ${
+                language === lang.code
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              {lang.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.changePassword', 'Change Password')}</h2>
+        <div className="space-y-3 max-w-sm">
+          <input
+            type="password"
+            placeholder={t('settings.currentPassword', 'Current password')}
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          <input
+            type="password"
+            placeholder={t('settings.newPassword', 'New password (min 8 characters)')}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          <input
+            type="password"
+            placeholder={t('settings.confirmNewPassword', 'Confirm new password')}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          {passwordError && <p className="text-xs text-red-500">{passwordError}</p>}
+          <button
+            onClick={handlePasswordChange}
+            disabled={!currentPassword || !newPassword}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {t('settings.updatePassword', 'Update Password')}
+          </button>
+        </div>
+      </div>
+
+      {/* Export */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.dataExport', 'Data Export')}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{t('settings.dataExportDesc', 'Download reports for board meetings and auditors')}</p>
+        <div className="flex flex-wrap gap-2">
+          <a href="/api/v1/export/risks?format=csv" target="_blank" className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+            {t('settings.exportRisks', 'Export Risks (CSV)')}
+          </a>
+          <a href="/api/v1/export/suppliers?format=csv" target="_blank" className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+            {t('settings.exportSuppliers', 'Export Suppliers (CSV)')}
+          </a>
+          <a href="/api/v1/export/report?format=json" target="_blank" className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
+            {t('settings.fullReport', 'Full Report (JSON)')}
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}

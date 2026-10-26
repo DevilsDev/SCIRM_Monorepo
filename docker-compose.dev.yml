@@ -1,28 +1,49 @@
+# Development stack. Only the gateway (8000), the frontend (3000), Postgres (5432) and
+# monitoring (9090, 3001) are published, and only on 127.0.0.1. Agent services, Redis
+# and Weaviate are reachable only inside the Compose network, through the gateway, which
+# is how they run in production. To call an agent directly while debugging:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.debug-ports.yml up
+# Set SERVICE_API_KEY (any long random string) to enforce service-to-service auth in dev too.
 version: '3.8'
 
 services:
   # Databases
   postgres:
-    image: postgres:15
+    # pgvector for the RAG work (migration 010). Moving from postgres:15 needs a fresh
+    # volume: docker compose -f docker-compose.dev.yml down -v
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: scirm_dev
       POSTGRES_USER: scirm
       POSTGRES_PASSWORD: dev_password
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scirm"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # Applies migrations as the owner, creates the restricted scirm_app role the
+  # services connect as (row-level security applies to it) and seeds demo tenants.
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: apps/api-gateway
+    environment:
+      - DATABASE_OWNER_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - DATABASE_APP_PASSWORD=dev_app_password
+    command: python scripts/db_setup.py --seed-demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -34,8 +55,6 @@ services:
   # Vector Database
   weaviate:
     image: semitechnologies/weaviate:1.21.2
-    ports:
-      - "8080:8080"
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
@@ -48,37 +67,58 @@ services:
   # Agent Services
   coordinator:
     build:
-      context: ./services/coordinator
-      dockerfile: Dockerfile
-    ports:
-      - "8001:8000"
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/coordinator
     environment:
-      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY:-}
+      - STORE_BACKEND=postgres
+      - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - PLANNER_SERVICE_URL=http://planner:8000
+      - RESEARCHER_SERVICE_URL=http://researcher:8000
+      - EXECUTOR_SERVICE_URL=http://executor:8000
+      - REVIEWER_SERVICE_URL=http://reviewer:8000
+      - DISCOVERY_SERVICE_URL=http://discovery:8000
+      - INGESTION_SERVICE_URL=http://ingestion:8000
+      # Scheduled report emails go to Mailpit (http://127.0.0.1:8025), never out of the machine.
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_STARTTLS=false
+      - SMTP_FROM=SCIRM <reports@scirm.local>
+      - PUBLIC_APP_URL=http://localhost:3000
       - LOG_LEVEL=DEBUG
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       weaviate:
         condition: service_started
     volumes:
-      - ./services/coordinator:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/coordinator:/app/services/coordinator
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/coordinator --host 0.0.0.0 --port 8000 --reload --reload-dir services/coordinator --reload-dir libs
 
   planner:
     build:
-      context: ./services/planner
-      dockerfile: Dockerfile
-    ports:
-      - "8002:8000"
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/planner
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -88,20 +128,27 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/planner:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/planner:/app/services/planner
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/planner --host 0.0.0.0 --port 8000 --reload --reload-dir services/planner --reload-dir libs
 
   researcher:
     build:
-      context: ./services/researcher
-      dockerfile: Dockerfile
-    ports:
-      - "8003:8000"
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/researcher
+        EXTRA_PIP: weaviate-client==3.26.7
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -111,20 +158,26 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/researcher:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/researcher:/app/services/researcher
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/researcher --host 0.0.0.0 --port 8000 --reload --reload-dir services/researcher --reload-dir libs
 
   executor:
     build:
-      context: ./services/executor
-      dockerfile: Dockerfile
-    ports:
-      - "8004:8000"
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/executor
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -134,20 +187,26 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/executor:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/executor:/app/services/executor
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/executor --host 0.0.0.0 --port 8000 --reload --reload-dir services/executor --reload-dir libs
 
   reviewer:
     build:
-      context: ./services/reviewer
-      dockerfile: Dockerfile
-    ports:
-      - "8005:8000"
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/reviewer
     environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
       - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
       - WEAVIATE_URL=http://weaviate:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
       - LOG_LEVEL=DEBUG
     depends_on:
       postgres:
@@ -157,28 +216,199 @@ services:
       weaviate:
         condition: service_started
     volumes:
-      - ./services/reviewer:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/reviewer:/app/services/reviewer
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir services/reviewer --host 0.0.0.0 --port 8000 --reload --reload-dir services/reviewer --reload-dir libs
+
+  risk-scorer:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/risk-scorer
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/risk-scorer:/app/services/risk-scorer
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/risk-scorer --host 0.0.0.0 --port 8000 --reload --reload-dir services/risk-scorer --reload-dir libs
+
+  discovery:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/discovery
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/discovery:/app/services/discovery
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/discovery --host 0.0.0.0 --port 8000 --reload --reload-dir services/discovery --reload-dir libs
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/ingestion
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - STORE_BACKEND=postgres
+      - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
+      # Public sources (FDA recalls and shortages, GDACS): no keys needed. An optional
+      # OPENFDA_API_KEY raises openFDA's rate limit.
+      - INGESTION_AUTO=true
+      - INGESTION_INTERVAL_MINUTES=60
+      - OPENFDA_API_KEY=${OPENFDA_API_KEY:-}
+      # Evidence Engine AI on Amazon Bedrock, EU only (docs/bedrock-setup.md). Off unless
+      # AWS credentials are present; answers are then composed from the records alone.
+      - LLM_PROVIDER=bedrock
+      - LLM_EU_ONLY=true
+      - BEDROCK_REGION=${BEDROCK_REGION:-eu-central-1}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-eu.anthropic.claude-sonnet-5-5}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-}
+      - EMBED_MODEL_ID=${EMBED_MODEL_ID:-eu.cohere.embed-v4:0}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_BEARER_TOKEN_BEDROCK=${AWS_BEARER_TOKEN_BEDROCK:-}
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/ingestion:/app/services/ingestion
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/ingestion --host 0.0.0.0 --port 8000 --reload --reload-dir services/ingestion --reload-dir libs
+
+  chat:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/chat
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - SAMPLE_FEATURES=${SAMPLE_FEATURES:-}
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - RISK_SCORER_SERVICE_URL=http://risk-scorer:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/chat:/app/services/chat
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/chat --host 0.0.0.0 --port 8000 --reload --reload-dir services/chat --reload-dir libs
+
+  simulator:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/simulator
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/simulator:/app/services/simulator
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/simulator --host 0.0.0.0 --port 8000 --reload --reload-dir services/simulator --reload-dir libs
+
+  procurement:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/procurement
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - PROCUREMENT_MODE=advisory
+      - PROCUREMENT_RISK_THRESHOLD=65
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/procurement:/app/services/procurement
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/procurement --host 0.0.0.0 --port 8000 --reload --reload-dir services/procurement --reload-dir libs
+
+  component-tracker:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: services/component-tracker
+    environment:
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Live reload: source mounted over the copies baked into the image.
+      - ./services/component-tracker:/app/services/component-tracker
+      - ./libs:/app/libs
+    command: uvicorn main:app --app-dir services/component-tracker --host 0.0.0.0 --port 8000 --reload --reload-dir services/component-tracker --reload-dir libs
 
   api-gateway:
     build:
-      context: ./apps/api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_PATH: apps/api-gateway
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      - DATABASE_URL=postgresql://scirm:dev_password@postgres:5432/scirm_dev
+      - SERVICE_API_KEY=${SERVICE_API_KEY:-}
+      - STORE_BACKEND=postgres
+      - DATABASE_URL=postgresql://scirm_app:dev_app_password@postgres:5432/scirm_dev
       - REDIS_URL=redis://redis:6379
-      - COORDINATOR_URL=http://coordinator:8000
-      - PLANNER_URL=http://planner:8000
-      - RESEARCHER_URL=http://researcher:8000
-      - EXECUTOR_URL=http://executor:8000
-      - REVIEWER_URL=http://reviewer:8000
+      - COORDINATOR_SERVICE_URL=http://coordinator:8000
+      - PLANNER_SERVICE_URL=http://planner:8000
+      - RESEARCHER_SERVICE_URL=http://researcher:8000
+      - EXECUTOR_SERVICE_URL=http://executor:8000
+      - REVIEWER_SERVICE_URL=http://reviewer:8000
+      - RISK_SCORER_SERVICE_URL=http://risk-scorer:8000
+      - DISCOVERY_SERVICE_URL=http://discovery:8000
+      - INGESTION_SERVICE_URL=http://ingestion:8000
+      - CHAT_SERVICE_URL=http://chat:8000
+      - SIMULATOR_SERVICE_URL=http://simulator:8000
+      - PROCUREMENT_SERVICE_URL=http://procurement:8000
+      - COMPONENT_TRACKER_URL=http://component-tracker:8000
+      # Empty means a random per-process secret (tokens reset on restart); never a public default.
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
+      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY:-}
+      - DEV_PASSWORD=${DEV_PASSWORD:-}
+      - ENVIRONMENT=development
+      - SAMPLE_FEATURES=${SAMPLE_FEATURES:-}
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000
+      # Scheduled report emails go to Mailpit (http://127.0.0.1:8025), never out of the machine.
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_STARTTLS=false
+      - SMTP_FROM=SCIRM <reports@scirm.local>
       - LOG_LEVEL=DEBUG
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       coordinator:
@@ -192,30 +422,36 @@ services:
       reviewer:
         condition: service_started
     volumes:
-      - ./apps/api-gateway:/app
+      # Live reload: source mounted over the copies baked into the image.
+      - ./apps/api-gateway:/app/apps/api-gateway
       - ./libs:/app/libs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --app-dir apps/api-gateway --host 0.0.0.0 --port 8000 --reload --reload-dir apps/api-gateway --reload-dir libs
+
+  # Catches every email the stack sends (scheduled reports). Web UI on 127.0.0.1:8025.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "127.0.0.1:8025:8025"
 
   frontend:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      - REACT_APP_WS_URL=ws://localhost:8000
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000/ws
       - NODE_ENV=development
     volumes:
       - ./apps/frontend:/app
-      - /app/node_modules
-    command: npm run dev
+    command: sh -c "npm install && npm run dev"
 
   # Monitoring
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./ops/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -229,9 +465,9 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}  # local only (127.0.0.1)
     volumes:
       - grafana_data:/var/lib/grafana
       - ./ops/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards

@@ -43,13 +43,17 @@ services=("coordinator" "planner" "researcher" "executor" "reviewer" "api-gatewa
 for service in "${services[@]}"; do
     echo "Building $service..."
     if [ -d "services/$service" ]; then
-        docker build -t $DOCKER_REGISTRY/$service:$VERSION services/$service/
+        path="services/$service"
     elif [ -d "apps/$service" ]; then
-        docker build -t $DOCKER_REGISTRY/$service:$VERSION apps/$service/
+        path="apps/$service"
     else
         echo "⚠️ Directory not found for $service, skipping..."
         continue
     fi
+    extra=()
+    [ "$service" = "researcher" ] && extra=(--build-arg EXTRA_PIP=weaviate-client==3.26.7)
+    # All service images share one Dockerfile and build from the repo root (they need libs/).
+    docker build -f docker/service.Dockerfile --build-arg SERVICE_PATH="$path" "${extra[@]}"         -t "$DOCKER_REGISTRY/$service:$VERSION" .
     
     # Push to registry (uncomment when registry is configured)
     # docker push $DOCKER_REGISTRY/$service:$VERSION
@@ -111,7 +115,10 @@ spec:
         - name: POSTGRES_USER
           value: scirm
         - name: POSTGRES_PASSWORD
-          value: staging_password
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: database-password
         ports:
         - containerPort: 5432
         volumeMounts:
@@ -328,7 +335,10 @@ spec:
         image: grafana/grafana:latest
         env:
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: grafana-admin-password
         ports:
         - containerPort: 3000
 ---

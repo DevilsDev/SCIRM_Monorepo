@@ -1,0 +1,1184 @@
+{
+ "/lei-records/213800IK89OTMDYZTD06": {
+  "data": {
+   "attributes": {
+    "bic": null,
+    "conformityFlag": "CONFORMING",
+    "entity": {
+     "associatedEntity": {
+      "lei": null,
+      "name": null
+     },
+     "category": "GENERAL",
+     "creationDate": "1998-04-29T00:00:00Z",
+     "eventGroups": [],
+     "expiration": {
+      "date": null,
+      "reason": null
+     },
+     "headquartersAddress": {
+      "addressLines": [
+       "AVENUE DES BIOLLEUX 14"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "VERVIERS",
+      "country": "BE",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4800",
+      "region": "BE-WLG"
+     },
+     "jurisdiction": "BE",
+     "legalAddress": {
+      "addressLines": [
+       "AVENUE DES BIOLLEUX 14"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "VERVIERS",
+      "country": "BE",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4800",
+      "region": "BE-WLG"
+     },
+     "legalForm": {
+      "id": "3W7E",
+      "other": null
+     },
+     "legalName": {
+      "language": "en",
+      "name": "LONZA VERVIERS"
+     },
+     "otherAddresses": [],
+     "otherNames": [],
+     "registeredAs": "0463.156.786",
+     "registeredAt": {
+      "id": "RA000025",
+      "other": null
+     },
+     "status": "ACTIVE",
+     "subCategory": null,
+     "successorEntities": [],
+     "successorEntity": {
+      "lei": null,
+      "name": null
+     },
+     "transliteratedOtherNames": []
+    },
+    "gem": null,
+    "lei": "213800IK89OTMDYZTD06",
+    "mic": null,
+    "ocid": null,
+    "qcc": "QBE21K094N",
+    "registration": {
+     "corroborationLevel": "FULLY_CORROBORATED",
+     "initialRegistrationDate": "2026-03-24T00:00:00Z",
+     "lastUpdateDate": "2026-03-24T16:36:41Z",
+     "managingLou": "213800WAVVOPS85N2205",
+     "nextRenewalDate": "2027-03-24T00:00:00Z",
+     "otherValidationAuthorities": [],
+     "status": "ISSUED",
+     "validatedAs": "0463.156.786",
+     "validatedAt": {
+      "id": "RA000025",
+      "other": null
+     }
+    },
+    "spglobal": [
+     "43290115"
+    ]
+   },
+   "id": "213800IK89OTMDYZTD06",
+   "links": {
+    "self": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06"
+   },
+   "relationships": {
+    "direct-parent": {
+     "links": {
+      "lei-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/direct-parent",
+      "relationship-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/direct-parent-relationship"
+     }
+    },
+    "field-modifications": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/field-modifications"
+     }
+    },
+    "lei-issuer": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/lei-issuer"
+     }
+    },
+    "managing-lou": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/managing-lou"
+     }
+    },
+    "ultimate-parent": {
+     "links": {
+      "lei-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/ultimate-parent",
+      "relationship-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/ultimate-parent-relationship"
+     }
+    }
+   },
+   "type": "lei-records"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records/213800IK89OTMDYZTD06/direct-parent": {
+  "data": {
+   "attributes": {
+    "bic": [
+     "LOGRCHBBXXX"
+    ],
+    "conformityFlag": "CONFORMING",
+    "entity": {
+     "associatedEntity": {
+      "lei": null,
+      "name": null
+     },
+     "category": "GENERAL",
+     "creationDate": "2002-03-26T00:00:00Z",
+     "eventGroups": [],
+     "expiration": {
+      "date": null,
+      "reason": null
+     },
+     "headquartersAddress": {
+      "addressLines": [
+       "M\u00dcNCHENSTEINERSTR. 38"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BASEL",
+      "country": "CH",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4052",
+      "region": "CH-BS"
+     },
+     "jurisdiction": "CH",
+     "legalAddress": {
+      "addressLines": [
+       "MUNCHENSTEINERSTR. 38"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BASEL",
+      "country": "CH",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4052",
+      "region": "CH-BS"
+     },
+     "legalForm": {
+      "id": "MVII",
+      "other": null
+     },
+     "legalName": {
+      "language": "en",
+      "name": "LONZA GROUP AG"
+     },
+     "otherAddresses": [],
+     "otherNames": [
+      {
+       "language": "en",
+       "name": "AXERA AG",
+       "type": "PREVIOUS_LEGAL_NAME"
+      }
+     ],
+     "registeredAs": "CHE-106.841.866",
+     "registeredAt": {
+      "id": "RA000549",
+      "other": null
+     },
+     "status": "ACTIVE",
+     "subCategory": null,
+     "successorEntities": [],
+     "successorEntity": {
+      "lei": null,
+      "name": null
+     },
+     "transliteratedOtherNames": []
+    },
+    "gem": null,
+    "lei": "549300EFW4H2TCZ71055",
+    "mic": null,
+    "ocid": null,
+    "qcc": "QCH11F8140",
+    "registration": {
+     "corroborationLevel": "FULLY_CORROBORATED",
+     "initialRegistrationDate": "2013-09-10T15:30:00Z",
+     "lastUpdateDate": "2026-03-11T14:51:08Z",
+     "managingLou": "213800WAVVOPS85N2205",
+     "nextRenewalDate": "2027-03-28T00:00:00Z",
+     "otherValidationAuthorities": [],
+     "status": "ISSUED",
+     "validatedAs": "CHE-106.841.866",
+     "validatedAt": {
+      "id": "RA000549",
+      "other": null
+     }
+    },
+    "spglobal": [
+     "631759"
+    ]
+   },
+   "id": "549300EFW4H2TCZ71055",
+   "links": {
+    "self": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055"
+   },
+   "relationships": {
+    "direct-children": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-children",
+      "relationship-records": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-child-relationships"
+     }
+    },
+    "direct-parent": {
+     "links": {
+      "reporting-exception": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-parent-reporting-exception"
+     }
+    },
+    "field-modifications": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/field-modifications"
+     }
+    },
+    "isins": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/isins"
+     }
+    },
+    "lei-issuer": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/lei-issuer"
+     }
+    },
+    "managing-lou": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/managing-lou"
+     }
+    },
+    "ultimate-children": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-children",
+      "relationship-records": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-child-relationships"
+     }
+    },
+    "ultimate-parent": {
+     "links": {
+      "reporting-exception": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-parent-reporting-exception"
+     }
+    }
+   },
+   "type": "lei-records"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records/213800IK89OTMDYZTD06/ultimate-parent": {
+  "data": {
+   "attributes": {
+    "bic": [
+     "LOGRCHBBXXX"
+    ],
+    "conformityFlag": "CONFORMING",
+    "entity": {
+     "associatedEntity": {
+      "lei": null,
+      "name": null
+     },
+     "category": "GENERAL",
+     "creationDate": "2002-03-26T00:00:00Z",
+     "eventGroups": [],
+     "expiration": {
+      "date": null,
+      "reason": null
+     },
+     "headquartersAddress": {
+      "addressLines": [
+       "M\u00dcNCHENSTEINERSTR. 38"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BASEL",
+      "country": "CH",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4052",
+      "region": "CH-BS"
+     },
+     "jurisdiction": "CH",
+     "legalAddress": {
+      "addressLines": [
+       "MUNCHENSTEINERSTR. 38"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BASEL",
+      "country": "CH",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4052",
+      "region": "CH-BS"
+     },
+     "legalForm": {
+      "id": "MVII",
+      "other": null
+     },
+     "legalName": {
+      "language": "en",
+      "name": "LONZA GROUP AG"
+     },
+     "otherAddresses": [],
+     "otherNames": [
+      {
+       "language": "en",
+       "name": "AXERA AG",
+       "type": "PREVIOUS_LEGAL_NAME"
+      }
+     ],
+     "registeredAs": "CHE-106.841.866",
+     "registeredAt": {
+      "id": "RA000549",
+      "other": null
+     },
+     "status": "ACTIVE",
+     "subCategory": null,
+     "successorEntities": [],
+     "successorEntity": {
+      "lei": null,
+      "name": null
+     },
+     "transliteratedOtherNames": []
+    },
+    "gem": null,
+    "lei": "549300EFW4H2TCZ71055",
+    "mic": null,
+    "ocid": null,
+    "qcc": "QCH11F8140",
+    "registration": {
+     "corroborationLevel": "FULLY_CORROBORATED",
+     "initialRegistrationDate": "2013-09-10T15:30:00Z",
+     "lastUpdateDate": "2026-03-11T14:51:08Z",
+     "managingLou": "213800WAVVOPS85N2205",
+     "nextRenewalDate": "2027-03-28T00:00:00Z",
+     "otherValidationAuthorities": [],
+     "status": "ISSUED",
+     "validatedAs": "CHE-106.841.866",
+     "validatedAt": {
+      "id": "RA000549",
+      "other": null
+     }
+    },
+    "spglobal": [
+     "631759"
+    ]
+   },
+   "id": "549300EFW4H2TCZ71055",
+   "links": {
+    "self": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055"
+   },
+   "relationships": {
+    "direct-children": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-children",
+      "relationship-records": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-child-relationships"
+     }
+    },
+    "direct-parent": {
+     "links": {
+      "reporting-exception": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-parent-reporting-exception"
+     }
+    },
+    "field-modifications": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/field-modifications"
+     }
+    },
+    "isins": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/isins"
+     }
+    },
+    "lei-issuer": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/lei-issuer"
+     }
+    },
+    "managing-lou": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/managing-lou"
+     }
+    },
+    "ultimate-children": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-children",
+      "relationship-records": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-child-relationships"
+     }
+    },
+    "ultimate-parent": {
+     "links": {
+      "reporting-exception": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-parent-reporting-exception"
+     }
+    }
+   },
+   "type": "lei-records"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records/549300EFW4H2TCZ71055": {
+  "data": {
+   "attributes": {
+    "bic": [
+     "LOGRCHBBXXX"
+    ],
+    "conformityFlag": "CONFORMING",
+    "entity": {
+     "associatedEntity": {
+      "lei": null,
+      "name": null
+     },
+     "category": "GENERAL",
+     "creationDate": "2002-03-26T00:00:00Z",
+     "eventGroups": [],
+     "expiration": {
+      "date": null,
+      "reason": null
+     },
+     "headquartersAddress": {
+      "addressLines": [
+       "M\u00dcNCHENSTEINERSTR. 38"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BASEL",
+      "country": "CH",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4052",
+      "region": "CH-BS"
+     },
+     "jurisdiction": "CH",
+     "legalAddress": {
+      "addressLines": [
+       "MUNCHENSTEINERSTR. 38"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BASEL",
+      "country": "CH",
+      "language": "en",
+      "mailRouting": null,
+      "postalCode": "4052",
+      "region": "CH-BS"
+     },
+     "legalForm": {
+      "id": "MVII",
+      "other": null
+     },
+     "legalName": {
+      "language": "en",
+      "name": "LONZA GROUP AG"
+     },
+     "otherAddresses": [],
+     "otherNames": [
+      {
+       "language": "en",
+       "name": "AXERA AG",
+       "type": "PREVIOUS_LEGAL_NAME"
+      }
+     ],
+     "registeredAs": "CHE-106.841.866",
+     "registeredAt": {
+      "id": "RA000549",
+      "other": null
+     },
+     "status": "ACTIVE",
+     "subCategory": null,
+     "successorEntities": [],
+     "successorEntity": {
+      "lei": null,
+      "name": null
+     },
+     "transliteratedOtherNames": []
+    },
+    "gem": null,
+    "lei": "549300EFW4H2TCZ71055",
+    "mic": null,
+    "ocid": null,
+    "qcc": "QCH11F8140",
+    "registration": {
+     "corroborationLevel": "FULLY_CORROBORATED",
+     "initialRegistrationDate": "2013-09-10T15:30:00Z",
+     "lastUpdateDate": "2026-03-11T14:51:08Z",
+     "managingLou": "213800WAVVOPS85N2205",
+     "nextRenewalDate": "2027-03-28T00:00:00Z",
+     "otherValidationAuthorities": [],
+     "status": "ISSUED",
+     "validatedAs": "CHE-106.841.866",
+     "validatedAt": {
+      "id": "RA000549",
+      "other": null
+     }
+    },
+    "spglobal": [
+     "631759"
+    ]
+   },
+   "id": "549300EFW4H2TCZ71055",
+   "links": {
+    "self": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055"
+   },
+   "relationships": {
+    "direct-children": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-children",
+      "relationship-records": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-child-relationships"
+     }
+    },
+    "direct-parent": {
+     "links": {
+      "reporting-exception": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/direct-parent-reporting-exception"
+     }
+    },
+    "field-modifications": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/field-modifications"
+     }
+    },
+    "isins": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/isins"
+     }
+    },
+    "lei-issuer": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/lei-issuer"
+     }
+    },
+    "managing-lou": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/managing-lou"
+     }
+    },
+    "ultimate-children": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-children",
+      "relationship-records": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-child-relationships"
+     }
+    },
+    "ultimate-parent": {
+     "links": {
+      "reporting-exception": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055/ultimate-parent-reporting-exception"
+     }
+    }
+   },
+   "type": "lei-records"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records/549300EFW4H2TCZ71055/direct-parent-reporting-exception": {
+  "data": {
+   "attributes": {
+    "category": "DIRECT_ACCOUNTING_CONSOLIDATION_PARENT",
+    "lei": "549300EFW4H2TCZ71055",
+    "reason": "NON_CONSOLIDATING",
+    "reference": null,
+    "validFrom": null,
+    "validTo": null
+   },
+   "id": "549300EFW4H2TCZ71055|6|d9a91ca53b9def2551e9c19a5273d7b84bb81056d1dc6ab6bc20d12e27052a88|DIRECT_ACCOUNTING_CONSOLIDATION_PARENT|",
+   "relationships": {
+    "lei-record": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055"
+     }
+    }
+   },
+   "type": "reporting-exceptions"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records/549300EFW4H2TCZ71055/ultimate-parent-reporting-exception": {
+  "data": {
+   "attributes": {
+    "category": "ULTIMATE_ACCOUNTING_CONSOLIDATION_PARENT",
+    "lei": "549300EFW4H2TCZ71055",
+    "reason": "NON_CONSOLIDATING",
+    "reference": null,
+    "validFrom": null,
+    "validTo": null
+   },
+   "id": "549300EFW4H2TCZ71055|6|97381db3c14b2c6bbe5ed2238f161ccc31e870922d662644cb33cef9ec6a8d0e|ULTIMATE_ACCOUNTING_CONSOLIDATION_PARENT|",
+   "relationships": {
+    "lei-record": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300EFW4H2TCZ71055"
+     }
+    }
+   },
+   "type": "reporting-exceptions"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records/549300YE4PRLJJY2I238": {
+  "data": {
+   "attributes": {
+    "bic": null,
+    "conformityFlag": "NOT_APPLICABLE",
+    "entity": {
+     "associatedEntity": {
+      "lei": null,
+      "name": null
+     },
+     "category": "GENERAL",
+     "creationDate": null,
+     "eventGroups": [],
+     "expiration": {
+      "date": null,
+      "reason": null
+     },
+     "headquartersAddress": {
+      "addressLines": [
+       "CHAUSS\u00c9E DE TUBIZE 297"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BRAINE-L'ALLEUD",
+      "country": "BE",
+      "language": "nl",
+      "mailRouting": null,
+      "postalCode": "1420",
+      "region": "BE-WBR"
+     },
+     "jurisdiction": "BE",
+     "legalAddress": {
+      "addressLines": [
+       "CHAUSS\u00c9E DE TUBIZE 297"
+      ],
+      "addressNumber": null,
+      "addressNumberWithinBuilding": null,
+      "city": "BRAINE-L'ALLEUD",
+      "country": "BE",
+      "language": "nl",
+      "mailRouting": null,
+      "postalCode": "1420",
+      "region": "BE-WBR"
+     },
+     "legalForm": {
+      "id": "R85P",
+      "other": null
+     },
+     "legalName": {
+      "language": "nl",
+      "name": "LONZA BRAINE SA"
+     },
+     "otherAddresses": [],
+     "otherNames": [],
+     "registeredAs": "0879.346.768",
+     "registeredAt": {
+      "id": "RA000025",
+      "other": null
+     },
+     "status": "NULL",
+     "subCategory": null,
+     "successorEntities": [
+      {
+       "lei": "894500XRM0N1353TSE52"
+      }
+     ],
+     "successorEntity": {
+      "lei": "894500XRM0N1353TSE52",
+      "name": null
+     },
+     "transliteratedOtherNames": []
+    },
+    "gem": null,
+    "lei": "549300YE4PRLJJY2I238",
+    "mic": null,
+    "ocid": null,
+    "qcc": null,
+    "registration": {
+     "corroborationLevel": "FULLY_CORROBORATED",
+     "initialRegistrationDate": "2014-02-20T01:53:00Z",
+     "lastUpdateDate": "2023-08-10T08:36:29Z",
+     "managingLou": "213800WAVVOPS85N2205",
+     "nextRenewalDate": "2017-02-07T14:24:00Z",
+     "otherValidationAuthorities": [],
+     "status": "DUPLICATE",
+     "validatedAs": "0879.346.768",
+     "validatedAt": {
+      "id": "RA000025",
+      "other": null
+     }
+    },
+    "spglobal": null
+   },
+   "id": "549300YE4PRLJJY2I238",
+   "links": {
+    "self": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238"
+   },
+   "relationships": {
+    "field-modifications": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/field-modifications"
+     }
+    },
+    "lei-issuer": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/lei-issuer"
+     }
+    },
+    "managing-lou": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/managing-lou"
+     }
+    },
+    "successor-entities": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/successor-entities"
+     }
+    },
+    "successor-entity": {
+     "links": {
+      "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/successor-entity"
+     }
+    }
+   },
+   "type": "lei-records"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   }
+  }
+ },
+ "/lei-records?country=BE&q=Lonza": {
+  "data": [
+   {
+    "attributes": {
+     "bic": null,
+     "conformityFlag": "CONFORMING",
+     "entity": {
+      "associatedEntity": {
+       "lei": null,
+       "name": null
+      },
+      "category": "GENERAL",
+      "creationDate": "1998-04-29T00:00:00Z",
+      "eventGroups": [],
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "headquartersAddress": {
+       "addressLines": [
+        "AVENUE DES BIOLLEUX 14"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "city": "VERVIERS",
+       "country": "BE",
+       "language": "en",
+       "mailRouting": null,
+       "postalCode": "4800",
+       "region": "BE-WLG"
+      },
+      "jurisdiction": "BE",
+      "legalAddress": {
+       "addressLines": [
+        "AVENUE DES BIOLLEUX 14"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "city": "VERVIERS",
+       "country": "BE",
+       "language": "en",
+       "mailRouting": null,
+       "postalCode": "4800",
+       "region": "BE-WLG"
+      },
+      "legalForm": {
+       "id": "3W7E",
+       "other": null
+      },
+      "legalName": {
+       "language": "en",
+       "name": "LONZA VERVIERS"
+      },
+      "otherAddresses": [],
+      "otherNames": [],
+      "registeredAs": "0463.156.786",
+      "registeredAt": {
+       "id": "RA000025",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "subCategory": null,
+      "successorEntities": [],
+      "successorEntity": {
+       "lei": null,
+       "name": null
+      },
+      "transliteratedOtherNames": []
+     },
+     "gem": null,
+     "lei": "213800IK89OTMDYZTD06",
+     "mic": null,
+     "ocid": null,
+     "qcc": "QBE21K094N",
+     "registration": {
+      "corroborationLevel": "FULLY_CORROBORATED",
+      "initialRegistrationDate": "2026-03-24T00:00:00Z",
+      "lastUpdateDate": "2026-03-24T16:36:41Z",
+      "managingLou": "213800WAVVOPS85N2205",
+      "nextRenewalDate": "2027-03-24T00:00:00Z",
+      "otherValidationAuthorities": [],
+      "status": "ISSUED",
+      "validatedAs": "0463.156.786",
+      "validatedAt": {
+       "id": "RA000025",
+       "other": null
+      }
+     },
+     "spglobal": [
+      "43290115"
+     ]
+    },
+    "id": "213800IK89OTMDYZTD06",
+    "links": {
+     "self": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06"
+    },
+    "relationships": {
+     "direct-parent": {
+      "links": {
+       "lei-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/direct-parent",
+       "relationship-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/direct-parent-relationship"
+      }
+     },
+     "field-modifications": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/field-modifications"
+      }
+     },
+     "lei-issuer": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/lei-issuer"
+      }
+     },
+     "managing-lou": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/managing-lou"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "lei-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/ultimate-parent",
+       "relationship-record": "https://api.gleif.org/api/v1/lei-records/213800IK89OTMDYZTD06/ultimate-parent-relationship"
+      }
+     }
+    },
+    "type": "lei-records"
+   },
+   {
+    "attributes": {
+     "bic": null,
+     "conformityFlag": "CONFORMING",
+     "entity": {
+      "associatedEntity": {
+       "lei": null,
+       "name": null
+      },
+      "category": "GENERAL",
+      "creationDate": "2019-10-22T00:00:00Z",
+      "eventGroups": [],
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "headquartersAddress": {
+       "addressLines": [
+        "RIJKSWEG(BOR) 11"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "city": "BORNEM",
+       "country": "BE",
+       "language": "en",
+       "mailRouting": null,
+       "postalCode": "2880",
+       "region": "BE-VAN"
+      },
+      "jurisdiction": "BE",
+      "legalAddress": {
+       "addressLines": [
+        "RIJKSWEG(BOR) 11"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "city": "BORNEM",
+       "country": "BE",
+       "language": "en",
+       "mailRouting": null,
+       "postalCode": "2880",
+       "region": "BE-VAN"
+      },
+      "legalForm": {
+       "id": "R85P",
+       "other": null
+      },
+      "legalName": {
+       "language": "en",
+       "name": "LONZA FINANCE INTERNATIONAL NV"
+      },
+      "otherAddresses": [],
+      "otherNames": [],
+      "registeredAs": "0736.673.428",
+      "registeredAt": {
+       "id": "RA000025",
+       "other": null
+      },
+      "status": "ACTIVE",
+      "subCategory": null,
+      "successorEntities": [],
+      "successorEntity": {
+       "lei": null,
+       "name": null
+      },
+      "transliteratedOtherNames": []
+     },
+     "gem": null,
+     "lei": "549300AS6XQBD4ETT379",
+     "mic": null,
+     "ocid": null,
+     "qcc": "QBEQ3DD04E",
+     "registration": {
+      "corroborationLevel": "FULLY_CORROBORATED",
+      "initialRegistrationDate": "2019-10-23T14:30:00Z",
+      "lastUpdateDate": "2026-03-11T14:51:08Z",
+      "managingLou": "213800WAVVOPS85N2205",
+      "nextRenewalDate": "2027-03-28T00:00:00Z",
+      "otherValidationAuthorities": [],
+      "status": "ISSUED",
+      "validatedAs": "0736.673.428",
+      "validatedAt": {
+       "id": "RA000025",
+       "other": null
+      }
+     },
+     "spglobal": [
+      "641543736"
+     ]
+    },
+    "id": "549300AS6XQBD4ETT379",
+    "links": {
+     "self": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379"
+    },
+    "relationships": {
+     "direct-parent": {
+      "links": {
+       "lei-record": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/direct-parent",
+       "relationship-record": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/direct-parent-relationship"
+      }
+     },
+     "field-modifications": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/field-modifications"
+      }
+     },
+     "isins": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/isins"
+      }
+     },
+     "lei-issuer": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/lei-issuer"
+      }
+     },
+     "managing-lou": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/managing-lou"
+      }
+     },
+     "ultimate-parent": {
+      "links": {
+       "lei-record": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/ultimate-parent",
+       "relationship-record": "https://api.gleif.org/api/v1/lei-records/549300AS6XQBD4ETT379/ultimate-parent-relationship"
+      }
+     }
+    },
+    "type": "lei-records"
+   },
+   {
+    "attributes": {
+     "bic": null,
+     "conformityFlag": "NOT_APPLICABLE",
+     "entity": {
+      "associatedEntity": {
+       "lei": null,
+       "name": null
+      },
+      "category": "GENERAL",
+      "creationDate": null,
+      "eventGroups": [],
+      "expiration": {
+       "date": null,
+       "reason": null
+      },
+      "headquartersAddress": {
+       "addressLines": [
+        "CHAUSS\u00c9E DE TUBIZE 297"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "city": "BRAINE-L'ALLEUD",
+       "country": "BE",
+       "language": "nl",
+       "mailRouting": null,
+       "postalCode": "1420",
+       "region": "BE-WBR"
+      },
+      "jurisdiction": "BE",
+      "legalAddress": {
+       "addressLines": [
+        "CHAUSS\u00c9E DE TUBIZE 297"
+       ],
+       "addressNumber": null,
+       "addressNumberWithinBuilding": null,
+       "city": "BRAINE-L'ALLEUD",
+       "country": "BE",
+       "language": "nl",
+       "mailRouting": null,
+       "postalCode": "1420",
+       "region": "BE-WBR"
+      },
+      "legalForm": {
+       "id": "R85P",
+       "other": null
+      },
+      "legalName": {
+       "language": "nl",
+       "name": "LONZA BRAINE SA"
+      },
+      "otherAddresses": [],
+      "otherNames": [],
+      "registeredAs": "0879.346.768",
+      "registeredAt": {
+       "id": "RA000025",
+       "other": null
+      },
+      "status": "NULL",
+      "subCategory": null,
+      "successorEntities": [
+       {
+        "lei": "894500XRM0N1353TSE52"
+       }
+      ],
+      "successorEntity": {
+       "lei": "894500XRM0N1353TSE52",
+       "name": null
+      },
+      "transliteratedOtherNames": []
+     },
+     "gem": null,
+     "lei": "549300YE4PRLJJY2I238",
+     "mic": null,
+     "ocid": null,
+     "qcc": null,
+     "registration": {
+      "corroborationLevel": "FULLY_CORROBORATED",
+      "initialRegistrationDate": "2014-02-20T01:53:00Z",
+      "lastUpdateDate": "2023-08-10T08:36:29Z",
+      "managingLou": "213800WAVVOPS85N2205",
+      "nextRenewalDate": "2017-02-07T14:24:00Z",
+      "otherValidationAuthorities": [],
+      "status": "DUPLICATE",
+      "validatedAs": "0879.346.768",
+      "validatedAt": {
+       "id": "RA000025",
+       "other": null
+      }
+     },
+     "spglobal": null
+    },
+    "id": "549300YE4PRLJJY2I238",
+    "links": {
+     "self": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238"
+    },
+    "relationships": {
+     "field-modifications": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/field-modifications"
+      }
+     },
+     "lei-issuer": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/lei-issuer"
+      }
+     },
+     "managing-lou": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/managing-lou"
+      }
+     },
+     "successor-entities": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/successor-entities"
+      }
+     },
+     "successor-entity": {
+      "links": {
+       "related": "https://api.gleif.org/api/v1/lei-records/549300YE4PRLJJY2I238/successor-entity"
+      }
+     }
+    },
+    "type": "lei-records"
+   }
+  ],
+  "links": {
+   "first": "https://api.gleif.org/api/v1/lei-records?filter%5Bfulltext%5D=Lonza&filter%5Bentity.legalAddress.country%5D=BE&page%5Bnumber%5D=1&page%5Bsize%5D=10",
+   "last": "https://api.gleif.org/api/v1/lei-records?filter%5Bfulltext%5D=Lonza&filter%5Bentity.legalAddress.country%5D=BE&page%5Bnumber%5D=1&page%5Bsize%5D=10"
+  },
+  "meta": {
+   "goldenCopy": {
+    "publishDate": "2026-10-26T00:00:00Z"
+   },
+   "pagination": {
+    "currentPage": 1,
+    "from": 1,
+    "lastPage": 1,
+    "perPage": 10,
+    "to": 3,
+    "total": 3
+   }
+  }
+ }
+}

@@ -1,0 +1,299 @@
+{
+ "meta": {
+  "results": {
+   "skip": 0,
+   "limit": 1000,
+   "total": 13
+  }
+ },
+ "results": [
+  {
+   "recall_number": "D-0348-2025",
+   "classification": "Class II",
+   "recalling_firm": "Glenmark Pharmaceuticals Inc., USA",
+   "reason_for_recall": "CGMP Deviations",
+   "status": "Ongoing",
+   "product_description": "Cetirizine Hydrochloride Tablets, USP, 10mg, 365-count packs, Rx Only, Manufactured for: Glenmark Therapeutics Inc., Distributed by: Amazon. NDC# 72657-129-35",
+   "product_quantity": "N/A",
+   "country": "United States",
+   "recall_initiation_date": "20250313",
+   "center_classification_date": "20250408",
+   "report_date": "20250416",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "U.S. Nationwide",
+   "openfda": {
+    "brand_name": [
+     "CETIRIZINE HCL"
+    ],
+    "generic_name": [
+     "CETIRIZINE"
+    ],
+    "manufacturer_name": [
+     "GLENMARK THERAPEUTICS INC., USA"
+    ]
+   }
+  },
+  {
+   "recall_number": "D-0643-2020",
+   "classification": "Class II",
+   "recalling_firm": "Glenmark Pharmaceuticals Inc., USA",
+   "reason_for_recall": "CGMP Deviations: Presence of NDMA impurity detected in product.",
+   "status": "Ongoing",
+   "product_description": "Glenmark Ranitidine Tablets USP 300 mg Rx Only 250 Tablets Manufactured by: Glenmark Pharmaceuticals Ltd. Colvale-Bandez, Goa 403513, India Manufactured for: Glenmark Pharmaceuticals Inc., USA Mahwah, NJ   NDC 68462-249-20",
+   "product_quantity": "500,960 bottles",
+   "country": "United States",
+   "recall_initiation_date": "20191217",
+   "center_classification_date": "20200105",
+   "report_date": "20200115",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Natiowide",
+   "openfda": {}
+  },
+  {
+   "recall_number": "D-0700-2017",
+   "classification": "Class III",
+   "recalling_firm": "Sun Pharmaceutical Industries, Inc.",
+   "reason_for_recall": "Failed Impurities/Degradation Specifications: out of specification results for the related substances test parameter (impurities).",
+   "status": "Terminated",
+   "product_description": "Olanzapine Tablets, 7.5 mg, packaged in a) 30-count bottles (NDC 62756-553-83), b) 100-count bottles (NDC 62756-553-88), and c) 1000-count bottles (NDC 62756-553-18), Rx Only, Distributed by: Sun Pharmaceutical Industries, Inc., Cranbury, NJ 08512, Manufactured by: Sun Pharmaceutical Ind. Ltd., Halol-Baroda Highway, Halol-389, 350 Gujarat, India.",
+   "product_quantity": "6,138 bottles",
+   "country": "United States",
+   "recall_initiation_date": "20170322",
+   "center_classification_date": "20170510",
+   "report_date": "20170517",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the USA and Puerto Rico",
+   "openfda": {}
+  },
+  {
+   "recall_number": "D-0700-2017",
+   "classification": "Class III",
+   "recalling_firm": "Sun Pharmaceutical Industries, Inc.",
+   "reason_for_recall": "Failed Impurities/Degradation Specifications: out of specification results for the related substances test parameter (impurities).",
+   "status": "Terminated",
+   "product_description": "Olanzapine Tablets, 7.5 mg, packaged in a) 30-count bottles (NDC 62756-553-83), b) 100-count bottles (NDC 62756-553-88), and c) 1000-count bottles (NDC 62756-553-18), Rx Only, Distributed by: Sun Pharmaceutical Industries, Inc., Cranbury, NJ 08512, Manufactured by: Sun Pharmaceutical Ind. Ltd., Halol-Baroda Highway, Halol-389, 350 Gujarat, India.",
+   "product_quantity": "6,138 bottles",
+   "country": "United States",
+   "recall_initiation_date": "20170322",
+   "center_classification_date": "20170510",
+   "report_date": "20170517",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the USA and Puerto Rico",
+   "openfda": {}
+  },
+  {
+   "recall_number": "D-407-2014",
+   "classification": "Class II",
+   "recalling_firm": "B. Braun Medical Inc",
+   "reason_for_recall": "Labeling: Wrong Bar Code; Bar code scans as 0.15% Potassium Chloride in 0.9% Sodium Chloride (20 mEq K/liter).",
+   "status": "Terminated",
+   "product_description": "0.45% Sodium Chloride Injection USP, 1000 mL. Rx only, Manufactured by B. Braun Medical Inc, 2525 McGaw Ave,  Irvine, CA 92614.  NDC 0264-7802-00.",
+   "product_quantity": "19,572 bags",
+   "country": "United States",
+   "recall_initiation_date": "20131127",
+   "center_classification_date": "20140110",
+   "report_date": "20140122",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the US and Puerto Rico.",
+   "openfda": {
+    "brand_name": [
+     "SODIUM CHLORIDE"
+    ],
+    "generic_name": [
+     "SODIUM CHLORIDE"
+    ],
+    "manufacturer_name": [
+     "B. Braun Medical Inc."
+    ]
+   }
+  },
+  {
+   "recall_number": "D-1296-2020",
+   "classification": "Class I",
+   "recalling_firm": "Fresenius Kabi USA, LLC",
+   "reason_for_recall": "Presence of Particulate Matter - found in reserve sample vials at the firm.",
+   "status": "Terminated",
+   "product_description": "Ketorolac Tromethamine Injection, USP, 30 mg per mL, packaged in 1 mL Single Dose Vials (NDC 63323-162-00); 25 x 1 mL Single Dose Vials per tray (NDC 63323-162-01); For IM or IV use, Rx only, Fresenius Kabi, Lake Zurich, IL  60047.",
+   "product_quantity": "5,314,400 vials",
+   "country": "United States",
+   "recall_initiation_date": "20200420",
+   "center_classification_date": "20200608",
+   "report_date": "20200617",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "USA Nationwide and Puerto Rico",
+   "openfda": {
+    "brand_name": [
+     "KETOROLAC TROMETHAMINE"
+    ],
+    "generic_name": [
+     "KETOROLAC TROMETHAMINE"
+    ],
+    "manufacturer_name": [
+     "Fresenius Kabi USA, LLC"
+    ]
+   }
+  },
+  {
+   "recall_number": "D-321-2016",
+   "classification": "Class II",
+   "recalling_firm": "Kalman Health & Wellness, Inc. dba Essential Wellness Pharma",
+   "reason_for_recall": "Lack of Assurance of Sterility:  A recall of all compounded sterile preparations within expiry is being initiated due to observations associated with poor sterile production practices resulting in a lack of sterility assurance for their finished drugs.",
+   "status": "Terminated",
+   "product_description": "Progesterone 100 mg/mL in Corn Oil Injection, 2 mL vials, Rx only, Essential Wellness PHARMACY, 4625 N. University, Peoria, IL 61614.",
+   "product_quantity": "1 vial",
+   "country": "United States",
+   "recall_initiation_date": "20150903",
+   "center_classification_date": "20151117",
+   "report_date": "20151125",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide",
+   "openfda": {}
+  },
+  {
+   "recall_number": "D-0150-2024",
+   "classification": "Class II",
+   "recalling_firm": "SUN PHARMACEUTICAL INDUSTRIES INC",
+   "reason_for_recall": "Failed Impurities/Degradation Specifications",
+   "status": "Terminated",
+   "product_description": "Liothyronine Sodium Tablets, USP 5 mcg, 100-count bottle, Rx Only, Distributed by: Sun Pharmaceutical Industries, Inc. Cranbury, NJ 08512 Manufactured by: Sun Pharmaceutical Industries Ltd. Survey No. 259/15, Dadra-396 191, (U.T. of D & NH), India. NDC 62756-589-88",
+   "product_quantity": "96,192 bottles",
+   "country": "United States",
+   "recall_initiation_date": "20231204",
+   "center_classification_date": "20231214",
+   "report_date": "20231220",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide",
+   "openfda": {
+    "brand_name": [
+     "LIOTHYRONINE SODIUM"
+    ],
+    "generic_name": [
+     "LIOTHYRONINE SODIUM"
+    ],
+    "manufacturer_name": [
+     "Sun Pharmaceutical Industries, Inc."
+    ]
+   }
+  },
+  {
+   "recall_number": "D-0586-2025",
+   "classification": "Class II",
+   "recalling_firm": "B BRAUN MEDICAL INC",
+   "reason_for_recall": "Lack of Assurance of Sterility; potential for fluid leakage at one of the weld sites.",
+   "status": "Ongoing",
+   "product_description": "0.9% Sodium Chloride Injection USP, L 8000, 1000mL Excel Container, Rx Only, Sterile, nonpyrogenic, single dose container, B. Braun Medical Inc., Bethlehem, PA 18018, NDC 0264-7800-00.",
+   "product_quantity": "23,100 containers",
+   "country": "United States",
+   "recall_initiation_date": "20250804",
+   "center_classification_date": "20250814",
+   "report_date": "20250820",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the US",
+   "openfda": {
+    "brand_name": [
+     "SODIUM CHLORIDE"
+    ],
+    "generic_name": [
+     "SODIUM CHLORIDE"
+    ],
+    "manufacturer_name": [
+     "B. Braun Medical Inc."
+    ]
+   }
+  },
+  {
+   "recall_number": "D-0353-2026",
+   "classification": "Class I",
+   "recalling_firm": "McKesson",
+   "reason_for_recall": "Temperature Abuse. 116 cartons with specific serial numbers of Lot 2199821, were stored incorrectly in a controlled room temperature environment instead of the required refrigerated environment.",
+   "status": "Ongoing",
+   "product_description": "UDENYCA, pegfilgrastim-cbqv injection, 6 mg/0.6mL Single Dose Prefilled Syringe, Rx only,  Manufactured by Accord BioPharma, Inc., 8041 Arco Corporate Drive, Suite 200, Raleigh, NC 27617, NDC 69448-025-63",
+   "product_quantity": "116 cartons",
+   "country": "United States",
+   "recall_initiation_date": "20260116",
+   "center_classification_date": "20260226",
+   "report_date": "20260218",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the USA",
+   "openfda": {
+    "brand_name": [
+     "UDENYCA"
+    ],
+    "generic_name": [
+     "PEGFILGRASTIM-CBQV"
+    ],
+    "manufacturer_name": [
+     "Accord BioPharma, Inc."
+    ]
+   }
+  },
+  {
+   "recall_number": "D-0289-2026",
+   "classification": "Class I",
+   "recalling_firm": "Medinatura New Mexico, inc.",
+   "reason_for_recall": "Microbial Contamination of Non-Sterile Products: The products have been found to contain yeast/mold and microbial contamination identified as Achromobacter.",
+   "status": "Ongoing",
+   "product_description": "ClearLife Allergy Nasal Spray, Extra Strength, 0.68 fl. oz. (20 mL) bottles, Distributed by: MediNatura, 10421 Research Rd., SE, Albuquerque, NM 87123, NDC 62795-4006-9, UPC 787647101887",
+   "product_quantity": "",
+   "country": "United States",
+   "recall_initiation_date": "20251212",
+   "center_classification_date": "20260115",
+   "report_date": "20260114",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the US",
+   "openfda": {
+    "brand_name": [
+     "CLEARLIFE EXTRA STRENGTH"
+    ],
+    "generic_name": [
+     "ONION, GALPHIMIA GLAUCA FLOWERING TOP, HISTAMINE DIHYDROCHLORIDE, LUFFA OPERCULATA FRUIT, SULFUR, AMBROSIA ARTEMISIIFOLIA WHOLE, EUPHRASIA STRICTA AND SCHOENOCAULON OFFICINALE SEED"
+    ],
+    "manufacturer_name": [
+     "MediNatura Inc."
+    ]
+   }
+  },
+  {
+   "recall_number": "D-0381-2026",
+   "classification": "Class III",
+   "recalling_firm": "Cipla USA, Inc.",
+   "reason_for_recall": "Failed Tablet/Capsule Specifications: Observed OOS results at 6-months long-term stability condition for Description test and Appearance by Visual Inspection test.",
+   "status": "Ongoing",
+   "product_description": "Nilotinib Capsules, 150 mg per capsule, packaged in cartons, Rx only, Manufactured by: Cipla Ltd., Verna, Goa, India, Manufactured for: Cipla USA, Inc., 10 Independence Boulevard, Suite 300, Warren, NJ 07059, Outer carton: 112 capsules (4 individual packs containing 28 capsules each) NDC 69097-031-74; Inner carton: 28 capsules (4 blisters of 7 capsules) NDC 69097-031-56; Foil blister: NDC 69097-031-17",
+   "product_quantity": "271 cartons - Ex: 84 outer cartons x 4 inner cartons x 4 blisters x 7 capsules",
+   "country": "United States",
+   "recall_initiation_date": "20260218",
+   "center_classification_date": "20260303",
+   "report_date": "20260311",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "U.S.A. Nationwide",
+   "openfda": {}
+  },
+  {
+   "recall_number": "D-0626-2026",
+   "classification": "Class II",
+   "recalling_firm": "Annora Pharma Private Limited",
+   "reason_for_recall": "Presence of a Foreign Tablets: Complaint received, possible mix-up of Selexipag 1000 mcg tablet in a bottle of Lacosamide Tablets USP, 100mg.",
+   "status": "Ongoing",
+   "product_description": "Lacosamide Tablets, USP, C V, 100mg, Rx only, 60-count bottle, By: Annora Pharma Pvt., Ltd, Sangareddy -502313, Telangana, India, Manufactured for: Camber Pharmaceuticals, Inc., Piscataway, NJ 08854, NDC 31722-813-60.",
+   "product_quantity": "31,392 60-count bottles",
+   "country": "India",
+   "recall_initiation_date": "20260604",
+   "center_classification_date": "20260625",
+   "report_date": "20260701",
+   "voluntary_mandated": "Voluntary: Firm initiated",
+   "distribution_pattern": "Nationwide in the USA",
+   "openfda": {
+    "brand_name": [
+     "LACOSAMIDE"
+    ],
+    "generic_name": [
+     "LACOSAMIDE"
+    ],
+    "manufacturer_name": [
+     "Camber Pharmaceuticals, Inc."
+    ]
+   }
+  }
+ ]
+}

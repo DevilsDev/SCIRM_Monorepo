@@ -26,10 +26,17 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: planner
-        image: scirm/planner:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/planner:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -105,10 +112,17 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: researcher
-        image: scirm/researcher:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/researcher:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -184,10 +198,17 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: executor
-        image: scirm/executor:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/executor:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -261,10 +282,17 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: reviewer
-        image: scirm/reviewer:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/reviewer:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
@@ -338,7 +366,7 @@ spec:
       serviceAccountName: scirm-service-account
       containers:
       - name: api-gateway
-        image: scirm/api-gateway:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/api-gateway:latest  # deploy.yml pins the release tag
         ports:
         - containerPort: 8000
         env:
@@ -352,21 +380,90 @@ spec:
             secretKeyRef:
               name: scirm-secrets
               key: redis-url
-        - name: JWT_SECRET
+        - name: STORE_BACKEND
+          value: "postgres"
+        # Names must match what libs/common/auth.py and the gateway read.
+        - name: ENVIRONMENT
+          value: "staging"
+        # Base URL for invitation links (scripts/create_tenant.py, Settings > Team).
+        - name: PUBLIC_APP_URL
+          value: "REPLACE_WITH_STAGING_APP_URL"
+        # The gateway's own public address: the SSO redirect URI is <this>/api/v1/auth/sso/callback.
+        - name: PUBLIC_API_URL
+          value: "REPLACE_WITH_STAGING_API_URL"
+        - name: JWT_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: scirm-secrets
               key: jwt-secret
-        - name: COORDINATOR_URL
+        - name: MFA_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: mfa-encryption-key
+        # Scheduled report emails (optional: without smtp-host nothing is sent and the UI says so).
+        - name: SMTP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-host
+              optional: true
+        - name: SMTP_PORT
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-port
+              optional: true
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-username
+              optional: true
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-password
+              optional: true
+        - name: SMTP_FROM
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: smtp-from
+              optional: true
+        # Users who set up two-step sign-in are asked for a code (the default; explicit here).
+        - name: MFA_ENABLED
+          value: "true"
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scirm-secrets
+              key: service-api-key
+        - name: COORDINATOR_SERVICE_URL
           value: "http://coordinator:8000"
-        - name: PLANNER_URL
+        - name: PLANNER_SERVICE_URL
           value: "http://planner:8000"
-        - name: RESEARCHER_URL
+        - name: RESEARCHER_SERVICE_URL
           value: "http://researcher:8000"
-        - name: EXECUTOR_URL
+        - name: EXECUTOR_SERVICE_URL
           value: "http://executor:8000"
-        - name: REVIEWER_URL
+        - name: REVIEWER_SERVICE_URL
           value: "http://reviewer:8000"
+        - name: RISK_SCORER_SERVICE_URL
+          value: "http://risk-scorer:8000"
+        - name: DISCOVERY_SERVICE_URL
+          value: "http://discovery:8000"
+        - name: INGESTION_SERVICE_URL
+          value: "http://ingestion:8000"
+        - name: CHAT_SERVICE_URL
+          value: "http://chat:8000"
+        - name: SIMULATOR_SERVICE_URL
+          value: "http://simulator:8000"
+        - name: PROCUREMENT_SERVICE_URL
+          value: "http://procurement:8000"
+        - name: COMPONENT_TRACKER_URL
+          value: "http://component-tracker:8000"
         resources:
           requests:
             memory: "256Mi"
@@ -421,16 +518,11 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: scirm/frontend:latest
+        image: ghcr.io/devilsdev/scirm_monorepo/frontend:latest  # deploy.yml pins the release tag
         ports:
-        - containerPort: 3000
-        env:
-        - name: REACT_APP_API_URL
-          value: "http://api-gateway"
-        - name: REACT_APP_WS_URL
-          value: "ws://api-gateway"
-        - name: NODE_ENV
-          value: "production"
+        # Static bundle served by unprivileged nginx. API URLs are build-time
+        # (VITE_API_URL / VITE_WS_URL build args), not runtime env.
+        - containerPort: 8080
         resources:
           requests:
             memory: "128Mi"
@@ -441,13 +533,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 3000
+            port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /
-            port: 3000
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
 ---
@@ -461,5 +553,5 @@ spec:
     app: frontend
   ports:
   - port: 80
-    targetPort: 3000
+    targetPort: 8080
   type: LoadBalancer
