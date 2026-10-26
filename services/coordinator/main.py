@@ -33,7 +33,7 @@ from libs.common.security import public_url, setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
 from libs.integrations import reports, sap_import, sap_odata, sap_spend, webhooks
-from libs.intel import geo, water
+from libs.intel import geo, gleif, water
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -935,6 +935,84 @@ async def _match_signals(org_id: str, suppliers: List[Dict[str, Any]], **options
 def _split(matches: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     return {"incidents": [m for m in matches if m["kind"] == "incident"],
             "exposures": [m for m in matches if m["kind"] == "exposure"]}
+
+
+# --- ownership (GLEIF) -------------------------------------------------------
+# A person confirms which LEI a supplier is; SCIRM never links one by itself. The last
+# GLEIF answer is kept with the link, so shared owners show without calling GLEIF per row.
+GLEIF = gleif.Client()
+
+
+class OwnershipLink(BaseModel):
+    lei: str = Field(..., min_length=20, max_length=20)
+    confirmed_by: str = Field(..., min_length=3, max_length=320)
+
+
+async def _gleif(call):
+    try:
+        return await call
+    except gleif.GleifUnavailable as exc:
+        raise HTTPException(status_code=503, detail=f"{exc}. Try again later.")
+
+
+@app.get("/ownership/search")
+async def ownership_search(name: str, country: Optional[str] = None, org_id: str = Depends(tenant_org)):
+    """Candidate LEI records for a name (or an LEI), for a person to choose from."""
+    return {"candidates": await _gleif(GLEIF.search(name, country)), "source": gleif.SOURCE}
+
+
+@app.get("/suppliers/{supplier_id}/ownership")
+async def supplier_ownership(supplier_id: str, org_id: str = Depends(tenant_org)):
+    supplier = await _get_org_supplier(org_id, supplier_id)
+    return {"supplier": {k: supplier.get(k) for k in ("id", "name", "country_code")},
+            "link": await store.get_ownership(org_id, supplier_id), "source": gleif.SOURCE}
+
+
+@app.put("/suppliers/{supplier_id}/ownership")
+async def link_ownership(supplier_id: str, body: OwnershipLink, org_id: str = Depends(tenant_org)):
+    await _get_org_supplier(org_id, supplier_id)
+    lei = body.lei.strip().upper()
+    if not gleif.is_lei(lei):
+        raise HTTPException(status_code=400, detail="That is not a valid LEI")
+    snapshot = await _gleif(GLEIF.ownership(lei))
+    if not snapshot:
+        raise HTTPException(status_code=400, detail="GLEIF has no record for that LEI")
+    return {"link": await store.set_ownership(org_id, supplier_id, lei, snapshot, body.confirmed_by)}
+
+
+@app.post("/suppliers/{supplier_id}/ownership/refresh")
+async def refresh_ownership(supplier_id: str, org_id: str = Depends(tenant_org)):
+    await _get_org_supplier(org_id, supplier_id)
+    link = await store.get_ownership(org_id, supplier_id)
+    if not link:
+        raise HTTPException(status_code=404, detail="This supplier has no confirmed LEI")
+    snapshot = await _gleif(GLEIF.ownership(link["lei"]))
+    if not snapshot:
+        raise HTTPException(status_code=400, detail="GLEIF no longer has a record for this LEI")
+    return {"link": await store.refresh_ownership(org_id, supplier_id, snapshot)}
+
+
+@app.delete("/suppliers/{supplier_id}/ownership")
+async def unlink_ownership(supplier_id: str, org_id: str = Depends(tenant_org)):
+    await _get_org_supplier(org_id, supplier_id)
+    if not await store.remove_ownership(org_id, supplier_id):
+        raise HTTPException(status_code=404, detail="This supplier has no confirmed LEI")
+    return {"removed": True}
+
+
+@app.get("/ownership")
+async def ownership_overview(org_id: str = Depends(tenant_org)):
+    """Linked suppliers with their parents, groups of suppliers that share an owner, and the
+    active suppliers with no confirmed LEI (their ownership is unknown here)."""
+    suppliers = {str(s["id"]): s for s in (await store.list_suppliers(org_id, limit=None))[0]}
+    links = [l for l in await store.list_ownership(org_id) if l["supplier_id"] in suppliers]
+    rows = [{"supplier_id": l["supplier_id"], "supplier": suppliers[l["supplier_id"]].get("name"),
+             "is_active": suppliers[l["supplier_id"]].get("is_active", True), **l} for l in links]
+    return {"links": rows, "shared_owners": gleif.shared_owners(rows),
+            "unlinked": [{"supplier_id": sid, "name": s.get("name"), "country_code": s.get("country_code")}
+                         for sid, s in suppliers.items()
+                         if s.get("is_active", True) and sid not in {l["supplier_id"] for l in links}],
+            "source": gleif.SOURCE}
 
 
 @app.get("/suppliers/{supplier_id}/water-risk")

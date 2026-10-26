@@ -98,8 +98,14 @@ def apps():
     from intel_support import recorded_transport
     ingestion.http_client_factory = lambda: real_client(transport=recorded_transport())
     ingestion.LOOKBACK_DAYS = 36500  # recorded payloads have fixed dates
+    # GLEIF too: recorded responses; gleif_state["down"] = True simulates an outage.
+    import gleif_support
+    from libs.intel import gleif
+    gleif_state = {}
+    coordinator.GLEIF = gleif.Client(transport=gleif_support.transport(gleif_state))
 
-    return {"gateway": gateway, "coordinator": coordinator, "ingestion": ingestion, "router": router}
+    return {"gateway": gateway, "coordinator": coordinator, "ingestion": ingestion, "router": router,
+            "gleif_state": gleif_state}
 
 
 @pytest.fixture(scope="session")
