@@ -18,6 +18,7 @@ nav:
       - Connecting to SAP S/4HANA: sap-connection.md
       - Bedrock (EU) setup: bedrock-setup.md
       - Disaster exposure by site: site-exposure.md
+      - Water risk by site: water-risk.md
       - Two-step sign-in: two-step-sign-in.md
       - Passwords: passwords.md
       - Single sign-on: single-sign-on.md

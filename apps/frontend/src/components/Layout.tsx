@@ -23,6 +23,7 @@ import {
   ClipboardDocumentListIcon,
   PuzzlePieceIcon,
   ScaleIcon,
+  GlobeEuropeAfricaIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useState } from 'react';
@@ -56,6 +57,7 @@ const navGroups: Array<{ labelKey: string; fallbackLabel: string; items: NavItem
       { to: '/suppliers', tKey: 'nav.suppliers', fallback: 'Suppliers', icon: TruckIcon },
       { to: '/supplier-assessments', tKey: 'nav.supplierAssessments', fallback: 'Supplier assessments', icon: ClipboardDocumentCheckIcon },
       { to: '/due-diligence', tKey: 'nav.dueDiligence', fallback: 'Due diligence', icon: ScaleIcon },
+      { to: '/water-risk', tKey: 'nav.waterRisk', fallback: 'Water risk', icon: GlobeEuropeAfricaIcon },
       { to: '/components', tKey: 'nav.components', fallback: 'Components', icon: CubeIcon },
       { to: '/supply-chain', tKey: 'nav.supplyChain', fallback: 'Network Map', icon: MapIcon },
     ],

@@ -47,6 +47,7 @@ const NAMED: Record<string, string> = {
   'due_diligence.analysis_reviewed': "Reviewed a supplier's risk analysis",
   'due_diligence.settings_changed': 'Changed the due diligence review interval',
   'due_diligence.exported': 'Downloaded the due diligence documentation',
+  'water_risk.exported': 'Downloaded the water risk CSV',
   'signature.failed': 'A signing attempt failed',
   'action.proposed': 'An AI agent proposed an action',
   'action.executed': 'Ran an action proposed by an AI agent',
