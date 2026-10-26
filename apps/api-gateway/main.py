@@ -1057,15 +1057,17 @@ async def send_assessment(body: AssessmentRequest, token: str = Depends(security
     return await _send_assessment(await verify_token(token.credentials), body)
 
 
+_DD_REASON_NEEDED = ("Say why this information is needed and cannot reasonably be obtained another way: a business "
+                     "partner is asked for due diligence information only where necessary (CSDDD Article 8(2a)).")
+
+
 async def _send_assessment(user, body: AssessmentRequest):
     """Shared with approved AI proposals (assessment.send)."""
     require_write_access(user)
     template = await _assessment_template(user.organization_id, body.template_id)
     reason = body.request_reason.strip()
     if template.get("due_diligence") and not reason:
-        raise HTTPException(status_code=400, detail=(
-            "Say why this information is needed and cannot reasonably be obtained another way: a business partner "
-            "is asked for due diligence information only where necessary (CSDDD Article 8(2a))."))
+        raise HTTPException(status_code=400, detail=_DD_REASON_NEEDED)
     email = _valid_email(body.recipient_email)
     portal_token, token_hash = new_portal_token()
     try:
@@ -1504,7 +1506,11 @@ def _action_request(action: str, params: Dict[str, Any]):
     if action == "watchlist.add":
         return WatchlistItemRequest(**params)
     if action == "assessment.send":
-        return AssessmentRequest(**params)
+        request = AssessmentRequest(**params)
+        # Only built-in questionnaires can be due-diligence ones, so this needs no lookup.
+        if aq.BUILT_IN.get(request.template_id, {}).get("due_diligence") and not request.request_reason.strip():
+            raise ValueError(_DD_REASON_NEEDED)
+        return request
     raise ValueError(f"Unknown action {action!r}")
 
 
@@ -1706,6 +1712,13 @@ async def _mcp_scenario(agent, args: Dict[str, Any]) -> Dict[str, Any]:
     scope = {"type": args["scope"] or "all", "supplier_ids": args.get("supplier_ids") or [],
              "country": args.get("country") or None, "incident_id": args.get("incident_id") or None,
              "signal_id": args.get("signal_id") or None}
+    # An argument for another scope would be silently ignored, and the scenario run on a
+    # different set of suppliers than the agent meant: refuse it instead.
+    owner = {"supplier_ids": "suppliers", "country": "country", "incident_id": "incident", "signal_id": "signal"}
+    stray = [name for name, needs in owner.items() if scope[name] and scope["type"] != needs]
+    if stray:
+        raise mcp_tools.ToolRefused(f"{', '.join(stray)} needs scope=" + " / ".join(owner[n] for n in stray)
+                                    + f", not scope={scope['type']}")
     try:
         definition = ScenarioDefinition(scope=ScenarioScope(**scope), duration_weeks=args["duration_weeks"])
     except ValueError as exc:

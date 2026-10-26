@@ -101,6 +101,20 @@ class TestProposals:
         out = client.post(f"/api/v1/ai/proposals/{rejected['id']}/reject", json={"note": "Rumour"}, headers=admin).json()
         assert out["proposal"]["status"] == "rejected" and out["proposal"]["decision_note"] == "Rumour"
 
+    def test_a_due_diligence_questionnaire_without_a_reason_never_reaches_the_queue(self, client, apps, new_team):
+        team = new_team(("admin",))
+        org, admin = org_of(team["admin"]), bearer(team["admin"]["access_token"])
+        supplier = asyncio.run(apps["gateway"].audit_store.create_supplier(org, {
+            "name": "Agent Diligence Ltd", "supplier_code": f"AD-{uuid.uuid4().hex[:6]}", "supplier_type": "manufacturer"}))
+        client.put("/api/v1/ai/policy", json={"action": "assessment.send", "mode": "approval"}, headers=admin)
+        params = {"supplier_id": str(supplier["id"]), "template_id": "builtin:due_diligence",
+                  "recipient_email": "ehs@supplier.example.com"}
+        with pytest.raises(ValueError, match=r"8\(2a\)"):
+            propose(apps, agent(org), "assessment.send", params)
+        assert client.get("/api/v1/ai/proposals", headers=admin).json()["proposals"] == []
+        queued = propose(apps, agent(org), "assessment.send", {**params, "request_reason": "Audit found overtime"})
+        assert queued["status"] == "pending"
+
     def test_a_supplier_link_goes_to_the_approver_once_and_is_not_stored(self, client, apps, new_team):
         team = new_team(("admin",))
         org, admin = org_of(team["admin"]), bearer(team["admin"]["access_token"])

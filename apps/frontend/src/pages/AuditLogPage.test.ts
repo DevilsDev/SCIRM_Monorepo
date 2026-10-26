@@ -9,6 +9,9 @@ import { dayRange, describeAction } from './AuditLogPage';
 describe('describeAction', () => {
   it('names known actions and routes in plain language', () => {
     expect(describeAction('auth.login_failed')).toBe('Failed sign-in');
+    expect(describeAction('POST /api/v1/signatures')).toBe('Signed a record (password)');
+    expect(describeAction('POST /api/v1/scenario-studio/run')).toBe('Ran a scenario');
+    expect(describeAction('PATCH /api/v1/due-diligence/measures/{measure_id}')).toBe('Changed a due diligence measure');
     expect(describeAction('POST /api/v1/org/invitations')).toBe('Invited a teammate');
     expect(describeAction('PATCH /api/v1/org/members/{member_id}')).toBe("Changed a teammate's role or access");
     expect(describeAction('sso.enforcement_off')).toBe('Stopped requiring single sign-on (members can use passwords)');

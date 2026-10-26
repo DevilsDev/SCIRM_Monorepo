@@ -91,6 +91,10 @@ class TestScenarioTool:
         result = tool(client, key, "run_scenario", scope="country", country="IN", duration_weeks=4)
         assert result["at_risk"] == {"EUR": "400.00"} and result["suppliers_without_coverage_data"] == 1
         assert "Invalid scenario" in tool(client, key, "run_scenario", duration_weeks=99)["error"]
+        # An argument for another scope is refused, not silently ignored.
+        stray = tool(client, key, "run_scenario", supplier_ids=[str(uuid.uuid4())], duration_weeks=4)
+        assert "supplier_ids needs scope=suppliers" in stray["error"]
+        assert "country needs scope=country" in tool(client, key, "run_scenario", scope="suppliers", country="IN")["error"]
 
 
 class TestTools:

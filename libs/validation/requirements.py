@@ -153,8 +153,10 @@ REQUIREMENTS: List[Dict[str, Any]] = [
         (f"{KEYS}::TestPublicApi::test_unknown_and_revoked_keys_get_401", "both")]),
 
     # Due diligence (docs/due-diligence.md)
-    _r("DD-01", "Due diligence information is asked from a supplier only with a stated reason.", ["CSDDD Art. 8(2a)"],
-       [(f"{DD}::test_asking_a_supplier_for_due_diligence_information_needs_a_reason", "both")]),
+    _r("DD-01", "Due diligence information is asked from a supplier only with a stated reason, by a person or an "
+                "AI agent.", ["CSDDD Art. 8(2a)"],
+       [(f"{DD}::test_asking_a_supplier_for_due_diligence_information_needs_a_reason", "both"),
+        (f"{AI}::TestProposals::test_a_due_diligence_questionnaire_without_a_reason_never_reaches_the_queue", "both")]),
     _r("DD-02", "Risks are rated by people with a reason and prioritised by severity, then likelihood; supplier "
                 "answers raise flags and are never scored.", ["LkSG §§ 3(2), 5", "CSDDD Art. 8, 9"],
        [(f"{DD}::TestRiskRegister::test_people_rate_risks_with_a_reason_and_the_register_is_prioritised", "both"),

@@ -127,6 +127,17 @@ const ROUTES: Record<string, string> = {
   'PUT /api/v1/risks/{risk_id}': 'Edited a risk',
   'POST /api/v1/alerts/{alert_id}/acknowledge': 'Acknowledged an alert',
   'POST /api/v1/chat': 'Asked the assistant',
+  'POST /api/v1/signatures': 'Signed a record (password)',
+  'POST /api/v1/signatures/sso/prepare': 'Started signing a record at the identity provider',
+  'POST /api/v1/scenario-studio/run': 'Ran a scenario',
+  'POST /api/v1/scenario-studio/saved': 'Saved a scenario',
+  'DELETE /api/v1/scenario-studio/saved/{scenario_id}': 'Deleted a saved scenario',
+  'POST /api/v1/due-diligence/risks': 'Recorded a due diligence risk',
+  'PATCH /api/v1/due-diligence/risks/{risk_id}': 'Changed a due diligence risk',
+  'POST /api/v1/due-diligence/measures': 'Added a due diligence measure',
+  'PATCH /api/v1/due-diligence/measures/{measure_id}': 'Changed a due diligence measure',
+  'POST /api/v1/due-diligence/reviews': "Reviewed a supplier's risk analysis",
+  'PUT /api/v1/due-diligence/settings': 'Changed the due diligence review interval',
 };
 
 const VERBS: Record<string, string> = { POST: 'Created or ran', PUT: 'Updated', PATCH: 'Updated', DELETE: 'Deleted' };
