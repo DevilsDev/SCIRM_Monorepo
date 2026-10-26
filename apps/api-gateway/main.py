@@ -40,7 +40,7 @@ from libs.common.store_watchlist import DuplicateTerm
 from libs.common import actions, mcp_tools, warroom
 from libs.scenarios import engine as scenario_engine
 from libs.due_diligence import catalog as dd
-from libs.intel import matching, sources as sources_registry, watchlist
+from libs.intel import matching, sources as sources_registry, water, watchlist
 from libs.integrations import reports, webhooks
 
 # MFA seeds are encrypted at rest; outside development the key must be configured.
@@ -2455,6 +2455,60 @@ async def export_due_diligence(year: int, format: str = "json", token: str = Dep
     }
     return Response(json.dumps(body, indent=2, default=str), media_type="application/json", headers={
         "Content-Disposition": f'attachment; filename="scirm-due-diligence-{year}.json"'})
+
+
+# --- water risk by site (WRI Aqueduct 4.0) -------------------------------------
+# The coordinator looks each site up offline from its coordinates; nothing is stored and no coordinates
+# leave SCIRM. WRI's indicators are shown one by one, never combined into a score.
+
+@app.get("/api/v1/water-risk/catalog")
+async def water_risk_catalog(token: str = Depends(security)):
+    await verify_token(token.credentials)
+    return water.catalog()
+
+
+@app.get("/api/v1/water-risk/suppliers/{supplier_id}")
+async def water_risk_supplier(supplier_id: str, token: str = Depends(security)):
+    user = await verify_token(token.credentials)
+    return await _coordinator_get(user, f"/suppliers/{quote(supplier_id, safe='')}/water-risk", {},
+                                  "Water risk unavailable")
+
+
+@app.get("/api/v1/water-risk")
+async def water_risk_overview(format: str = "json", token: str = Depends(security)):
+    """Every site of every active supplier with WRI's indicators, plus the suppliers that
+    have no located site (they are unknown here, not low risk). JSON, or CSV."""
+    import csv
+    import io
+    from fastapi.responses import Response
+    user = await verify_token(token.credentials)
+    if format not in ("json", "csv"):
+        raise HTTPException(status_code=400, detail="Give json or csv")
+    body = await _coordinator_get(user, "/water-risk", {}, "Water risk unavailable")
+    if format == "json":
+        return body
+    org, rows = user.organization_id, body["sites"]
+    await _audit_event(org, user.id, user.email, "water_risk.exported", details={"sites": len(rows)},
+                       resource_type="water_risk")
+    out = io.StringIO()
+    writer = csv.writer(out)
+    future = [(s, y) for s in water.SCENARIOS for y in water.YEARS]
+    writer.writerow(["supplier", "site", "city", "country", "site_precision", "lookup", "distance_km", "near_boundary",
+                     "aqueduct_province", "aqueduct_basin_pfaf_id"]
+                    + [f"{k}_{t}" for k in water.INDICATORS for t in ("label", "raw")]
+                    + [f"water_stress_{s}_20{y}" for s, y in future] + ["source"])
+    for r in rows:
+        values = {i["key"]: i for i in r["indicators"]}
+        fut = {(f["scenario"], f["year"][2:]): f["label"] for f in r["future_water_stress"]}
+        row = [r["supplier"], r["label"], r["city"], r["country"], r["precision"], r["status"], r["distance_km"],
+               r["near_boundary"], r["province"], r["basin"]]
+        row += [v for k in water.INDICATORS for v in (values[k]["label"], values[k]["raw"])]
+        row += [fut[key] for key in future]
+        row += [f"{water.SOURCE['name']} ({water.SOURCE['licence']}), {water.SOURCE['url']}"]
+        writer.writerow(["'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else
+                         ("" if v is None else v) for v in row])
+    return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="scirm-water-risk.csv"'})
 
 
 async def _portal_caller(request: Request) -> Tuple[str, str, str]:

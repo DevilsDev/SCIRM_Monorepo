@@ -33,7 +33,7 @@ from libs.common.security import public_url, setup_cors
 from libs.common.store import create_store
 from libs.common.tenancy import internal_headers, tenant_org
 from libs.integrations import reports, sap_import, sap_odata, sap_spend, webhooks
-from libs.intel import geo
+from libs.intel import geo, water
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -935,6 +935,31 @@ async def _match_signals(org_id: str, suppliers: List[Dict[str, Any]], **options
 def _split(matches: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     return {"incidents": [m for m in matches if m["kind"] == "incident"],
             "exposures": [m for m in matches if m["kind"] == "exposure"]}
+
+
+@app.get("/suppliers/{supplier_id}/water-risk")
+async def supplier_water_risk(supplier_id: str, org_id: str = Depends(tenant_org)):
+    """WRI Aqueduct indicators for each of the supplier's sites (libs/intel/water.py)."""
+    supplier = await _get_org_supplier(org_id, supplier_id)
+    return {"supplier_id": str(supplier["id"]), "name": supplier.get("name"),
+            "sites": water.supplier_water_risk(supplier), "source": water.SOURCE}
+
+
+@app.get("/water-risk")
+async def water_risk_overview(org_id: str = Depends(tenant_org)):
+    """Every located site of every active supplier, and the suppliers without one: their
+    water risk is unknown here, not low."""
+    suppliers, _ = await store.list_suppliers(org_id, limit=None)
+    rows, unlocated = [], []
+    for s in suppliers:
+        if not s.get("is_active", True):
+            continue
+        sites = [site for site in water.supplier_water_risk(s) if site["status"] in ("inside", "nearest")]
+        rows += [{"supplier_id": str(s["id"]), "supplier": s.get("name"), **site} for site in sites]
+        if not sites:
+            unlocated.append({"supplier_id": str(s["id"]), "name": s.get("name"), "country_code": s.get("country_code"),
+                              "sites": len([x for x in s.get("sites") or [] if isinstance(x, dict)])})
+    return {"sites": rows, "suppliers_without_located_site": unlocated, "source": water.SOURCE}
 
 
 @app.get("/suppliers/{supplier_id}/signals")

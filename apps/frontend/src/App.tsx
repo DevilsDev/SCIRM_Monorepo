@@ -37,6 +37,7 @@ import WarRoomPage from './pages/WarRoomPage';
 import AiControlPage from './pages/AiControlPage';
 import ScenarioStudioPage from './pages/ScenarioStudioPage';
 import DueDiligencePage from './pages/DueDiligencePage';
+import WaterRiskPage from './pages/WaterRiskPage';
 
 export default function App() {
   return (
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/ai-control" element={<AiControlPage />} />
             <Route path="/scenario-studio" element={<ScenarioStudioPage />} />
             <Route path="/due-diligence" element={<DueDiligencePage />} />
+            <Route path="/water-risk" element={<WaterRiskPage />} />
             <Route path="/simulator" element={<SampleRoute><SimulatorPage /></SampleRoute>} />
             <Route path="/procurement" element={<SampleRoute><ProcurementPage /></SampleRoute>} />
             <Route path="/components" element={<SampleRoute><ComponentsPage /></SampleRoute>} />

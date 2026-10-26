@@ -496,6 +496,37 @@ export interface DdReview {
   state: 'not_analysed' | 'current' | 'suggested' | 'due';
   last_review: string | null; next_review: string | null; reasons: string[];
 }
+// Water risk by site (WRI Aqueduct 4.0). Categories are WRI's: 0 low to 4 extremely high,
+// -1 a special class (such as "Arid and Low Water Use"), -9999 no data.
+export interface WaterIndicator {
+  key: string; name: string; group: 'quantity' | 'quality' | 'regulatory';
+  category: number | null; label: string; raw: number | null;
+}
+export interface WaterFuture {
+  scenario: 'opt' | 'bau' | 'pes'; scenario_label: string; year: string; period: string;
+  category: number | null; label: string;
+}
+export interface WaterSite {
+  id?: string; label?: string; city?: string | null; country?: string; precision?: string; source?: string;
+  status: 'inside' | 'nearest' | 'outside' | 'not_located';
+  distance_km?: number | null; near_boundary?: boolean; lat?: number; lon?: number;
+  aq30_id?: number; basin?: string; unit_country?: string; province?: string;
+  indicators?: WaterIndicator[]; future_water_stress?: WaterFuture[];
+  supplier_id?: string; supplier?: string;
+}
+export interface WaterSource {
+  name: string; url: string; licence: string; licence_url: string; citation: string; baseline: string; modified: string;
+}
+export interface WaterCatalog {
+  source: WaterSource; groups: Record<string, string>; scenarios: Record<string, string>; years: Record<string, string>;
+  indicators: Array<{ key: string; name: string; group: string; updated: boolean; about: string }>; nearest_km: number;
+}
+export interface WaterOverview {
+  sites: WaterSite[];
+  suppliers_without_located_site: Array<{ supplier_id: string; name: string; country_code: string | null; sites: number }>;
+  source: WaterSource;
+}
+
 export interface DdOverviewRow {
   supplier_id: string; name: string; country_code: string | null; site_countries: string[];
   spend_12m: Record<string, string | number> | null; spend_main_currency: string | null; spend_rank: number | null;
@@ -1053,6 +1084,23 @@ export const api = {
 
   async ddExport(year: number, format: 'json' | 'csv'): Promise<Blob> {
     return (await apiClient.get('/api/v1/due-diligence/export', { params: { year, format }, responseType: 'blob' })).data;
+  },
+
+  // Water risk
+  async waterCatalog(): Promise<WaterCatalog> {
+    return (await apiClient.get('/api/v1/water-risk/catalog')).data;
+  },
+
+  async waterOverview(): Promise<WaterOverview> {
+    return (await apiClient.get('/api/v1/water-risk')).data;
+  },
+
+  async waterSupplier(id: string): Promise<{ supplier_id: string; name: string; sites: WaterSite[]; source: WaterSource }> {
+    return (await apiClient.get(`/api/v1/water-risk/suppliers/${encodeURIComponent(id)}`)).data;
+  },
+
+  async waterExport(): Promise<Blob> {
+    return (await apiClient.get('/api/v1/water-risk', { params: { format: 'csv' }, responseType: 'blob' })).data;
   },
 
   // Regulatory watch

@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import SupplierSignals from '../components/SupplierSignals';
 import SupplierAsk from '../components/SupplierAsk';
 import SupplierSites from '../components/SupplierSites';
+import SupplierWaterRisk from '../components/SupplierWaterRisk';
 import SeverityBadge from '../components/SeverityBadge';
 import { useFeatures } from '../services/features';
 import { spendParts } from '../components/SapSpendImport';
@@ -356,6 +357,8 @@ export default function SuppliersPage() {
               setSuppliers((list) => list.map((x) => (x.id === updated.id ? updated : x)));
               setSignalsVersion((v) => v + 1);
             }} />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mt-6 mb-2">{t('water.title', 'Water risk')}</h2>
+            <SupplierWaterRisk key={`water-${selectedSupplier.id}-${signalsVersion}`} supplierId={selectedSupplier.id} />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white mt-6 mb-2">{t('signals.title', 'Public records')}</h2>
             <SupplierSignals key={`${selectedSupplier.id}-${signalsVersion}`} supplierId={selectedSupplier.id} />
           </div>
