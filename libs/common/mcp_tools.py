@@ -141,7 +141,8 @@ def build_server(handlers: Dict[str, Handler]) -> MCPServer:
         """Propose a change. `action` is one of: incident.open (params: title, summary?, severity?, signal_id?,
         supplier_ids?), incident.note (params: incident_id, text), watchlist.add (params: term, kind?, note?),
         assessment.send (params: supplier_id, template_id, recipient_email, ...; request_reason, required for
-        builtin:due_diligence, says why the information is needed). `reason` says why, for the person who decides. Depending on the organization's policy it is refused, queued for approval, or done directly;
+        builtin:due_diligence, says why the information is needed). `reason` says why, for the person who
+        decides. Depending on the organization's policy it is refused, queued for approval, or done directly;
         the result says which."""
         return await run(ctx, "propose_action", {"action": action, "params": params},
                          lambda agent: handlers["propose"](agent, action, params, reason))
